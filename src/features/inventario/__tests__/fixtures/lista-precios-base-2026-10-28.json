@@ -1,0 +1,722 @@
+{
+ "E1-PB-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 2.1,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2230.0,
+  "precioVenta": 161831.0,
+  "reserva": 9710.0,
+  "cuota": 755.0,
+  "contraEntrega": 129465.0
+ },
+ "E1-PB-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 45.24,
+  "usdM2Mostrado": 2230.0,
+  "precioVenta": 172147.0,
+  "reserva": 10329.0,
+  "cuota": 803.0,
+  "contraEntrega": 137718.0
+ },
+ "E1-PB-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 0.0,
+  "patioM2": 38.35,
+  "usdM2Mostrado": 2230.0,
+  "precioVenta": 128550.0,
+  "reserva": 7713.0,
+  "cuota": 600.0,
+  "contraEntrega": 102840.0
+ },
+ "E1-PB-A4": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 45.24,
+  "usdM2Mostrado": 2230.0,
+  "precioVenta": 171188.0,
+  "reserva": 10271.0,
+  "cuota": 799.0,
+  "contraEntrega": 136951.0
+ },
+ "E1-PB-A5": {
+  "areaM2": 70.47,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2230.0,
+  "precioVenta": 160493.0,
+  "reserva": 9630.0,
+  "cuota": 749.0,
+  "contraEntrega": 128394.0
+ },
+ "E1-P1-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 163737.0,
+  "reserva": 9824.0,
+  "cuota": 764.0,
+  "contraEntrega": 130990.0
+ },
+ "E1-P1-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 163918.0,
+  "reserva": 9835.0,
+  "cuota": 765.0,
+  "contraEntrega": 131134.0
+ },
+ "E1-P1-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 0.0,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 121339.0,
+  "reserva": 7280.0,
+  "cuota": 566.0,
+  "contraEntrega": 97071.0
+ },
+ "E1-P1-A4": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 162946.0,
+  "reserva": 9777.0,
+  "cuota": 760.0,
+  "contraEntrega": 130357.0
+ },
+ "E1-P1-A5": {
+  "areaM2": 77.89,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 179421.0,
+  "reserva": 10765.0,
+  "cuota": 837.0,
+  "contraEntrega": 143537.0
+ },
+ "E1-P2-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 163737.0,
+  "reserva": 9824.0,
+  "cuota": 764.0,
+  "contraEntrega": 130990.0
+ },
+ "E1-P2-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 163918.0,
+  "reserva": 9835.0,
+  "cuota": 765.0,
+  "contraEntrega": 131134.0
+ },
+ "E1-P2-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 0.0,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 121339.0,
+  "reserva": 7280.0,
+  "cuota": 566.0,
+  "contraEntrega": 97071.0
+ },
+ "E1-P2-A4": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 162946.0,
+  "reserva": 9777.0,
+  "cuota": 760.0,
+  "contraEntrega": 130357.0
+ },
+ "E1-P2-A5": {
+  "areaM2": 77.89,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 179421.0,
+  "reserva": 10765.0,
+  "cuota": 837.0,
+  "contraEntrega": 143537.0
+ },
+ "E1-P3-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 163737.0,
+  "reserva": 9824.0,
+  "cuota": 764.0,
+  "contraEntrega": 130990.0
+ },
+ "E1-P3-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 163918.0,
+  "reserva": 9835.0,
+  "cuota": 765.0,
+  "contraEntrega": 131134.0
+ },
+ "E1-P3-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 0.0,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 121339.0,
+  "reserva": 7280.0,
+  "cuota": 566.0,
+  "contraEntrega": 97071.0
+ },
+ "E1-P3-A4": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 162946.0,
+  "reserva": 9777.0,
+  "cuota": 760.0,
+  "contraEntrega": 130357.0
+ },
+ "E1-P3-A5": {
+  "areaM2": 77.89,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2260.0,
+  "precioVenta": 179421.0,
+  "reserva": 10765.0,
+  "cuota": 837.0,
+  "contraEntrega": 143537.0
+ },
+ "E1-P4-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2270.0,
+  "precioVenta": 164462.0,
+  "reserva": 9868.0,
+  "cuota": 767.0,
+  "contraEntrega": 131570.0
+ },
+ "E1-P4-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2270.0,
+  "precioVenta": 164643.0,
+  "reserva": 9879.0,
+  "cuota": 768.0,
+  "contraEntrega": 131714.0
+ },
+ "E1-P4-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 0.0,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2220.0,
+  "precioVenta": 119192.0,
+  "reserva": 7152.0,
+  "cuota": 556.0,
+  "contraEntrega": 95354.0
+ },
+ "E1-P4-A4": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2270.0,
+  "precioVenta": 163667.0,
+  "reserva": 9820.0,
+  "cuota": 764.0,
+  "contraEntrega": 130934.0
+ },
+ "E1-P4-A5": {
+  "areaM2": 77.89,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2270.0,
+  "precioVenta": 180215.0,
+  "reserva": 10813.0,
+  "cuota": 841.0,
+  "contraEntrega": 144172.0
+ },
+ "E1-P5-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2270.0,
+  "precioVenta": 164462.0,
+  "reserva": 9868.0,
+  "cuota": 767.0,
+  "contraEntrega": 131570.0
+ },
+ "E1-P5-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2270.0,
+  "precioVenta": 164643.0,
+  "reserva": 9879.0,
+  "cuota": 768.0,
+  "contraEntrega": 131714.0
+ },
+ "E1-P5-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 0.0,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2220.0,
+  "precioVenta": 119192.0,
+  "reserva": 7152.0,
+  "cuota": 556.0,
+  "contraEntrega": 95354.0
+ },
+ "E1-P5-A4": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2270.0,
+  "precioVenta": 163667.0,
+  "reserva": 9820.0,
+  "cuota": 764.0,
+  "contraEntrega": 130934.0
+ },
+ "E1-P5-A5": {
+  "areaM2": 77.89,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2270.0,
+  "precioVenta": 180215.0,
+  "reserva": 10813.0,
+  "cuota": 841.0,
+  "contraEntrega": 144172.0
+ },
+ "E2-PB-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 2.1,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2330.0,
+  "precioVenta": 169113.0,
+  "reserva": 10147.0,
+  "cuota": 564.0,
+  "contraEntrega": 135290.0
+ },
+ "E2-PB-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 45.24,
+  "usdM2Mostrado": 2330.0,
+  "precioVenta": 179425.0,
+  "reserva": 10766.0,
+  "cuota": 598.0,
+  "contraEntrega": 143540.0
+ },
+ "E2-PB-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.07,
+  "patioM2": 38.41,
+  "usdM2Mostrado": 2330.0,
+  "precioVenta": 136444.0,
+  "reserva": 8187.0,
+  "cuota": 455.0,
+  "contraEntrega": 109155.0
+ },
+ "E2-PB-A4": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.01,
+  "patioM2": 38.41,
+  "usdM2Mostrado": 2330.0,
+  "precioVenta": 136304.0,
+  "reserva": 8178.0,
+  "cuota": 454.0,
+  "contraEntrega": 109043.0
+ },
+ "E2-PB-A5": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 45.24,
+  "usdM2Mostrado": 2330.0,
+  "precioVenta": 178423.0,
+  "reserva": 10705.0,
+  "cuota": 595.0,
+  "contraEntrega": 142739.0
+ },
+ "E2-PB-A6": {
+  "areaM2": 70.17,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2330.0,
+  "precioVenta": 167016.0,
+  "reserva": 10021.0,
+  "cuota": 557.0,
+  "contraEntrega": 133613.0
+ },
+ "E2-PB-A7": {
+  "areaM2": 54.16,
+  "bodegaM2": 1.15,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2330.0,
+  "precioVenta": 128892.0,
+  "reserva": 7734.0,
+  "cuota": 430.0,
+  "contraEntrega": 103114.0
+ },
+ "E2-P1-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 2.1,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 171389.0,
+  "reserva": 10283.0,
+  "cuota": 571.0,
+  "contraEntrega": 137111.0
+ },
+ "E2-P1-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 171294.0,
+  "reserva": 10278.0,
+  "cuota": 571.0,
+  "contraEntrega": 137035.0
+ },
+ "E2-P1-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.07,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 129327.0,
+  "reserva": 7760.0,
+  "cuota": 431.0,
+  "contraEntrega": 103462.0
+ },
+ "E2-P1-A4": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.01,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 129185.0,
+  "reserva": 7751.0,
+  "cuota": 431.0,
+  "contraEntrega": 103348.0
+ },
+ "E2-P1-A5": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 170279.0,
+  "reserva": 10217.0,
+  "cuota": 568.0,
+  "contraEntrega": 136223.0
+ },
+ "E2-P1-A6": {
+  "areaM2": 70.17,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 169263.0,
+  "reserva": 10156.0,
+  "cuota": 564.0,
+  "contraEntrega": 135410.0
+ },
+ "E2-P1-A7": {
+  "areaM2": 54.16,
+  "bodegaM2": 1.15,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 130626.0,
+  "reserva": 7838.0,
+  "cuota": 435.0,
+  "contraEntrega": 104501.0
+ },
+ "E2-P2-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 2.1,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 171389.0,
+  "reserva": 10283.0,
+  "cuota": 571.0,
+  "contraEntrega": 137111.0
+ },
+ "E2-P2-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 171294.0,
+  "reserva": 10278.0,
+  "cuota": 571.0,
+  "contraEntrega": 137035.0
+ },
+ "E2-P2-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.07,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 129327.0,
+  "reserva": 7760.0,
+  "cuota": 431.0,
+  "contraEntrega": 103462.0
+ },
+ "E2-P2-A4": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.01,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 129185.0,
+  "reserva": 7751.0,
+  "cuota": 431.0,
+  "contraEntrega": 103348.0
+ },
+ "E2-P2-A5": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 170279.0,
+  "reserva": 10217.0,
+  "cuota": 568.0,
+  "contraEntrega": 136223.0
+ },
+ "E2-P2-A6": {
+  "areaM2": 70.17,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 169263.0,
+  "reserva": 10156.0,
+  "cuota": 564.0,
+  "contraEntrega": 135410.0
+ },
+ "E2-P2-A7": {
+  "areaM2": 54.16,
+  "bodegaM2": 1.15,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 130626.0,
+  "reserva": 7838.0,
+  "cuota": 435.0,
+  "contraEntrega": 104501.0
+ },
+ "E2-P3-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 2.1,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 171389.0,
+  "reserva": 10283.0,
+  "cuota": 571.0,
+  "contraEntrega": 137111.0
+ },
+ "E2-P3-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 171294.0,
+  "reserva": 10278.0,
+  "cuota": 571.0,
+  "contraEntrega": 137035.0
+ },
+ "E2-P3-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.07,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 129327.0,
+  "reserva": 7760.0,
+  "cuota": 431.0,
+  "contraEntrega": 103462.0
+ },
+ "E2-P3-A4": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.01,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 129185.0,
+  "reserva": 7751.0,
+  "cuota": 431.0,
+  "contraEntrega": 103348.0
+ },
+ "E2-P3-A5": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 170279.0,
+  "reserva": 10217.0,
+  "cuota": 568.0,
+  "contraEntrega": 136223.0
+ },
+ "E2-P3-A6": {
+  "areaM2": 70.17,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 169263.0,
+  "reserva": 10156.0,
+  "cuota": 564.0,
+  "contraEntrega": 135410.0
+ },
+ "E2-P3-A7": {
+  "areaM2": 54.16,
+  "bodegaM2": 1.15,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2362.0,
+  "precioVenta": 130626.0,
+  "reserva": 7838.0,
+  "cuota": 435.0,
+  "contraEntrega": 104501.0
+ },
+ "E2-P4-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 2.1,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2372.0,
+  "precioVenta": 172147.0,
+  "reserva": 10329.0,
+  "cuota": 574.0,
+  "contraEntrega": 137718.0
+ },
+ "E2-P4-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2372.0,
+  "precioVenta": 172052.0,
+  "reserva": 10323.0,
+  "cuota": 574.0,
+  "contraEntrega": 137642.0
+ },
+ "E2-P4-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.07,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2320.0,
+  "precioVenta": 127038.0,
+  "reserva": 7622.0,
+  "cuota": 423.0,
+  "contraEntrega": 101630.0
+ },
+ "E2-P4-A4": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.01,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2320.0,
+  "precioVenta": 126899.0,
+  "reserva": 7614.0,
+  "cuota": 423.0,
+  "contraEntrega": 101519.0
+ },
+ "E2-P4-A5": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2372.0,
+  "precioVenta": 171032.0,
+  "reserva": 10262.0,
+  "cuota": 570.0,
+  "contraEntrega": 136826.0
+ },
+ "E2-P4-A6": {
+  "areaM2": 70.17,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2372.0,
+  "precioVenta": 170012.0,
+  "reserva": 10201.0,
+  "cuota": 567.0,
+  "contraEntrega": 136010.0
+ },
+ "E2-P4-A7": {
+  "areaM2": 54.16,
+  "bodegaM2": 1.15,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2320.0,
+  "precioVenta": 128314.0,
+  "reserva": 7699.0,
+  "cuota": 428.0,
+  "contraEntrega": 102651.0
+ },
+ "E2-P5-A1": {
+  "areaM2": 70.47,
+  "bodegaM2": 2.1,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2372.0,
+  "precioVenta": 172147.0,
+  "reserva": 10329.0,
+  "cuota": 574.0,
+  "contraEntrega": 137718.0
+ },
+ "E2-P5-A2": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.98,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2372.0,
+  "precioVenta": 172052.0,
+  "reserva": 10323.0,
+  "cuota": 574.0,
+  "contraEntrega": 137642.0
+ },
+ "E2-P5-A3": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.07,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2320.0,
+  "precioVenta": 127038.0,
+  "reserva": 7622.0,
+  "cuota": 423.0,
+  "contraEntrega": 101630.0
+ },
+ "E2-P5-A4": {
+  "areaM2": 53.69,
+  "bodegaM2": 1.01,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2320.0,
+  "precioVenta": 126899.0,
+  "reserva": 7614.0,
+  "cuota": 423.0,
+  "contraEntrega": 101519.0
+ },
+ "E2-P5-A5": {
+  "areaM2": 70.55,
+  "bodegaM2": 1.55,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2372.0,
+  "precioVenta": 171032.0,
+  "reserva": 10262.0,
+  "cuota": 570.0,
+  "contraEntrega": 136826.0
+ },
+ "E2-P5-A6": {
+  "areaM2": 70.17,
+  "bodegaM2": 1.5,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2372.0,
+  "precioVenta": 170012.0,
+  "reserva": 10201.0,
+  "cuota": 567.0,
+  "contraEntrega": 136010.0
+ },
+ "E2-P5-A7": {
+  "areaM2": 54.16,
+  "bodegaM2": 1.15,
+  "patioM2": 0.0,
+  "usdM2Mostrado": 2320.0,
+  "precioVenta": 128314.0,
+  "reserva": 7699.0,
+  "cuota": 428.0,
+  "contraEntrega": 102651.0
+ }
+}

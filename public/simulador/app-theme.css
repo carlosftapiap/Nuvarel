@@ -1,0 +1,31 @@
+﻿/* Shared visual direction; simulator calculations and data remain independent. */
+@font-face { font-family: Geist; src: url('/fonts/geist-latin.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: Manrope; src: url('/fonts/manrope-latin.woff2') format('woff2'); font-weight: 200 800; font-display: swap; }
+:root, :root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f5f7fb; --surface: #fff; --surface-2: #f0f3f9; --ink: #18243d; --muted: #67758c; --line: #e6ebf3;
+  --accent: #3563f3; --accent-ink: #fff; --accent-soft: #edf2ff; --input: #f8faff; --input-line: #cbd8f7;
+  --good: #098466; --good-bg: #e7f8f2; --bad: #cd4259; --bad-bg: #fff0f2; --even: #67758c; --even-bg: #f0f3f9;
+  --frat: #ddd3fb; --frat-ink: #7950c4;
+  --f-display: Manrope, system-ui, sans-serif; --f-body: Geist, system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) {
+  color-scheme: dark;
+  --bg: #111c32; --surface: #17253d; --surface-2: #1f304d; --ink: #e5edff; --muted: #a2b2ce; --line: #2b3e5c;
+  --accent: #93b0ff; --accent-ink: #111c32; --accent-soft: #233b68; --input: #1b2f50; --input-line: #415b87;
+  --good: #6edbc1; --good-bg: #173d37; --bad: #ff9caf; --bad-bg: #462539; --even: #a2b2ce; --even-bg: #1f304d;
+  --frat: #403265; --frat-ink: #c4adff;
+} }
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #111c32; --surface: #17253d; --surface-2: #1f304d; --ink: #e5edff; --muted: #a2b2ce; --line: #2b3e5c;
+  --accent: #93b0ff; --accent-ink: #111c32; --accent-soft: #233b68; --input: #1b2f50; --input-line: #415b87;
+  --good: #6edbc1; --good-bg: #173d37; --bad: #ff9caf; --bad-bg: #462539; --even: #a2b2ce; --even-bg: #1f304d;
+  --frat: #403265; --frat-ink: #c4adff;
+}
+body { margin: 0; font-size: 13px; }
+h1 { font-weight: 800; font-size: 24px; letter-spacing: -.04em; }
+h2 { font-weight: 750; letter-spacing: -.025em; }
+.panel, .card, .kpi { border-radius: 12px; box-shadow: 0 3px 8px #18243d03; }
+input[type=number], select { transition: border-color .15s, box-shadow .15s; }
+input[type=number]:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }

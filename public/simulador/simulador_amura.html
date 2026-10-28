@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>Simulador de Precios AMURA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: panel de control fijo a la izquierda, resultados y lista a la derecha; una columna en telefono */
+:root{
+  --bg:#f3f6f6; --surface:#ffffff; --surface-2:#e9f0f0; --ink:#13262a; --muted:#5b6f73; --line:#d3dfe0;
+  --accent:#0d6c72; --accent-ink:#ffffff; --accent-soft:#d6ecec; --input:#fff7dc; --input-line:#e5c96a;
+  --good:#1d7a45; --good-bg:#dcf1e3; --bad:#b0412a; --bad-bg:#f8e0d8; --even:#5b6f73; --even-bg:#e8eded; --frat:#8ccbe8; --frat-ink:#1f6f96;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --f-num:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1719; --surface:#152226; --surface-2:#1b2c31; --ink:#e3eeee; --muted:#93a8ab; --line:#2a3e43;
+  --accent:#4fb8bd; --accent-ink:#06191b; --accent-soft:#1d3b3f; --input:#2d2a17; --input-line:#7c6a2a;
+  --good:#6fcf95; --good-bg:#183526; --bad:#f08a70; --bad-bg:#3d2019; --even:#a9bbbd; --even-bg:#223236; --frat:#2f6f8d; --frat-ink:#8fd3f0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1719; --surface:#152226; --surface-2:#1b2c31; --ink:#e3eeee; --muted:#93a8ab; --line:#2a3e43;
+  --accent:#4fb8bd; --accent-ink:#06191b; --accent-soft:#1d3b3f; --input:#2d2a17; --input-line:#7c6a2a;
+  --good:#6fcf95; --good-bg:#183526; --bad:#f08a70; --bad-bg:#3d2019; --even:#a9bbbd; --even-bg:#223236; --frat:#2f6f8d; --frat-ink:#8fd3f0; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h1{font-size:26px;letter-spacing:-.01em}
+h2{font-size:17px;margin-bottom:10px}
+.num,td.n,.kpi b{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:18px;max-width:1500px;margin-inline:auto}
+.top p{margin:4px 0 0;color:var(--muted)}
+.wrap{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;max-width:1500px;margin:0 auto;align-items:start}
+@media (max-width:900px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+@media (max-width:900px){.panel{position:static;max-height:none}}
+.panel section{display:grid;gap:10px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.panel section:last-child{border-bottom:0;margin-bottom:0}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.field{display:grid;grid-template-columns:1fr 120px;gap:8px;align-items:center}
+.field label{font-size:13px}
+input[type=number],select{font:inherit;font-family:var(--f-num);font-size:13px;width:100%;padding:6px 8px;border-radius:6px;
+  border:1px solid var(--input-line);background:var(--input);color:var(--ink)}
+select{font-family:var(--f-body)}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;padding:8px 6px;border:0;background:var(--surface-2);color:var(--ink);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.seg3{grid-template-columns:1fr 1fr 1fr}
+.off{opacity:.45}
+.refbox{background:var(--accent-soft);border-radius:8px;padding:10px 12px}
+.refbox b{font-family:var(--f-num);font-size:20px}
+.note{font-size:12px;color:var(--muted)}
+.warn{font-size:12px;color:var(--bad);font-weight:600}
+.okmsg{font-size:12px;color:var(--good);font-weight:600}
+.main{display:grid;gap:18px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:2px}
+.kpi span{font-size:12px;color:var(--muted)}
+.kpi b{font-size:19px}
+.kpi.main-k{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.kpi.main-k span{color:var(--accent-ink);opacity:.85}
+.kpi small{font-family:var(--f-num);font-size:12px}
+.up{color:var(--bad)} .dn{color:var(--good)}
+.kpi.main-k .up,.kpi.main-k .dn{color:var(--accent-ink)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:right;font-weight:600;padding:6px 8px;border-bottom:2px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+td.n{font-size:12.5px}
+tr.act td{background:var(--accent-soft);font-weight:600}
+tr.tot td{font-weight:700;border-top:2px solid var(--line)}
+tr.floor td{border-top:2px solid var(--accent)}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600}
+.pill.s{background:var(--bad-bg);color:var(--bad)} .pill.b{background:var(--good-bg);color:var(--good)} .pill.e{background:var(--even-bg);color:var(--even)}
+.code{font-family:var(--f-num);font-weight:600;color:var(--accent)}
+td input[type=number]{width:58px;padding:3px 6px;font-size:12px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.tabs button.t{font:inherit;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
+.tabs button.t[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.btn{font:inherit;font-weight:600;padding:9px 16px;border-radius:8px;border:0;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.spacer{flex:1}
+.bars{display:grid;gap:8px}
+.bar{display:grid;grid-template-columns:86px 1fr 74px;gap:8px;align-items:center;font-size:12px}
+.bar .tr{position:relative;height:22px;background:var(--surface-2);border-radius:4px}
+.bar .a,.bar .f{position:absolute;left:0;height:9px;border-radius:3px}
+.bar .a{top:2px;background:var(--accent)} .bar .f{bottom:2px;background:var(--muted)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.toast{font-size:12.5px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.flash{animation:fl .5s ease}@keyframes fl{from{background:var(--accent-soft)}to{background:transparent}}}
+</style>
+<link rel="stylesheet" href="/simulador/app-theme.css">
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <h1>Simulador de precios AMURA</h1>
+    <p>Inmobiliaria Jarval - Urb. Ciudad Celeste, Lote E1 - 72 departamentos con bodega - competencia: FRATELLI (Isla Celeste), lista recibida el 26-oct-2026</p>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn ghost" id="reset" type="button">Restablecer valores</button>
+    <button class="btn" id="export" type="button">Exportar lista a Excel</button>
+  </div>
+</div>
+<div class="top" style="margin-top:-10px;margin-bottom:12px"><span class="toast" id="toast" role="status"></span></div>
+
+<div class="wrap">
+  <aside class="panel" aria-label="Panel de control">
+    <section>
+      <div class="lbl">Edificio 2 - incremento por tiempo</div>
+      <div class="field"><label for="inc2">Incremento sobre precios m2 del Edificio 1 (%)</label><input type="number" id="inc2" step="0.1"></div>
+      <div class="tw"><table id="tinc"></table></div>
+      <div class="note">El Edificio 2 toma el mismo precio por m2 del Edificio 1 en cada piso y tipologia, mas este incremento. Un valor escrito en la columna "USD/m2 fijo" de un departamento tiene prioridad.</div>
+    </section>
+    <section>
+      <div class="lbl">1 - Precio base AMURA (deptos sin precio fijo)</div>
+      <div class="field"><label for="base">Precio por m2 (area + bodega) USD</label><input type="number" id="base" step="10"></div>
+      <div class="refbox"><div class="lbl">Precio por m2 del escenario activo</div><b id="ref"></b><div id="ctl" class="okmsg"></div></div>
+      <div class="note">El precio por m2 se cobra sobre el area del departamento mas la bodega. El patio se cobra aparte con su propio valor por m2.</div>
+    </section>
+    <section>
+      <div class="lbl">2 - Escenario activo</div>
+      <div class="seg seg3" role="group" aria-label="Escenario">
+        <button type="button" data-e="0" aria-pressed="false">Conservador</button>
+        <button type="button" data-e="1" aria-pressed="true">Base</button>
+        <button type="button" data-e="2" aria-pressed="false">Optimista</button>
+      </div>
+      <div class="field"><label for="e0">Conservador (% sobre base)</label><input type="number" id="e0" step="0.5"></div>
+      <div class="field"><label for="e1">Base (% sobre base)</label><input type="number" id="e1" step="0.5"></div>
+      <div class="field"><label for="e2">Optimista (% sobre base)</label><input type="number" id="e2" step="0.5"></div>
+    </section>
+    <section>
+      <div class="lbl">3 - Patio y redondeo</div>
+      <div class="field"><label for="patio">Valor del m2 de patio (USD)</label><input type="number" id="patio" step="10"></div>
+      <div class="field"><label for="rnd">Redondeo precio automatico (USD)</label><input type="number" id="rnd" step="100"></div>
+      <div class="note">Patios interiores de planta baja segun planos: E1 DPT 1002 y 1004 = 45,24 m2, 1003 = 38,35 m2; E2 DPT 2002 y 2005 = 45,24 m2, 2003 y 2004 = 38,41 m2. Se pueden cambiar en la lista (columna amarilla).</div>
+    </section>
+    <section>
+      <div class="lbl">4 - Factores entre departamentos</div>
+      <div class="field"><label for="step">Aumento por piso (%)</label><input type="number" id="step" step="0.1"></div>
+      <div class="field"><label for="eq">Piso de equilibrio</label><input type="number" id="eq" step="0.5"></div>
+      <div class="field"><label for="t1">Ajuste 1 hab (%)</label><input type="number" id="t1" step="0.5"></div>
+      <div class="field"><label for="t2">Ajuste 2 hab (%)</label><input type="number" id="t2" step="0.5"></div>
+      <div class="field"><label for="t3">Ajuste 2 hab + estudio (%)</label><input type="number" id="t3" step="0.5"></div>
+      <div class="note">Los factores reparten el precio entre pisos y tipologias; el promedio del proyecto se mantiene en el precio base.</div>
+    </section>
+    <section>
+      <div class="lbl">5 - Precio por m2 fijo por piso (opcional)</div>
+      <div class="note">Todos los departamentos de ese piso (Edificio 1 y 2) se venden a ese precio por m2, sin factores ni escenario. Vacio = automatico.</div>
+      <div class="field"><label for="fxPB">Planta Baja</label><input type="number" id="fxPB" step="1" placeholder="automatico"></div>
+      <div class="field"><label for="fx1">Piso 1</label><input type="number" id="fx1" step="1" placeholder="automatico"></div>
+      <div class="field"><label for="fx2">Piso 2</label><input type="number" id="fx2" step="1" placeholder="automatico"></div>
+      <div class="field"><label for="fx3">Piso 3</label><input type="number" id="fx3" step="1" placeholder="automatico"></div>
+      <div class="field"><label for="fx4">Piso 4</label><input type="number" id="fx4" step="1" placeholder="automatico"></div>
+      <div class="field"><label for="fx5">Piso 5</label><input type="number" id="fx5" step="1" placeholder="automatico"></div>
+    </section>
+    <section>
+      <div class="lbl">6 - Forma de pago</div>
+      <div class="field"><label for="res">Reserva (%)</label><input type="number" id="res" step="0.5"></div>
+      <div class="field"><label for="cuo">Cuotas (%)</label><input type="number" id="cuo" step="0.5"></div>
+      <div class="field"><label for="m1">Meses Edificio 1</label><input type="number" id="m1" step="1"></div>
+      <div class="field"><label for="m2">Meses Edificio 2</label><input type="number" id="m2" step="1"></div>
+      <div class="note">Contra entrega (credito hipotecario): <b class="num" id="ce"></b></div>
+    </section>
+  </aside>
+
+  <div class="main">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Los tres escenarios sobre todo el inventario</h2>
+        <div class="tw"><table id="tesc"></table></div>
+        <p class="note">Los porcentajes se aplican sobre el precio base por m2. La "lista base" es el precio base sin escenario. Los departamentos con precio fijo no cambian entre escenarios.</p>
+      </div>
+      <div class="card">
+        <h2>Precio por m2 por piso: AMURA vs. rango FRATELLI</h2>
+        <div class="legend"><span><i style="background:var(--accent)"></i>AMURA (precio por m2 promedio del piso en cada edificio)</span><span><i style="background:var(--frat)"></i>FRATELLI: del minimo al maximo del mismo piso</span></div>
+        <div class="bars" id="bars"></div>
+        <p class="note">Precio por m2 = precio / (area + bodega), sin patio, para AMURA y para FRATELLI. FRATELLI llega hasta el piso 3: los pisos 4 y 5 de AMURA se comparan con su piso 3. Sus maximos de planta baja incluyen patios en el precio.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Resumen por edificio y tipologia</h2>
+      <div class="tw"><table id="tsum"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button type="button" class="t" data-b="1" aria-pressed="true">Edificio 1 - 30 deptos</button>
+        <button type="button" class="t" data-b="2" aria-pressed="false">Edificio 2 - 42 deptos</button>
+        <span class="spacer"></span>
+        <span class="note">Codigo E1-PB-A1 = DPT 1001. Ubicacion segun planos A-3 (vista de planta, norte arriba)</span>
+      </div>
+      <div class="tw"><table id="tlist"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>Competencia: FRATELLI - lista de precios completa</h2>
+      <div class="tabs" id="ftabs">
+        <button type="button" class="t" data-t="" aria-pressed="true">Todas - 60</button>
+        <button type="button" class="t" data-t="A" aria-pressed="false">Torre A</button>
+        <button type="button" class="t" data-t="B" aria-pressed="false">Torre B</button>
+        <button type="button" class="t" data-t="C" aria-pressed="false">Torre C</button>
+      </div>
+      <div class="tw"><table id="tcomp"></table></div>
+      <p class="note">Tal como viene en su archivo INVENTARIOS_-_LISTA_DE_PRECIOS_INCIIAL.xlsx (sin fecha; recibido el 26-oct-2026). "Precio / m2 (Total)" es su calculo: precio total / area total (departamento + bodega + patio). La columna "Precio por m2 (dpto + bodega)" es la que usa el simulador: precio total / (departamento + bodega), igual que en AMURA. En el depto 3-1 su archivo trae un precio base de USD 191.860, distinto de los USD 191.800 de las otras unidades de la planta baja de la Torre C; parece un error de digitacion de su lista.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const FRFULL = [["Torre A - 1-1 - Modelo C","1-1","A","PB","C","1-1",79,1.44,0,80.44,0.0167,175800,2139.7493784186972,172121.44,"En negociacion","","",30,"04/03/2029","PB sin patio*"],["Torre A - 1-2 - Modelo C","1-2","A","PB","C","1-2",79,1.44,0,80.44,0.0167,175800,2139.7493784186972,172121.44,"En negociacion","","",30,"04/03/2029","PB sin patio*"],["Torre A - 1-3 - Modelo A","1-3","A","PB","A","1-3",79,1.5,73.86,154.36,0.0167,175800,2350.534625,188042.77,"En negociacion","","",30,"04/03/2029","Patio privado"],["Torre A - 1-4 - Modelo B","1-4","A","PB","B","1-4",79,1.45,53.75,134.2,0.0167,175800,2224.09925,177927.94,"En negociacion","","",30,"04/03/2029","Patio privado"],["Torre A - 1-5 - Modelo A","1-5","A","PB","A","1-5",79,1.5,100.36,180.86,0.0167,175800,2433.347125,194667.77,"Disponible","","",30,"04/03/2029","Patio privado"],["Torre A - 1-6 - Modelo C","1-6","A","1","C","1-6",79,1.44,0,80.44,0.0167,170800,2172.334410740925,174742.58,"En negociacion","","",30,"04/03/2029","Balcon"],["Torre A - 1-7 - Modelo C","1-7","A","1","C","1-7",79,1.44,0,80.44,0.0167,170800,2172.334410740925,174742.58,"En negociacion","","",30,"04/03/2029","Balcon"],["Torre A - 1-8 - Modelo A","1-8","A","1","A","1-8",79,1.5,0,80.5,0.0167,170800,2138.635652173913,172160.17,"En negociacion","","",30,"04/03/2029","Balcon"],["Torre A - 1-9 - Modelo B","1-9","A","1","B","1-9",79,1.45,0,80.45,0.0167,170800,2075.76594157862,166995.37,"En negociacion","","",30,"04/03/2029","Balcon"],["Torre A - 1-10 - Modelo A","1-10","A","1","A","1-10",79,1.5,0,80.5,0.0167,170800,2138.635652173913,172160.17,"Disponible","","",30,"04/03/2029","Balcon"],["Torre A - 1-11 - Modelo C","1-11","A","2","C","1-11",79,1.44,0,80.44,0.0167,165800,2204.9193187468923,177363.71,"Disponible","","",30,"04/03/2029","Balcon"],["Torre A - 1-12 - Modelo C","1-12","A","2","C","1-12",79,1.44,0,80.44,0.0167,165800,2204.9193187468923,177363.71,"Disponible","","",30,"04/03/2029","Balcon"],["Torre A - 1-13 - Modelo A","1-13","A","2","A","1-13",79,1.5,0,80.5,0.0167,165800,2170.7152795031056,174742.58,"En negociacion","","",30,"04/03/2029","Balcon"],["Torre A - 1-14 - Modelo B","1-14","A","2","B","1-14",79,1.45,0,80.45,0.0167,165800,2106.902423865755,169500.3,"En negociacion","","",30,"04/03/2029","Balcon"],["Torre A - 1-15 - Modelo A","1-15","A","2","A","1-15",79,1.5,0,80.5,0.0167,165800,2170.7152795031056,174742.58,"En negociacion","","",30,"04/03/2029","Balcon"],["Torre A - 1-16 - Modelo C","1-16","A","3","C","1-16",79,1.44,0,80.44,0.0167,160800,2237.50435106912,179984.85,"Disponible","","",30,"04/03/2029","Balcon"],["Torre A - 1-17 - Modelo C","1-17","A","3","C","1-17",79,1.44,0,80.44,0.0167,160800,2237.50435106912,179984.85,"Disponible","","",30,"04/03/2029","Balcon"],["Torre A - 1-18 - Modelo A","1-18","A","3","A","1-18",79,1.5,0,80.5,0.0167,160800,2202.7947826086956,177324.98,"Disponible","","",30,"04/03/2029","Balcon"],["Torre A - 1-19 - Modelo B","1-19","A","3","B","1-19",79,1.45,0,80.45,0.0167,160800,2138.03890615289,172005.23,"En negociacion","","",30,"04/03/2029","Balcon"],["Torre A - 1-20 - Modelo A","1-20","A","3","A","1-20",79,1.5,0,80.5,0.0167,160800,2202.7947826086956,177324.98,"Disponible","","",30,"04/03/2029","Balcon"],["Torre B - 2-1 - Modelo C","2-1","B","PB","C","2-1",79,1.44,0,80.44,0.0167,183800,2202.086648433615,177135.85,"Disponible","","",36,"04/09/2029","PB sin patio*"],["Torre B - 2-2 - Modelo C","2-2","B","PB","C","2-2",79,1.44,0,80.44,0.0167,183800,2202.086648433615,177135.85,"Disponible","","",36,"04/09/2029","PB sin patio*"],["Torre B - 2-3 - Modelo A","2-3","B","PB","A","2-3",79,1.5,90.38,170.88,0.0167,183800,2463.9134999999997,197113.08,"Disponible","","",36,"04/09/2029","Patio privado"],["Torre B - 2-4 - Modelo B","2-4","B","PB","B","2-4",79,1.45,53.57,134.02,0.0167,183800,2283.437875,182675.03,"Disponible","","",36,"04/09/2029","Patio privado"],["Torre B - 2-5 - Modelo A","2-5","B","PB","A","2-5",79,1.5,102.89,183.39,0.0167,183800,2503.0072499999997,200240.58,"Disponible","","",36,"04/09/2029","Patio privado"],["Torre B - 2-6 - Modelo C","2-6","B","1","C","2-6",79,1.44,0,80.44,0.0167,178800,2235.6209597215316,179833.35,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-7 - Modelo C","2-7","B","1","C","2-7",79,1.44,0,80.44,0.0167,178800,2235.6209597215316,179833.35,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-8 - Modelo A","2-8","B","1","A","2-8",79,1.5,0,80.5,0.0167,178800,2200.94049689441,177175.71,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-9 - Modelo B","2-9","B","1","B","2-9",79,1.45,0,80.45,0.0167,178800,2136.2391547545058,171860.44,"En negociacion","","",36,"04/09/2029","Balcon"],["Torre B - 2-10 - Modelo A","2-10","B","1","A","2-10",79,1.5,0,80.5,0.0167,178800,2200.94049689441,177175.71,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-11 - Modelo C","2-11","B","2","C","2-11",79,1.44,0,80.44,0.0167,173800,2269.1552710094484,182530.85,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-12 - Modelo C","2-12","B","2","C","2-12",79,1.44,0,80.44,0.0167,173800,2269.1552710094484,182530.85,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-13 - Modelo A","2-13","B","2","A","2-13",79,1.5,0,80.5,0.0167,173800,2233.9546583850934,179833.35,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-14 - Modelo B","2-14","B","2","B","2-14",79,1.45,0,80.45,0.0167,173800,2168.2827843380983,174438.35,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-15 - Modelo A","2-15","B","2","A","2-15",79,1.5,0,80.5,0.0167,173800,2233.9546583850934,179833.35,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-16 - Modelo C","2-16","B","3","C","2-16",79,1.44,0,80.44,0.0167,168800,2302.6895822973647,185228.35,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-17 - Modelo C","2-17","B","3","C","2-17",79,1.44,0,80.44,0.0167,168800,2302.6895822973647,185228.35,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-18 - Modelo A","2-18","B","3","A","2-18",79,1.5,0,80.5,0.0167,168800,2266.968695652174,182490.98,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-19 - Modelo B","2-19","B","3","B","2-19",79,1.45,0,80.45,0.0167,168800,2200.3262896208826,177016.25,"Disponible","","",36,"04/09/2029","Balcon"],["Torre B - 2-20 - Modelo A","2-20","B","3","A","2-20",79,1.5,0,80.5,0.0167,168800,2266.968695652174,182490.98,"Disponible","","",36,"04/09/2029","Balcon"],["Torre C - 3-1 - Modelo C","3-1","C","PB","C","3-1",79,1.44,0,80.44,0.0167,191860,2269.28953257086,182541.65,"Disponible","","",42,"04/03/2030","PB sin patio*"],["Torre C - 3-2 - Modelo C","3-2","C","PB","C","3-2",79,1.44,0,80.44,0.0167,191800,2269.28953257086,182541.65,"Disponible","","",42,"04/03/2030","PB sin patio*"],["Torre C - 3-3 - Modelo A","3-3","C","PB","A","3-3",79,1.5,102.89,183.39,0.0167,191800,2569.5811249999997,205566.49,"Disponible","","",42,"04/03/2030","Patio privado"],["Torre C - 3-4 - Modelo B","3-4","C","PB","B","3-4",79,1.45,53.57,134.02,0.0167,191800,2348.0146250000003,187841.17,"Disponible","","",42,"04/03/2030","Patio privado"],["Torre C - 3-5 - Modelo A","3-5","C","PB","A","3-5",79,1.5,90.39,170.89,0.0167,191800,2530.5186249999997,202441.49,"Disponible","","",42,"04/03/2030","Patio privado"],["Torre C - 3-6 - Modelo C","3-6","C","1","C","3-6",79,1.44,0,80.44,0.0167,186800,2303.847339632024,185321.48,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-7 - Modelo C","3-7","C","1","C","3-7",79,1.44,0,80.44,0.0167,186800,2303.847339632024,185321.48,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-8 - Modelo A","3-8","C","1","A","3-8",79,1.5,0,80.5,0.0167,186800,2268.1085714285714,182582.74,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-9 - Modelo B","3-9","C","1","B","3-9",79,1.45,0,80.45,0.0167,186800,2201.4325668116844,177105.25,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-10 - Modelo A","3-10","C","1","A","3-10",79,1.5,0,80.5,0.0167,186800,2268.1085714285714,182582.74,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-11 - Modelo C","3-11","C","2","C","3-11",79,1.44,0,80.44,0.0167,181800,2338.405022376927,188101.3,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-12 - Modelo C","3-12","C","2","C","3-12",79,1.44,0,80.44,0.0167,181800,2338.405022376927,188101.3,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-13 - Modelo A","3-13","C","2","A","3-13",79,1.5,0,80.5,0.0167,181800,2302.130186335404,185321.48,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-14 - Modelo B","3-14","C","2","B","3-14",79,1.45,0,80.45,0.0167,181800,2234.45407085146,179761.83,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-15 - Modelo A","3-15","C","2","A","3-15",79,1.5,0,80.5,0.0167,181800,2302.130186335404,185321.48,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-16 - Modelo C","3-16","C","3","C","3-16",79,1.44,0,80.44,0.0167,176800,2372.96270512183,190881.12,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-17 - Modelo C","3-17","C","3","C","3-17",79,1.44,0,80.44,0.0167,176800,2372.96270512183,190881.12,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-18 - Modelo A","3-18","C","3","A","3-18",79,1.5,0,80.5,0.0167,176800,2336.151801242236,188060.22,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-19 - Modelo B","3-19","C","3","B","3-19",79,1.45,0,80.45,0.0167,176800,2267.4755748912366,182418.41,"Disponible","","",42,"04/03/2030","Balcon"],["Torre C - 3-20 - Modelo A","3-20","C","3","A","3-20",79,1.5,0,80.5,0.0167,176800,2336.151801242236,188060.22,"Disponible","","",42,"04/03/2030","Balcon"]];
+const U2 = [[1,"PB",1,"1001","2 hab",70.47,"10A",2.1,"Inferior izquierda"],[1,"PB",2,"1002","2 hab",70.55,"10B",1.98,"Superior izquierda"],[1,"PB",3,"1003","1 hab",53.69,"",0.0,"Superior centro"],[1,"PB",4,"1004","2 hab",70.55,"10C",1.55,"Superior derecha"],[1,"PB",5,"1005","2 hab",70.47,"10D",1.5,"Inferior derecha"],[1,"1",1,"1101","2 hab",70.47,"11A",1.98,"Inferior izquierda"],[1,"1",2,"1102","2 hab",70.55,"11B",1.98,"Superior izquierda"],[1,"1",3,"1103","1 hab",53.69,"",0.0,"Superior centro"],[1,"1",4,"1104","2 hab",70.55,"11C",1.55,"Superior derecha"],[1,"1",5,"1105","2 hab + estudio",77.89,"11D",1.5,"Inferior derecha"],[1,"2",1,"1201","2 hab",70.47,"12A",1.98,"Inferior izquierda"],[1,"2",2,"1202","2 hab",70.55,"12B",1.98,"Superior izquierda"],[1,"2",3,"1203","1 hab",53.69,"",0.0,"Superior centro"],[1,"2",4,"1204","2 hab",70.55,"12C",1.55,"Superior derecha"],[1,"2",5,"1205","2 hab + estudio",77.89,"12D",1.5,"Inferior derecha"],[1,"3",1,"1301","2 hab",70.47,"13A",1.98,"Inferior izquierda"],[1,"3",2,"1302","2 hab",70.55,"13B",1.98,"Superior izquierda"],[1,"3",3,"1303","1 hab",53.69,"",0.0,"Superior centro"],[1,"3",4,"1304","2 hab",70.55,"13C",1.55,"Superior derecha"],[1,"3",5,"1305","2 hab + estudio",77.89,"13D",1.5,"Inferior derecha"],[1,"4",1,"1401","2 hab",70.47,"14A",1.98,"Inferior izquierda"],[1,"4",2,"1402","2 hab",70.55,"14B",1.98,"Superior izquierda"],[1,"4",3,"1403","1 hab",53.69,"",0.0,"Superior centro"],[1,"4",4,"1404","2 hab",70.55,"14C",1.55,"Superior derecha"],[1,"4",5,"1405","2 hab + estudio",77.89,"14D",1.5,"Inferior derecha"],[1,"5",1,"1501","2 hab",70.47,"15A",1.98,"Inferior izquierda"],[1,"5",2,"1502","2 hab",70.55,"15B",1.98,"Superior izquierda"],[1,"5",3,"1503","1 hab",53.69,"",0.0,"Superior centro"],[1,"5",4,"1504","2 hab",70.55,"15C",1.55,"Superior derecha"],[1,"5",5,"1505","2 hab + estudio",77.89,"15D",1.5,"Inferior derecha"],[2,"PB",1,"2001","2 hab",70.47,"20A",2.1,"Inferior izquierda"],[2,"PB",2,"2002","2 hab",70.55,"20B",1.98,"Superior izquierda"],[2,"PB",3,"2003","1 hab",53.69,"20E",1.07,"Superior centro-izquierda"],[2,"PB",4,"2004","1 hab",53.69,"20F",1.01,"Superior centro-derecha"],[2,"PB",5,"2005","2 hab",70.55,"20C",1.55,"Superior derecha"],[2,"PB",6,"2006","2 hab",70.17,"20D",1.5,"Inferior derecha"],[2,"PB",7,"2007","1 hab",54.16,"20G",1.15,"Inferior centro"],[2,"1",1,"2101","2 hab",70.47,"21A",2.1,"Inferior izquierda"],[2,"1",2,"2102","2 hab",70.55,"21B",1.98,"Superior izquierda"],[2,"1",3,"2103","1 hab",53.69,"21E",1.07,"Superior centro-izquierda"],[2,"1",4,"2104","1 hab",53.69,"21F",1.01,"Superior centro-derecha"],[2,"1",5,"2105","2 hab",70.55,"21C",1.55,"Superior derecha"],[2,"1",6,"2106","2 hab",70.17,"21D",1.5,"Inferior derecha"],[2,"1",7,"2107","1 hab",54.16,"21G",1.15,"Inferior centro"],[2,"2",1,"2201","2 hab",70.47,"22A",2.1,"Inferior izquierda"],[2,"2",2,"2202","2 hab",70.55,"22B",1.98,"Superior izquierda"],[2,"2",3,"2203","1 hab",53.69,"22E",1.07,"Superior centro-izquierda"],[2,"2",4,"2204","1 hab",53.69,"22F",1.01,"Superior centro-derecha"],[2,"2",5,"2205","2 hab",70.55,"22C",1.55,"Superior derecha"],[2,"2",6,"2206","2 hab",70.17,"22D",1.5,"Inferior derecha"],[2,"2",7,"2207","1 hab",54.16,"22G",1.15,"Inferior centro"],[2,"3",1,"2301","2 hab",70.47,"23A",2.1,"Inferior izquierda"],[2,"3",2,"2302","2 hab",70.55,"23B",1.98,"Superior izquierda"],[2,"3",3,"2303","1 hab",53.69,"23E",1.07,"Superior centro-izquierda"],[2,"3",4,"2304","1 hab",53.69,"23F",1.01,"Superior centro-derecha"],[2,"3",5,"2305","2 hab",70.55,"23C",1.55,"Superior derecha"],[2,"3",6,"2306","2 hab",70.17,"23D",1.5,"Inferior derecha"],[2,"3",7,"2307","1 hab",54.16,"23G",1.15,"Inferior centro"],[2,"4",1,"2401","2 hab",70.47,"24A",2.1,"Inferior izquierda"],[2,"4",2,"2402","2 hab",70.55,"24B",1.98,"Superior izquierda"],[2,"4",3,"2403","1 hab",53.69,"24E",1.07,"Superior centro-izquierda"],[2,"4",4,"2404","1 hab",53.69,"24F",1.01,"Superior centro-derecha"],[2,"4",5,"2405","2 hab",70.55,"24C",1.55,"Superior derecha"],[2,"4",6,"2406","2 hab",70.17,"24D",1.5,"Inferior derecha"],[2,"4",7,"2407","1 hab",54.16,"24G",1.15,"Inferior centro"],[2,"5",1,"2501","2 hab",70.47,"25A",2.1,"Inferior izquierda"],[2,"5",2,"2502","2 hab",70.55,"25B",1.98,"Superior izquierda"],[2,"5",3,"2503","1 hab",53.69,"25E",1.07,"Superior centro-izquierda"],[2,"5",4,"2504","1 hab",53.69,"25F",1.01,"Superior centro-derecha"],[2,"5",5,"2505","2 hab",70.55,"25C",1.55,"Superior derecha"],[2,"5",6,"2506","2 hab",70.17,"25D",1.5,"Inferior derecha"],[2,"5",7,"2507","1 hab",54.16,"25G",1.15,"Inferior centro"]];
+const $ = id => document.getElementById(id);
+const UNITS = U2.map(([ed,piso,n,dpt,tip,m2,bodc,bod,pos]) => ({ed,piso,n,dpt,tip,m2,bodc,bod,pos,pnum:piso==="PB"?0:+piso,
+  code:`E${ed}-${piso==="PB"?"PB":"P"+piso}-A${n}`, name:`Edificio ${ed} - ${piso==="PB"?"Planta Baja":"Piso "+piso} - Apartamento ${n}`,
+  patio:0, vista:0, fm2:""}));
+// Precio por m2 fijo definido por gerencia para el Edificio 1 (28-oct-2026)
+const FMG = u => u.piso==="PB" ? 2230 : ["1","2","3"].includes(u.piso) ? 2260 : (u.tip==="1 hab" ? 2220 : 2270);
+const FM_E1 = u => u.ed===1 ? FMG(u) : "";
+UNITS.forEach(u=>u.fm2=FM_E1(u));
+// Patios interiores de planta baja segun planos DWG (28-oct-2026)
+const PAT0 = {"1002":45.24,"1003":38.35,"1004":45.24,"2002":45.24,"2003":38.41,"2004":38.41,"2005":45.24};
+UNITS.forEach(u=>u.patio=PAT0[u.dpt]||0);
+// FRATELLI: [nombre,depto,torre,planta,modelo,parqueo,dpto,bodega,patio,area total,%pv,precio base,precio/m2 total,precio total,estado,fecha,cliente,plazo,fecha entrega,patio/balcon]
+const FR = FRFULL.map(r=>({torre:r[2],depto:r[1],planta:r[3],m2:+r[6],bod:+r[7],patio:+r[8],precio:+r[13],usdm2:+r[13]/(+r[6]+ +r[7])}));
+const FLOORS = ["PB","1","2","3"];
+const FS = {}; FLOORS.forEach(p=>{const a=FR.filter(f=>f.planta===p);
+  FS[p]={n:a.length,min:Math.min(...a.map(f=>f.precio)),max:Math.max(...a.map(f=>f.precio)),
+  m2min:Math.min(...a.map(f=>f.usdm2)),m2max:Math.max(...a.map(f=>f.usdm2))};});
+const FRALL = {min:Math.min(...FR.map(f=>f.precio)),max:Math.max(...FR.map(f=>f.precio)),m2min:Math.min(...FR.map(f=>f.usdm2)),m2max:Math.max(...FR.map(f=>f.usdm2))};
+const ESC = ["Conservador","Base","Optimista"];
+const FX0 = {PB:"",1:"",2:"",3:"",4:"",5:""};
+const DEF = {inc2:4.5,base:2230,esc:1,e0:-2,e1:0,e2:3,patio:230,rnd:500,step:1.5,eq:2.5,t1:5,t2:0,t3:0,res:6,cuo:14,m1:30,m2:42};
+let S = {...DEF}, FX = {...FX0}, bld = 1;
+
+const usd = v => "USD " + Math.round(v).toLocaleString("es-EC");
+const pct = v => (v>0?"+":"") + (v*100).toLocaleString("es-EC",{minimumFractionDigits:1,maximumFractionDigits:1}) + "%";
+const sgn = v => (v>0?"+":"") + usd(v).replace("USD -","-USD ");
+const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
+const ab = u => u.m2 + u.bod;   // area + bodega
+
+function tipF(t){ return 1 + (t==="1 hab"?S.t1:t==="2 hab"?S.t2:S.t3)/100; }
+function rawF(u){ return (1+(u.pnum-S.eq)*S.step/100) * tipF(u.tip); }
+let MEANF = 1;
+function factor(u){ return rawF(u)/MEANF * (1+u.vista/100); }
+function rnd(v){ const r = S.rnd>0?S.rnd:1; return Math.round(v/r)*r; }
+const okNum = v => v!=="" && v!=null && isFinite(+v) && +v>0;
+function unitM2(u){ return okNum(u.fm2) ? +u.fm2 : null; }
+function floorM2(u){ return okNum(FX[u.piso]) ? +FX[u.piso] : null; }
+function e2M2(u){ return u.ed===2 ? FMG(u)*(1+S.inc2/100) : null; }
+function fixedM2(u){ return unitM2(u) || floorM2(u) || e2M2(u); }
+function priceAB(u, escPct){ const fx = fixedM2(u); if (fx) return Math.round(fx*ab(u)); return rnd(S.base*(1+escPct/100)*factor(u)*ab(u)); }
+function frFloor(u){ return FS[FLOORS.includes(u.piso)?u.piso:"3"]; }
+const escPct = i => [S.e0,S.e1,S.e2][i];
+const posOf = (m2p,f) => m2p < f.m2min ? "b" : m2p > f.m2max ? "s" : "e";
+const POS = {s:["Sobre rango FRATELLI","s"],b:["Bajo rango FRATELLI","b"],e:["Dentro del rango","e"]};
+
+function compute(){
+  MEANF = UNITS.reduce((t,u)=>t+rawF(u)*ab(u),0)/UNITS.reduce((t,u)=>t+ab(u),0);
+  return UNITS.map(u=>{
+    const pab = priceAB(u, escPct(S.esc));
+    const vpatio = u.patio*S.patio;
+    const precio = pab + vpatio;
+    const base = rnd(S.base*factor(u)*ab(u)) + vpatio;
+    const f = frFloor(u), m2p = pab/ab(u);
+    const meses = u.ed===1?S.m1:S.m2;
+    const escTot = [0,1,2].map(i=>priceAB(u, escPct(i)) + vpatio);
+    const escPos = [0,1,2].map(i=>posOf((escTot[i]-vpatio)/ab(u), f));
+    return {u, pab, vpatio, precio, m2p, base, fr:f, pos:posOf(m2p,f), esc:escTot, escPos, meses,
+      reserva: precio*S.res/100, cuota: precio*S.cuo/100/meses, ce: precio*(100-S.res-S.cuo)/100};
+  });
+}
+
+function render(){
+  { let t = `<tr><th>Piso</th><th>Tipo</th><th>E1 USD/m2</th><th>E2 USD/m2</th></tr>`;
+    const k = 1+S.inc2/100;
+    [["PB","2 hab"],["1-3","2 hab"],["4-5","2 hab"],["4-5","1 hab"]].forEach(([pp,tp])=>{ const u={piso:pp==="PB"?"PB":pp==="1-3"?"1":"4",tip:tp}; const v=FMG(u);
+      t += `<tr><td>${pp}</td><td>${pp==="4-5"?tp:"todos"}</td><td class="n">${v.toLocaleString("es-EC")}</td><td class="n"><b>${(v*k).toLocaleString("es-EC",{minimumFractionDigits:2,maximumFractionDigits:2})}</b></td></tr>`; });
+    $("tinc").innerHTML = t; }
+  document.querySelectorAll("[data-e]").forEach(b=>b.setAttribute("aria-pressed", +b.dataset.e===S.esc));
+  $("ref").textContent = usd(S.base*(1+escPct(S.esc)/100));
+  const nfix = UNITS.filter(u=>fixedM2(u)).length;
+  $("ctl").textContent = `${ESC[S.esc]}: ${pct(escPct(S.esc)/100)} sobre ${usd(S.base)}` + (nfix?` - ${nfix} deptos con precio fijo`:"");
+  $("ce").textContent = (100-S.res-S.cuo).toLocaleString("es-EC") + "%";
+
+  const R = compute();
+  const sum = (a,k)=>a.reduce((s,r)=>s+(typeof k==="function"?k(r):r[k]),0);
+  const mab = sum(R,r=>ab(r.u)), tot = sum(R,"precio"), totAB = sum(R,"pab"), totBase = sum(R,"base");
+  const cnt = k=>R.filter(r=>r.pos===k).length;
+  const dv = tot-totBase;
+  $("kpis").innerHTML = `
+    <div class="kpi main-k"><span>Valor total de venta - ${ESC[S.esc]}</span><b>${usd(tot)}</b><small>${dv===0?"igual a la lista base":`${sgn(dv)} (${pct(tot/totBase-1)}) vs lista base`}</small></div>
+    <div class="kpi"><span>Precio promedio por departamento</span><b>${usd(tot/R.length)}</b><small>FRATELLI: ${usd(FRALL.min)} a ${usd(FRALL.max)}</small></div>
+    <div class="kpi"><span>Precio por m2 promedio (area + bodega)</span><b>${usd(totAB/mab)}</b><small>FRATELLI: ${usd(FRALL.m2min)} a ${usd(FRALL.m2max)}</small></div>
+    <div class="kpi"><span>Deptos frente al rango FRATELLI (por m2)</span><b>${cnt("b")} - ${cnt("e")} - ${cnt("s")}</b><small>bajo - dentro - sobre el rango</small></div>
+    <div class="kpi"><span>Cuota mensual promedio</span><b>${usd(sum(R,"cuota")/R.length)}</b><small>E1 ${S.m1} meses - E2 ${S.m2} meses</small></div>`;
+
+  let h = `<tr><th>Escenario</th><th>Ajuste</th><th>Precio por m2</th><th>Valor total</th><th>Precio promedio</th><th>vs lista base</th><th>Bajo / dentro / sobre rango</th></tr>`;
+  [0,1,2].forEach(i=>{ const t = sum(R,r=>r.esc[i]), tab = sum(R,r=>r.esc[i]-r.vpatio);
+    const c = k=>R.filter(r=>r.escPos[i]===k).length;
+    h += `<tr class="${i===S.esc?"act":""}"><td>${ESC[i]}</td><td class="n">${pct(escPct(i)/100)}</td><td class="n">${usd(tab/mab)}</td><td class="n">${usd(t)}</td><td class="n">${usd(t/R.length)}</td><td class="n">${sgn(t-totBase)}<br><span class="note">${pct(t/totBase-1)}</span></td><td class="n">${c("b")} / ${c("e")} / ${c("s")}</td></tr>`; });
+  $("tesc").innerHTML = h;
+
+  const pisos = ["PB","1","2","3","4","5"];
+  const vals = [1,2].flatMap(ed=>pisos.map(p=>{ const a=R.filter(r=>r.u.ed===ed&&r.u.piso===p); const f=FS[FLOORS.includes(p)?p:"3"]; return {ed, p, a: sum(a,"pab")/sum(a,r=>ab(r.u)), lo:f.m2min, hi:f.m2max}; }));
+  const mx = Math.max(...vals.flatMap(v=>[v.a,v.hi]))*1.03, mn = Math.min(...vals.flatMap(v=>[v.a,v.lo]))*0.95;
+  const x = v => ((v-mn)/(mx-mn)*100);
+  const barRow = v=>`<div class="bar"><span>${v.p==="PB"?"Planta Baja":"Piso "+v.p}</span><div class="tr">
+      <div style="position:absolute;top:0;bottom:0;left:${x(v.lo).toFixed(1)}%;width:${(x(v.hi)-x(v.lo)).toFixed(1)}%;background:var(--frat);border-radius:3px"></div>
+      <div style="position:absolute;top:3px;bottom:3px;left:calc(${x(v.a).toFixed(1)}% - 3px);width:6px;background:var(--accent);border-radius:2px"></div></div>
+      <span class="num">${usd(v.a).replace("USD ","")}<br><span class="note" style="color:var(--frat-ink)">${Math.round(v.lo).toLocaleString("es-EC")}-${Math.round(v.hi).toLocaleString("es-EC")}</span></span></div>`;
+  $("bars").innerHTML = [1,2].map(ed=>`<h3 style="font-size:14px;margin:6px 0 2px">Edificio ${ed}</h3>` + vals.filter(v=>v.ed===ed).map(barRow).join("")).join("");
+
+  let s = `<tr><th>Grupo</th><th>Unidades</th><th>Area m2</th><th>Bodega m2</th><th>Area + bodega m2</th><th>Precio minimo</th><th>Precio maximo</th><th>Precio promedio</th><th>Precio por m2</th><th>Valor total</th><th>Cuota mensual prom.</th></tr>`;
+  const row = (lbl,a,cls="")=>{ const t=sum(a,"precio"); return `<tr class="${cls}"><td>${lbl}</td><td class="n">${a.length}</td><td class="n">${sum(a,r=>r.u.m2).toFixed(2)}</td><td class="n">${sum(a,r=>r.u.bod).toFixed(2)}</td><td class="n">${sum(a,r=>ab(r.u)).toFixed(2)}</td><td class="n">${usd(Math.min(...a.map(r=>r.precio)))}</td><td class="n">${usd(Math.max(...a.map(r=>r.precio)))}</td><td class="n">${usd(t/a.length)}</td><td class="n">${usd(sum(a,"pab")/sum(a,r=>ab(r.u)))}</td><td class="n">${usd(t)}</td><td class="n">${usd(sum(a,"cuota")/a.length)}</td></tr>`; };
+  [1,2].forEach(ed=>{ const a=R.filter(r=>r.u.ed===ed); s += row(`<b>Edificio ${ed}</b>`, a, "tot");
+    ["1 hab","2 hab","2 hab + estudio"].forEach(t=>{ const b=a.filter(r=>r.u.tip===t); if(b.length) s += row(`&nbsp;&nbsp;${t}`, b); }); });
+  s += row("<b>Proyecto</b>", R, "tot");
+  $("tsum").innerHTML = s;
+
+  let l = `<tr><th>Codigo</th><th>DPT</th><th>Piso</th><th>Ubicacion</th><th>Tipologia</th><th>Area m2</th><th>Bodega</th><th>Bodega m2</th><th>Area + bodega m2</th><th>Patio m2</th><th>Valor m2 patio</th><th>Valor patio</th><th>Vista %</th><th>USD/m2 fijo</th><th>Precio por m2 (area + bodega)</th><th>Precio area + bodega</th><th>PRECIO DE VENTA (con patio)</th><th>vs lista base</th><th>FRATELLI m2 min-max piso</th><th>Posicion</th><th>Reserva</th><th>Cuota (${bld===1?S.m1:S.m2} m)</th><th>Contra entrega</th></tr>`;
+  let prev=null;
+  R.filter(r=>r.u.ed===bld).forEach(r=>{ const u=r.u; const i=UNITS.indexOf(u);
+    const tag = fixedM2(u) ? `<span class="pill e" style="margin-left:4px">${unitM2(u)?"fijo depto":floorM2(u)?"fijo piso":"E1 "+pct(S.inc2/100)}</span>` : "";
+    l += `<tr class="${prev!==null&&prev!==u.piso?"floor":""}"><td><span class="code" title="${u.name}">${u.code}</span></td><td class="n">${u.dpt}</td><td>${u.piso==="PB"?"PB":"P"+u.piso}</td><td style="text-align:left">${u.pos||"<span class='note'>Por confirmar</span>"}</td><td style="text-align:left">${u.tip}</td><td class="n">${u.m2.toFixed(2)}</td>
+      <td>${u.bodc?"BOD "+u.bodc:"<span class='note'>sin bodega</span>"}</td><td class="n">${u.bod.toFixed(2)}</td><td class="n">${ab(u).toFixed(2)}</td>
+      <td><input type="number" min="0" step="0.01" value="${u.patio||""}" placeholder="0" data-i="${i}" data-k="patio" aria-label="Patio m2 ${u.code}"></td>
+      <td class="n">${usd(S.patio)}</td><td class="n">${r.vpatio?usd(r.vpatio):"-"}</td>
+      <td><input type="number" step="0.5" value="${u.vista}" data-i="${i}" data-k="vista" aria-label="Ajuste vista % ${u.code}"></td>
+      <td><input type="number" min="0" step="1" value="${u.fm2}" placeholder="auto" data-i="${i}" data-k="fm2" aria-label="Precio por m2 fijo ${u.code}" style="width:70px"></td>
+      <td class="n">${usd(r.m2p)}${tag}</td><td class="n">${usd(r.pab)}</td><td class="n"><b>${usd(r.precio)}</b></td><td class="n">${r.precio-r.base===0?"-":sgn(r.precio-r.base)}</td>
+      <td class="n">${Math.round(r.fr.m2min).toLocaleString("es-EC")} - ${Math.round(r.fr.m2max).toLocaleString("es-EC")}</td>
+      <td><span class="pill ${POS[r.pos][1]}">${POS[r.pos][0]}</span></td>
+      <td class="n">${usd(r.reserva)}</td><td class="n">${usd(r.cuota)}</td><td class="n">${usd(r.ce)}</td></tr>`; prev=u.piso; });
+  const a = R.filter(r=>r.u.ed===bld), am=sum(a,r=>ab(r.u));
+  l += `<tr class="tot"><td>Total E${bld}</td><td></td><td></td><td></td><td>${a.length} deptos</td><td class="n">${sum(a,r=>r.u.m2).toFixed(2)}</td><td></td><td class="n">${sum(a,r=>r.u.bod).toFixed(2)}</td><td class="n">${am.toFixed(2)}</td><td class="n">${sum(a,r=>r.u.patio).toFixed(2)}</td><td></td><td class="n">${usd(sum(a,"vpatio"))}</td><td></td><td></td><td class="n">${usd(sum(a,"pab")/am)}</td><td class="n">${usd(sum(a,"pab"))}</td><td class="n">${usd(sum(a,"precio"))}</td><td class="n">${sgn(sum(a,"precio")-sum(a,"base"))}</td><td></td><td></td><td class="n">${usd(sum(a,"reserva"))}</td><td class="n">${usd(sum(a,"cuota")/a.length)}</td><td class="n">${usd(sum(a,"ce"))}</td></tr>`;
+  $("tlist").innerHTML = l;
+  document.querySelectorAll(".tabs .t[data-b]").forEach(b=>b.setAttribute("aria-pressed", +b.dataset.b===bld));
+  window.__last = R;
+}
+
+let ftorre = "";
+function renderComp(){
+  const n2 = v => Number(v).toLocaleString("es-EC",{minimumFractionDigits:2,maximumFractionDigits:2});
+  let c = `<tr><th>Torre - Depto - Modelo</th><th>Depto</th><th>Torre</th><th>Planta</th><th>Modelo</th><th>Parqueo</th><th>Dpto m2</th><th>Bodega m2</th><th>Patio m2</th><th>Area total m2</th><th>% PV</th><th>Precio base (depto + bodega)</th><th>Precio / m2 (total)</th><th>Precio total</th><th>Precio por m2 (dpto + bodega)</th><th>Estado</th><th>Fecha</th><th>Cliente</th><th>Plazo entrega (meses)</th><th>Fecha est. entrega</th><th>Patio / balcon</th></tr>`;
+  const rows = FRFULL.filter(r=>!ftorre || r[2]===ftorre);
+  let prev = null;
+  rows.forEach(r=>{ const [nm,dep,tor,pl,mod,parq,dm,bod,pat,at,pv,pb,pm2,pt,est,fe,cli,plazo,fent,pb2]=r;
+    const ep = est==="Disponible"?"b":est?"s":"e";
+    c += `<tr class="${prev!==null && prev!==tor ? "floor" : ""}"><td>${nm}</td><td>${dep}</td><td>${tor}</td><td>${pl}</td><td>${mod}</td><td>${parq}</td><td class="n">${n2(dm)}</td><td class="n">${n2(bod)}</td><td class="n">${n2(pat)}</td><td class="n">${n2(at)}</td><td class="n">${(pv*100).toFixed(2)}%</td><td class="n">${usd(pb)}</td><td class="n">${n2(pm2)}</td><td class="n"><b>${usd(pt)}</b></td><td class="n">${usd(pt/(dm+bod))}</td><td><span class="pill ${ep}">${est||"-"}</span></td><td>${fe||""}</td><td style="text-align:left">${cli||""}</td><td class="n">${plazo}</td><td>${fent}</td><td style="text-align:left">${pb2}</td></tr>`;
+    prev = tor; });
+  const S_ = i => rows.reduce((s,r)=>s+(+r[i]||0),0);
+  const m2s = rows.map(r=>r[13]/(r[6]+r[7])), pr = rows.map(r=>r[13]);
+  c += `<tr class="tot"><td>Total ${ftorre?"Torre "+ftorre:"FRATELLI"}</td><td colspan="5">${rows.length} deptos - ${rows.filter(r=>r[14]==="Disponible").length} disponibles - ${rows.filter(r=>r[14]==="En negociacion").length} en negociacion</td><td class="n">${n2(S_(6))}</td><td class="n">${n2(S_(7))}</td><td class="n">${n2(S_(8))}</td><td class="n">${n2(S_(9))}</td><td></td><td class="n">${usd(S_(11))}</td><td></td><td class="n">min ${usd(Math.min(...pr))}<br>max ${usd(Math.max(...pr))}</td><td class="n">min ${usd(Math.min(...m2s))}<br>max ${usd(Math.max(...m2s))}</td><td colspan="6"></td></tr>`;
+  $("tcomp").innerHTML = c;
+  document.querySelectorAll("#ftabs .t").forEach(b=>b.setAttribute("aria-pressed", b.dataset.t===ftorre));
+}
+document.addEventListener("click", e=>{ const b=e.target.closest("#ftabs .t"); if(!b) return; ftorre=b.dataset.t; renderComp(); });
+
+// eventos
+const IDS = Object.keys(DEF).filter(k=>k!=="esc");
+const FXK = ["PB","1","2","3","4","5"];
+function loadInputs(){ IDS.forEach(id=>$(id).value=S[id]); FXK.forEach(k=>$("fx"+k).value=FX[k]); }
+IDS.forEach(id=>$(id).addEventListener("input",()=>{ S[id]=num(id); if((id==="m1"||id==="m2")&&S[id]<=0) S[id]=1; render(); }));
+FXK.forEach(k=>$("fx"+k).addEventListener("input",()=>{ FX[k]=$("fx"+k).value; render(); }));
+document.querySelectorAll("[data-e]").forEach(b=>b.addEventListener("click",()=>{ S.esc=+b.dataset.e; render(); }));
+document.querySelectorAll(".tabs .t[data-b]").forEach(b=>b.addEventListener("click",()=>{ bld=+b.dataset.b; render(); }));
+$("tlist").addEventListener("change", e=>{ const t=e.target; if(!t.dataset.i) return; const v=parseFloat(t.value); const u=UNITS[+t.dataset.i];
+  if (t.dataset.k==="fm2") u.fm2 = isFinite(v)&&v>0 ? v : ""; else u[t.dataset.k] = isFinite(v)&&v>=0||t.dataset.k==="vista" ? (isFinite(v)?v:0) : 0; render(); });
+$("reset").addEventListener("click",()=>{ S={...DEF}; FX={...FX0}; UNITS.forEach(u=>{u.patio=PAT0[u.dpt]||0;u.vista=0;u.fm2=FM_E1(u);}); loadInputs(); render(); toast("Valores iniciales restablecidos."); });
+function toast(m){ $("toast").textContent=m; }
+
+// exportar
+let dl = null;
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+async function getDL(){
+  if (dl) return dl;
+  for (let i=0; i<20 && !(window.claude && window.claude.use); i++) await sleep(250);
+  if (!(window.claude && window.claude.use)) return null;
+  try { dl = await window.claude.use("downloads"); } catch(e){ dl = null; }
+  return dl;
+}
+getDL();
+$("export").addEventListener("click", async ()=>{
+  if (typeof XLSX==="undefined"){ toast("No se pudo cargar el generador de Excel. Recarga la pagina."); return; }
+  const R = window.__last;
+  const wb = XLSX.utils.book_new();
+  const params = [["Simulador de precios AMURA - exportado " + new Date().toLocaleString("es-EC")],[],
+    ["Precio base por m2 (area + bodega) USD", S.base], ["Escenario activo", ESC[S.esc]], ["Ajuste del escenario", escPct(S.esc)/100],
+    ["Conservador", S.e0/100], ["Base", S.e1/100], ["Optimista", S.e2/100],
+    ["Valor del m2 de patio USD", S.patio], ["Redondeo USD", S.rnd],
+    ["Aumento por piso", S.step/100], ["Piso de equilibrio", S.eq], ["Ajuste 1 hab", S.t1/100], ["Ajuste 2 hab", S.t2/100], ["Ajuste 2 hab + estudio", S.t3/100],
+    ...FXK.map(k=>["Precio por m2 fijo "+(k==="PB"?"Planta Baja":"Piso "+k), okNum(FX[k])?+FX[k]:"automatico"]),
+    ["Reserva", S.res/100], ["Cuotas", S.cuo/100], ["Meses Edificio 1", S.m1], ["Meses Edificio 2", S.m2],
+    [], ["Valor total de venta (USD)", R.reduce((s,r)=>s+r.precio,0)], ["Valor total lista base (USD)", R.reduce((s,r)=>s+r.base,0)]];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(params), "Parametros");
+  [1,2].forEach(ed=>{
+    const rows = R.filter(r=>r.u.ed===ed).map(r=>({
+      "Codigo": r.u.code, "DPT": r.u.dpt, "Departamento": r.u.name, "Piso": r.u.piso==="PB"?"Planta Baja":"Piso "+r.u.piso, "Ubicacion": r.u.pos||"Por confirmar",
+      "Tipologia": r.u.tip, "Area m2": r.u.m2, "Bodega": r.u.bodc?"BOD "+r.u.bodc:"sin bodega", "Bodega m2": r.u.bod, "Area + bodega m2": Math.round(ab(r.u)*100)/100,
+      "Patio m2": r.u.patio, "Valor m2 patio (USD)": S.patio, "Valor patio (USD)": r.vpatio, "Ajuste vista %": r.u.vista/100, "Precio m2 fijo": fixedM2(r.u)||"auto",
+      "Precio por m2 area + bodega (USD)": Math.round(r.m2p*100)/100, "Precio area + bodega (USD)": r.pab, "Precio de venta con patio (USD)": r.precio,
+      "Lista base (USD)": r.base, "Dif. vs lista base (USD)": r.precio-r.base,
+      "FRATELLI m2 min piso": Math.round(r.fr.m2min*100)/100, "FRATELLI m2 max piso": Math.round(r.fr.m2max*100)/100, "Posicion": POS[r.pos][0],
+      "Conservador (USD)": r.esc[0], "Base (USD)": r.esc[1], "Optimista (USD)": r.esc[2],
+      "Reserva (USD)": Math.round(r.reserva*100)/100, "Meses": r.meses, "Cuota mensual (USD)": Math.round(r.cuota*100)/100, "Contra entrega (USD)": Math.round(r.ce*100)/100 }));
+    const ws = XLSX.utils.json_to_sheet(rows); ws["!cols"] = Object.keys(rows[0]).map(k=>({wch:Math.max(10,Math.min(38,k.length+2))}));
+    XLSX.utils.book_append_sheet(wb, ws, "Edificio " + ed);
+  });
+  const fh = ["Torre - Depto - Modelo","Departamento","Torre","Planta","Modelo","Parqueo","Dpto m2","Bodega m2","Patio m2","Area total m2","% PV","Precio base (depto+bodega)","Precio / m2 (total)","Precio total (USD)","Estado","Fecha","Nombre de cliente","Plazo entrega (meses)","Fecha est. entrega","Patio / balcon"];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([fh, ...FRFULL]), "Competencia FRATELLI");
+  const buf = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+  const fname = `Lista_precios_AMURA_${ESC[S.esc]}.xlsx`;
+  toast("Preparando el archivo...");
+  const d = await getDL();
+  if (d){
+    try{ await d.save({filename:fname, data:new Blob([buf])}); toast("Lista exportada a Excel: " + fname); }
+    catch(e){ toast(e && e.code==="declined" ? "Descarga cancelada." : "No se pudo exportar (" + (e && (e.code||e.message) || "error") + "). Intenta de nuevo."); }
+    return;
+  }
+  try{
+    const url = URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+    const a = document.createElement("a"); a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    toast("Lista exportada a Excel: " + fname);
+  }catch(e){ toast("No se pudo exportar en esta vista."); }
+});
+
+loadInputs(); renderComp(); render();
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+# React + TypeScript + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the Oxlint configuration
+
+If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+
+```json
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}
+```
+
+See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+
+## Módulo de Inventario
+
+- **Datos**: 72 departamentos (E1: 30, E2: 42) en `src/features/inventario/data/amura-units.ts`, generados desde
+  `AMURA_Edificio1_Precios_vs_Competencia.xlsx` (simulador, 28/10/2026) y verificados contra `Lista_precios_AMURA_Base.pdf`,
+  `SEGREGACIÓN DE BODEGAS.docx` y los planos de Edificio 1 y 2.
+- **Regla de precio**: `redondeo(USD/m² × (área + bodega)) + patio × USD 230/m²`. Pago: 6% reserva + 14% en 30/42 cuotas + 80% contra entrega.
+- **Datos por confirmar**: estado comercial de las 72 unidades (`por_confirmar`), bodega A de pisos 1–5 del E1 (segregación 2,10 m² vs lista/plano 1,98 m²),
+  patios (tomados del simulador), planos individuales e imágenes.
+- **Permisos**: precios y estados sólo Administrador/Gerencia; parámetros sólo Administrador. El rol del encabezado es de demostración.
+  La autorización real está en `supabase/migrations/20261028120000_inventario.sql` (RLS + RPC), pendiente de aplicar.
+- **Persistencia actual**: navegador (`localStorage`) hasta conectar Supabase. Semilla SQL: `node scripts/generar-seed-inventario.mjs` → `supabase/seed.sql`.
+- **Pruebas**: `npm test` (precio y plan de pagos de las 72 unidades contra el PDF, ajustes, permisos, estados, importación/exportación Excel y flujo de UI).
+
+## Fase 1 de ventas: precios, financiamiento y cotizaciones
+
+- **Precios** (`/precios`): simulación por % o USD/m² con impacto por unidad, valor total y posición frente a FRATELLI.
+  Gerencia envía propuestas; solo administración las aprueba y pasan a precio oficial (con historial).
+- **Competencia**: 60 unidades de FRATELLI de su lista del 26/10/2026. Reproduce el 0 · 58 · 14 (bajo · dentro · sobre) del PDF. No visible para corredores.
+- **Financiamiento** (`/financiamiento`): 6% reserva, 14% en 30 (E1) o 42 (E2) cuotas, 80% contra entrega; cronograma con fechas y exportación a Excel.
+- **Cotizaciones** (`/cotizaciones`): PDF con identidad AMURA, datos del cliente y del asesor, descuento autorizado (solo gerencia/administración), vigencia y cronograma.
+  Solo se cotizan unidades disponibles o por confirmar.
+- **Supabase**: `supabase/migrations/20261028160000_precios_cotizaciones.sql` agrega parqueo, propuestas y cotizaciones con RLS.
+
+## Clientes y gestión comercial
+
+- **Clientes** (`/clientes`): tablero Nuevo → Contactado → Calificado → Visita → Cotización → Negociación → Reserva, más Perdido (con motivo) y Seguimiento futuro (con fecha).
+  Ficha con datos, origen, interés (departamentos, presupuesto, vivir/invertir), forma de pago (contado, banco, BIESS), asesor, próxima actividad e historial.
+- **Reglas**: sin duplicados por teléfono o correo; Cotización, Negociación y Reserva exigen departamento; Reserva exige una cotización; la primera llamada pasa a Contactado.
+  Solo gerencia reasigna asesores; los corredores ven solo sus clientes.
+- **Cotizaciones por cliente**: desde la ficha se prepara la cotización; queda en el historial y el cliente avanza a Cotización.
+- **Gestión comercial** (`/comercial`): agenda del asesor (vencidas, hoy, 7 días, sin siguiente paso), embudo y origen.
+- **Supabase**: `supabase/migrations/20261028180000_clientes.sql`.
