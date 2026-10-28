@@ -73,6 +73,7 @@ export const CATALOGO = [
     ['config.roles', 'Administrar roles y permisos'],
     ['config.equipos', 'Administrar equipos'],
     ['config.auditoria', 'Consultar auditoría'],
+    ['config.cobros', 'Definir quién recibe los pagos (NUVAREL, JARVAL o fiduciaria)'],
   ] },
 ] as const
 

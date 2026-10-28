@@ -44,7 +44,8 @@ insert into public.permissions (clave, modulo, descripcion) values
   ('config.usuarios', 'Configuración', 'Administrar usuarios'),
   ('config.roles', 'Configuración', 'Administrar roles y permisos'),
   ('config.equipos', 'Configuración', 'Administrar equipos'),
-  ('config.auditoria', 'Configuración', 'Consultar auditoría')
+  ('config.auditoria', 'Configuración', 'Consultar auditoría'),
+  ('config.cobros', 'Configuración', 'Definir quién recibe los pagos (NUVAREL, JARVAL o fiduciaria)')
 on conflict (clave) do update set modulo = excluded.modulo, descripcion = excluded.descripcion;
 
 insert into public.roles (id, nombre, descripcion, alcance, sistema) values
@@ -100,6 +101,7 @@ insert into public.role_permissions (role_id, permiso) values
   ('administrador', 'config.roles'),
   ('administrador', 'config.equipos'),
   ('administrador', 'config.auditoria'),
+  ('administrador', 'config.cobros'),
   ('gerencia', 'dashboard.ver'),
   ('gerencia', 'inventario.ver'),
   ('gerencia', 'precios.ver'),
