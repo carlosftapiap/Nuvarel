@@ -78,7 +78,7 @@ describe('tablero comercial', () => {
     expect(() => moverEtapa(state, cliente.id, 'cotizacion', asesor)).toThrow(/departamento/)
     const s1 = actualizarCliente(state, cliente.id, input({ unidadesInteres: ['E1-PB-A2'] }), asesor, inv)
     expect(moverEtapa(s1, cliente.id, 'negociacion', asesor).clientes[0].etapa).toBe('negociacion')
-    expect(() => moverEtapa(s1, cliente.id, 'reserva', asesor)).toThrow(/cotización/)
+    expect(() => moverEtapa(s1, cliente.id, 'reserva', asesor)).toThrow(/módulo Reservas/)
   })
 
   it('registrar una llamada a un cliente nuevo lo pasa a Contactado', () => {
@@ -104,7 +104,6 @@ describe('tablero comercial', () => {
     const { state, cliente } = nuevo()
     const s = vincularCotizacion(state, cliente.id, { numero: 'COT-2026-0001', codigo: 'E1-PB-A2', precioFinal: 172147.2 }, asesor)
     expect(s.clientes[0]).toMatchObject({ etapa: 'cotizacion', cotizaciones: ['COT-2026-0001'], unidadesInteres: ['E1-PB-A2'] })
-    expect(moverEtapa(s, cliente.id, 'reserva', asesor).clientes[0].etapa).toBe('reserva')
     // Desde Negociación no retrocede
     const n = moverEtapa(s, cliente.id, 'negociacion', asesor)
     expect(vincularCotizacion(n, cliente.id, { numero: 'COT-2026-0002', codigo: 'E1-PB-A2', precioFinal: 170000 }, asesor).clientes[0].etapa).toBe('negociacion')

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { SessionProvider } from '@/app/session'
 import { crearCliente, estadoInicialClientes } from '@/features/clientes/service'
 import { ClientesProvider, useClientes } from '@/features/clientes/store'
+import { ReservasProvider } from '@/features/reservas/store'
 import type { ClientesState } from '@/features/clientes/model'
 import { createInitialState } from '@/features/inventario/service'
 import { InventoryProvider } from '@/features/inventario/store'
@@ -26,6 +27,7 @@ function renderApp(url: string, clientes?: ClientesState, extra?: React.ReactNod
     <SessionProvider initialRol="asesor">
       <InventoryProvider>
         <ClientesProvider initialState={clientes}>
+          <ReservasProvider>
           <MemoryRouter initialEntries={[url]}>
             <Routes>
               <Route path="/clientes" element={<ClientesPage />} />
@@ -33,6 +35,7 @@ function renderApp(url: string, clientes?: ClientesState, extra?: React.ReactNod
             </Routes>
             {extra}
           </MemoryRouter>
+          </ReservasProvider>
         </ClientesProvider>
       </InventoryProvider>
     </SessionProvider>,

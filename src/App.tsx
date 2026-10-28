@@ -6,6 +6,7 @@ import ModulePlaceholder from './pages/ModulePlaceholder'
 import { SessionProvider } from './app/session'
 import { InventoryProvider } from './features/inventario/store'
 import { ClientesProvider } from './features/clientes/store'
+import { ReservasProvider } from './features/reservas/store'
 import { NAV_ITEMS } from './app/navigation'
 
 // Módulos con pantalla propia; el resto muestra el marcador "en construcción".
@@ -16,9 +17,10 @@ const FinanciamientoPage = lazy(() => import('./pages/FinanciamientoPage'))
 const CotizacionesPage = lazy(() => import('./pages/CotizacionesPage'))
 const ClientesPage = lazy(() => import('./pages/ClientesPage'))
 const GestionComercialPage = lazy(() => import('./pages/GestionComercialPage'))
+const ReservasPage = lazy(() => import('./pages/ReservasPage'))
 const cargando = <p className="p-6 text-sm text-muted-foreground">Cargando…</p>
 
-const CUSTOM_ROUTES = new Set(['/', '/inventario', '/precios', '/financiamiento', '/cotizaciones', '/clientes', '/comercial'])
+const CUSTOM_ROUTES = new Set(['/', '/inventario', '/precios', '/financiamiento', '/cotizaciones', '/clientes', '/comercial', '/reservas'])
 
 export default function App() {
   const placeholders = NAV_ITEMS.filter((item) => !CUSTOM_ROUTES.has(item.to))
@@ -27,6 +29,7 @@ export default function App() {
     <SessionProvider>
     <InventoryProvider>
     <ClientesProvider>
+    <ReservasProvider>
     <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
@@ -37,6 +40,7 @@ export default function App() {
           <Route path="cotizaciones" element={<Suspense fallback={cargando}><CotizacionesPage /></Suspense>} />
           <Route path="clientes" element={<Suspense fallback={cargando}><ClientesPage /></Suspense>} />
           <Route path="comercial" element={<Suspense fallback={cargando}><GestionComercialPage /></Suspense>} />
+          <Route path="reservas" element={<Suspense fallback={cargando}><ReservasPage /></Suspense>} />
           {placeholders.map((item) => (
             <Route
               key={item.to}
@@ -47,6 +51,7 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </ReservasProvider>
     </ClientesProvider>
     </InventoryProvider>
     </SessionProvider>

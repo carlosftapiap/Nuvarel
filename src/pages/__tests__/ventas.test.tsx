@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { SessionProvider } from '@/app/session'
 import { InventoryProvider } from '@/features/inventario/store'
 import { ClientesProvider } from '@/features/clientes/store'
+import { ReservasProvider } from '@/features/reservas/store'
 import type { Rol } from '@/features/inventario/types'
 import CotizacionesPage from '../CotizacionesPage'
 import FinanciamientoPage from '../FinanciamientoPage'
@@ -25,7 +26,9 @@ function renderAt(ui: React.ReactNode, rol: Rol, url: string) {
     <SessionProvider initialRol={rol}>
       <InventoryProvider>
         <ClientesProvider>
-          <MemoryRouter initialEntries={[url]}>{ui}</MemoryRouter>
+          <ReservasProvider>
+            <MemoryRouter initialEntries={[url]}>{ui}</MemoryRouter>
+          </ReservasProvider>
         </ClientesProvider>
       </InventoryProvider>
     </SessionProvider>,

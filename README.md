@@ -63,3 +63,11 @@ See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rule
 - **Cotizaciones por cliente**: desde la ficha se prepara la cotización; queda en el historial y el cliente avanza a Cotización.
 - **Gestión comercial** (`/comercial`): agenda del asesor (vencidas, hoy, 7 días, sin siguiente paso), embudo y origen.
 - **Supabase**: `supabase/migrations/20261028180000_clientes.sql`.
+
+## Reservas
+
+- **Solicitud**: desde una cotización vinculada a un cliente. Requiere cotización vigente y unidad con disponibilidad confirmada. No bloquea la unidad.
+- **Confirmación** (gerencia o administración): exige comprobante y monto igual o mayor a la reserva acordada. En la misma operación bloquea la unidad en Inventario y pasa al cliente a Reserva.
+- **Anulación**: una solicitud se cierra sin tocar el inventario; una reserva confirmada libera la unidad y devuelve al cliente a Negociación.
+- Una sola reserva activa por unidad, también en la base de datos (índice único).
+- Migración: `supabase/migrations/20261028200000_reservas.sql`.

@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ETAPAS } from '@/features/clientes/model'
 import { clientesVisibles, vincularCotizacion } from '@/features/clientes/service'
 import { useClientes } from '@/features/clientes/store'
+import { useReservaFlujo } from '@/features/reservas/flujo'
+import { Link } from 'react-router-dom'
 import { useInventory } from '@/features/inventario/store'
 
 const CLIENTE_VACIO: DatosPersona = { nombre: '', documento: '', email: '', telefono: '' }
@@ -28,6 +30,8 @@ export default function CotizacionesPage() {
   const [params] = useSearchParams()
   const { lista, agregar } = useCotizaciones()
   const { state: cs, update: updateClientes } = useClientes()
+  const reservas = useReservaFlujo()
+  const [avisoReserva, setAvisoReserva] = useState<string | null>(null)
   const registrados = clientesVisibles(cs.clientes, actor).filter((c) => c.etapa !== 'perdido')
   const [codigo, setCodigo] = useState(params.get('unidad') ?? '')
   const [clienteId, setClienteId] = useState(() => (registrados.some((c) => c.id === params.get('cliente')) ? params.get('cliente')! : ''))
@@ -153,6 +157,7 @@ export default function CotizacionesPage() {
 
           <section className="dashboard-card p-5 [&_.section-heading]:p-0" aria-labelledby="cot-hist">
             <h2 id="cot-hist" className="text-sm font-semibold">Cotizaciones emitidas</h2>
+            {avisoReserva && <p role="status" className="mt-2 rounded-md bg-muted px-2 py-1.5 text-[11px]">{avisoReserva} {avisoReserva.startsWith('Solicitud') && <Link className="text-primary hover:underline" to="/reservas">Ver reservas</Link>}</p>}
             {lista.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">Aún no hay cotizaciones.</p> : (
               <ul className="mt-2 grid max-h-80 gap-1.5 overflow-auto">
                 {lista.map((c) => (
@@ -161,6 +166,9 @@ export default function CotizacionesPage() {
                       <div className="font-medium">{c.numero} · {c.unidad.dpt}</div>
                       <div className="truncate text-[11px] text-muted-foreground">{c.cliente.nombre} · {fmtUsd(c.plan.precioFinal)} · vence {fmtFechaCorta(c.validaHasta)}</div>
                     </div>
+                    {c.clienteId && can('reservas.solicitar') && (
+                      <Button size="xs" variant="outline" onClick={() => { setAvisoReserva(null); try { reservas.solicitar(c); setAvisoReserva(`Solicitud de reserva creada para ${c.numero}. Pendiente de verificación de pago.`) } catch (e) { setAvisoReserva((e as Error).message) } }}>Solicitar reserva</Button>
+                    )}
                     <Button size="icon-sm" variant="ghost" aria-label={`Descargar ${c.numero}`} onClick={() => descargarCotizacionPdf(c)}><Download /></Button>
                   </li>
                 ))}

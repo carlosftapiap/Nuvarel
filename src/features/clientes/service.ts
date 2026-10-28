@@ -134,6 +134,7 @@ export function moverEtapa(state: ClientesState, id: string, etapa: Etapa, actor
   assertCan(actor.rol, 'clientes.editar')
   const c = buscar(state, id, actor)
   if (c.etapa === etapa) return state
+  if (etapa === 'reserva') throw new ClienteError('La etapa Reserva se activa al confirmar una reserva en el módulo Reservas (con pago verificado).')
   let detalle = ''
   if (etapa === 'perdido') {
     if ((opts.motivo ?? '').trim().length < 5) throw new ClienteError('Indica el motivo por el que se perdió el cliente.')
@@ -143,10 +144,9 @@ export function moverEtapa(state: ClientesState, id: string, etapa: Etapa, actor
     if (!opts.fechaRetomar || !FECHA.test(opts.fechaRetomar) || opts.fechaRetomar <= hoyGuayaquil()) throw new ClienteError('Indica una fecha futura para retomar el contacto.')
     detalle = ` · retomar el ${opts.fechaRetomar.split('-').reverse().join('/')}`
   }
-  if ((etapa === 'cotizacion' || etapa === 'negociacion' || etapa === 'reserva') && !c.unidadesInteres.length) {
+  if ((etapa === 'cotizacion' || etapa === 'negociacion') && !c.unidadesInteres.length) {
     throw new ClienteError(`Para pasar a "${ETAPAS[etapa].label}" registra primero el departamento de interés.`)
   }
-  if (etapa === 'reserva' && !c.cotizaciones.length) throw new ClienteError('Para pasar a "Reserva" el cliente debe tener al menos una cotización.')
   return reemplazar(state, {
     ...c,
     etapa,
@@ -241,3 +241,27 @@ export function resumenClientes(clientes: Cliente[], hoy = hoyGuayaquil()) {
 }
 
 export const etiquetaActividad = (t: TipoActividad) => TIPOS_ACTIVIDAD[t]
+
+/** Lo llama Reservas al confirmar: el cliente pasa a Reserva junto con la unidad bloqueada. */
+export function marcarClienteReserva(state: ClientesState, clienteId: string, codigo: string, actor: Actor): ClientesState {
+  const c = state.clientes.find((x) => x.id === clienteId)
+  if (!c) throw new ClienteError('El cliente de la reserva ya no existe.')
+  if (c.etapa === 'reserva') return state
+  return reemplazar(state, {
+    ...c,
+    etapa: 'reserva',
+    fechaRetomar: null,
+    actividades: [actividad('etapa', `${ETAPAS[c.etapa].label} → Reserva · ${codigo} confirmada`, actor), ...c.actividades],
+  })
+}
+
+/** Lo llama Reservas al anular una reserva confirmada: el cliente vuelve a Negociación. */
+export function liberarClienteReserva(state: ClientesState, clienteId: string, codigo: string, actor: Actor): ClientesState {
+  const c = state.clientes.find((x) => x.id === clienteId)
+  if (!c || c.etapa !== 'reserva') return state
+  return reemplazar(state, {
+    ...c,
+    etapa: 'negociacion',
+    actividades: [actividad('etapa', `Reserva → Negociación · ${codigo} anulada`, actor), ...c.actividades],
+  })
+}

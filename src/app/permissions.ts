@@ -15,6 +15,9 @@ export type Permiso =
   | 'clientes.ver_todos'
   | 'clientes.editar'
   | 'clientes.asignar'
+  | 'reservas.solicitar'
+  | 'reservas.confirmar'
+  | 'reservas.anular'
 
 export const ROLES: Record<Rol, { label: string; descripcion: string }> = {
   administrador: { label: 'Administrador', descripcion: 'Control total del sistema' },
@@ -46,6 +49,10 @@ const MATRIZ: Record<Permiso, Rol[]> = {
   'clientes.ver_todos': ['administrador', 'gerencia', 'asesor'],
   'clientes.editar': ['administrador', 'gerencia', 'asesor', 'corredor'],
   'clientes.asignar': ['administrador', 'gerencia'],
+  // Un corredor solicita; solo administración o gerencia verifica el pago y confirma.
+  'reservas.solicitar': ['administrador', 'gerencia', 'asesor', 'corredor'],
+  'reservas.confirmar': ['administrador', 'gerencia'],
+  'reservas.anular': ['administrador', 'gerencia'],
 }
 
 export function can(rol: Rol, permiso: Permiso) {
