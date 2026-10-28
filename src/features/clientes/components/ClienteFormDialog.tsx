@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { useSession } from '@/app/session'
 import { Button } from '@/components/ui/button'
@@ -12,10 +12,12 @@ import { useInventory } from '@/features/inventario/store'
 import { FORMAS_PAGO, ORIGENES, PROPOSITOS, type Cliente, type FormaPago, type Origen, type Proposito } from '../model'
 import { actualizarCliente, crearCliente, type ClienteInput } from '../service'
 import { useClientes } from '../store'
+import { DirectorioContext } from '@/features/config/store'
+import { asignables } from '@/features/config/service'
 
-const vacio = (asesor: string): ClienteInput => ({
+const vacio = (asesorId: string, asesor: string): ClienteInput => ({
   nombre: '', telefono: '', email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [],
-  presupuesto: null, proposito: null, formaPago: null, asesor,
+  presupuesto: null, proposito: null, formaPago: null, asesorId, asesor,
 })
 
 export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved }: {
@@ -27,17 +29,22 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
   const { state: inv } = useInventory()
   const { update } = useClientes()
   const { actor, can } = useSession()
-  const [f, setF] = useState<ClienteInput>(() => vacio(actor.nombre))
+  const dir = useContext(DirectorioContext)
+  // Personas a las que se puede asignar: dentro del alcance del usuario (y siempre él mismo).
+  const opciones = dir ? asignables(dir.state, actor) : []
+  const personas = opciones.some((u) => u.id === actor.id) ? opciones : [{ id: actor.id, nombre: actor.nombre }, ...opciones]
+  const [f, setF] = useState<ClienteInput>(() => vacio(actor.id, actor.nombre))
   const [presupuesto, setPresupuesto] = useState('')
   const [unidad, setUnidad] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
-    const base = cliente ? { ...cliente } : vacio(actor.nombre)
+    const base = cliente ? { ...cliente } : vacio(actor.id, actor.nombre)
     setF({
       nombre: base.nombre, telefono: base.telefono, email: base.email, origen: base.origen, origenDetalle: base.origenDetalle,
-      unidadesInteres: [...base.unidadesInteres], presupuesto: base.presupuesto, proposito: base.proposito, formaPago: base.formaPago, asesor: base.asesor,
+      unidadesInteres: [...base.unidadesInteres], presupuesto: base.presupuesto, proposito: base.proposito, formaPago: base.formaPago,
+      asesorId: base.asesorId, asesor: base.asesor,
     })
     setPresupuesto(base.presupuesto ? String(base.presupuesto) : '')
     setUnidad(''); setError(null)
@@ -106,7 +113,12 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
               </div>
             )}
           </fieldset>
-          <Campo id="cf-asesor" label={can('clientes.asignar') ? 'Asesor responsable *' : 'Asesor responsable (solo gerencia lo reasigna)'} value={f.asesor} onChange={(v) => set('asesor', v)} disabled={!can('clientes.asignar')} />
+          {can('clientes.asignar') ? (
+            <Sel id="cf-asesor" label="Asesor responsable *" value={f.asesorId} items={[...(personas.some((p) => p.id === f.asesorId) ? [] : [[f.asesorId, f.asesor || 'Sin asignar'] as [string, string]]), ...personas.map((p) => [p.id, p.nombre] as [string, string])]}
+              onChange={(v) => setF((x) => ({ ...x, asesorId: v, asesor: personas.find((p) => p.id === v)?.nombre ?? x.asesor }))} />
+          ) : (
+            <p className="text-xs text-muted-foreground">Asesor responsable: <b>{f.asesor}</b>. Solo quien tiene permiso de asignación puede cambiarlo.</p>
+          )}
           <FieldError>{error}</FieldError>
         </div>
         <DialogFooter>

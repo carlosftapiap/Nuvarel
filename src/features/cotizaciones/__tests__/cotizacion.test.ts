@@ -5,8 +5,8 @@ import type { Actor } from '@/features/inventario/types'
 import { crearCotizacion, siguienteNumero, type CotizacionInput } from '../cotizacion'
 import { construirPdfCotizacion } from '../pdf'
 
-const asesor: Actor = { nombre: 'Asesor', rol: 'asesor' }
-const gerencia: Actor = { nombre: 'Gerencia', rol: 'gerencia' }
+const asesor: Actor = { id: 'u-asesor', nombre: 'Asesor', rol: 'asesor' }
+const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
 
 const base: CotizacionInput = {
   codigo: 'E1-PB-A2',

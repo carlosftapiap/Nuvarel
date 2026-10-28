@@ -7,10 +7,10 @@ import {
 } from '../service'
 import type { Actor } from '../types'
 
-const gerencia: Actor = { nombre: 'Gerencia', rol: 'gerencia' }
-const admin: Actor = { nombre: 'Admin', rol: 'administrador' }
-const asesor: Actor = { nombre: 'Asesor', rol: 'asesor' }
-const corredor: Actor = { nombre: 'Corredor', rol: 'corredor' }
+const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
+const admin: Actor = { id: 'u-admin', nombre: 'Admin', rol: 'administrador' }
+const asesor: Actor = { id: 'u-asesor', nombre: 'Asesor', rol: 'asesor' }
+const corredor: Actor = { id: 'u-corredor', nombre: 'Corredor', rol: 'corredor' }
 const find = (s: ReturnType<typeof createInitialState>, c: string) => s.units.find((u) => u.codigo === c)!
 
 describe('cambios de precio', () => {

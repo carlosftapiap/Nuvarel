@@ -9,7 +9,17 @@ function cargar(): ClientesState {
   try {
     const raw = localStorage.getItem(KEY)
     const saved = raw ? (JSON.parse(raw) as ClientesState) : null
-    return saved?.version === 1 && Array.isArray(saved.clientes) ? saved : estadoInicialClientes()
+    if (!(saved?.version === 1 && Array.isArray(saved.clientes))) return estadoInicialClientes()
+    // Datos guardados antes de usar identificadores: quedan sin responsable para que administración los reasigne.
+    return {
+      ...saved,
+      clientes: saved.clientes.map((c) => ({
+        ...c,
+        asesorId: c.asesorId ?? 'sin-asignar',
+        creadoPor: { id: c.creadoPor?.id ?? 'sin-asignar', nombre: c.creadoPor?.nombre ?? '', rol: c.creadoPor?.rol ?? '' },
+        atribucion: c.atribucion ?? { usuarioId: c.creadoPor?.id ?? 'sin-asignar', nombre: c.creadoPor?.nombre ?? '', fecha: c.creadoEn?.slice(0, 10) ?? '' },
+      })),
+    }
   } catch {
     return estadoInicialClientes()
   }

@@ -49,11 +49,24 @@ export interface PricingParams {
   meses: Record<Edificio, number>
 }
 
-export type Rol = 'administrador' | 'gerencia' | 'asesor' | 'corredor'
+/** Identificador de rol (plantillas iniciales o roles creados en Configuración). */
+export type Rol = string
 
+export interface Alcance {
+  tipo: 'propio' | 'equipo' | 'empresa'
+  /** Identificadores de usuario cuyos registros puede ver (propio: él mismo; equipo: su equipo). */
+  usuarios: string[]
+}
+
+/** Quien ejecuta una acción. La autorización usa `id` y permisos, nunca el nombre mostrado. */
 export interface Actor {
+  id: string
   nombre: string
   rol: Rol
+  /** Permisos efectivos (rol + excepciones). Si falta, se usa la plantilla del rol. */
+  permisos?: readonly string[]
+  alcance?: Alcance
+  proyectos?: string[]
 }
 
 export interface PriceChange {

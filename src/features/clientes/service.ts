@@ -1,4 +1,4 @@
-import { assertCan, can } from '@/app/permissions'
+import { assertCan, can, puedeVerDe } from '@/app/permissions'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import type { Actor, InventoryState } from '@/features/inventario/types'
 import { ETAPAS, ETAPAS_EMBUDO, TIPOS_ACTIVIDAD, type Actividad, type Cliente, type ClientesState, type Etapa, type FormaPago, type Origen, type ProximaActividad, type Proposito, type TipoActividad } from './model'
@@ -17,10 +17,10 @@ export const estadoInicialClientes = (): ClientesState => ({ version: 1, cliente
 
 /* ------------------------------------------------------------- visibilidad */
 
-/** Administración, gerencia y asesores ven todos los clientes; un corredor solo los suyos. */
+/** Cada usuario ve los clientes de su alcance (propio, equipo o empresa), comparando identificadores. */
 export function clientesVisibles(clientes: Cliente[], actor: Actor) {
-  if (can(actor.rol, 'clientes.ver_todos')) return clientes
-  return clientes.filter((c) => c.asesor === actor.nombre || c.creadoPor.nombre === actor.nombre)
+  if (!can(actor, 'clientes.ver')) return []
+  return clientes.filter((c) => puedeVerDe(actor, [c.asesorId, c.creadoPor.id]))
 }
 
 function buscar(state: ClientesState, id: string, actor: Actor) {
@@ -49,6 +49,8 @@ export interface ClienteInput {
   presupuesto: number | null
   proposito: Proposito | null
   formaPago: FormaPago | null
+  /** Responsable: identificador de usuario y nombre mostrado. */
+  asesorId: string
   asesor: string
 }
 
@@ -62,7 +64,7 @@ export function validarCliente(input: ClienteInput, inventario?: InventoryState)
     e.push(input.origen === 'referido' ? 'Indica quién lo refirió.' : 'Indica el corredor que lo trajo.')
   }
   if (input.presupuesto !== null && (!Number.isFinite(input.presupuesto) || input.presupuesto <= 0)) e.push('El presupuesto debe ser un valor positivo.')
-  if (!input.asesor.trim()) e.push('Asigna un asesor responsable.')
+  if (!input.asesorId || !input.asesor.trim()) e.push('Asigna un asesor responsable.')
   if (inventario) {
     const desconocidas = input.unidadesInteres.filter((c) => !inventario.units.some((u) => u.codigo === c))
     if (desconocidas.length) e.push(`Unidades inexistentes: ${desconocidas.join(', ')}.`)
@@ -80,41 +82,55 @@ export function buscarDuplicado(state: ClientesState, input: Pick<ClienteInput, 
   ))
 }
 
+/** Asignar a otra persona exige permiso y que el destino esté dentro del alcance del actor. */
+function verificarAsignacion(asesorId: string, actor: Actor) {
+  if (asesorId === actor.id) return
+  if (!can(actor, 'clientes.asignar')) throw new ClienteError('No tienes permiso para asignar clientes a otro asesor.')
+  if (!puedeVerDe(actor, [asesorId])) throw new ClienteError('Solo puedes asignar clientes a personas de tu equipo.')
+}
+
+/** El aviso de duplicado no revela datos de clientes fuera del alcance del actor. */
+function avisarDuplicado(state: ClientesState, input: Pick<ClienteInput, 'telefono' | 'email'>, actor: Actor, excluirId?: string) {
+  const dup = buscarDuplicado(state, input, excluirId)
+  if (!dup) return
+  if (puedeVerDe(actor, [dup.asesorId, dup.creadoPor.id])) throw new ClienteError(`Ya existe un cliente con ese teléfono o correo: ${dup.nombre} (asesor ${dup.asesor}).`)
+  throw new ClienteError('Ese teléfono o correo ya está registrado por otro equipo. Solicita a tu supervisor o a gerencia que revise el caso.')
+}
+
 function limpiar(input: ClienteInput) {
   return {
     nombre: input.nombre.trim(), telefono: input.telefono.trim(), email: input.email.trim().toLowerCase(),
     origen: input.origen, origenDetalle: input.origenDetalle.trim(), unidadesInteres: [...new Set(input.unidadesInteres)],
-    presupuesto: input.presupuesto, proposito: input.proposito, formaPago: input.formaPago, asesor: input.asesor.trim(),
+    presupuesto: input.presupuesto, proposito: input.proposito, formaPago: input.formaPago, asesorId: input.asesorId, asesor: input.asesor.trim(),
   }
 }
 
 export function crearCliente(state: ClientesState, input: ClienteInput, actor: Actor, inventario?: InventoryState): { state: ClientesState; cliente: Cliente } {
-  assertCan(actor.rol, 'clientes.editar')
-  // Solo gerencia o administración asignan a otra persona.
-  if (input.asesor.trim() !== actor.nombre && !can(actor.rol, 'clientes.asignar')) throw new ClienteError('Solo gerencia puede asignar el cliente a otro asesor.')
+  assertCan(actor, 'clientes.editar')
+  verificarAsignacion(input.asesorId, actor)
   const errores = validarCliente(input, inventario)
   if (errores.length) throw new ClienteError(errores.join(' '))
-  const dup = buscarDuplicado(state, input)
-  if (dup) throw new ClienteError(`Ya existe un cliente con ese teléfono o correo: ${dup.nombre} (asesor ${dup.asesor}).`)
+  avisarDuplicado(state, input, actor)
   const ahora = nowIso()
   const cliente: Cliente = {
     id: newId('cli'), ...limpiar(input), etapa: 'nuevo', motivoPerdida: '', fechaRetomar: null, proxima: null,
+    atribucion: { usuarioId: actor.id, nombre: actor.nombre, fecha: hoyGuayaquil() },
     actividades: [actividad('nota', `Cliente registrado · origen ${input.origen}`, actor)], cotizaciones: [],
-    creadoPor: { nombre: actor.nombre, rol: actor.rol }, creadoEn: ahora, actualizadoEn: ahora,
+    creadoPor: { id: actor.id, nombre: actor.nombre, rol: actor.rol }, creadoEn: ahora, actualizadoEn: ahora,
   }
   return { state: { ...state, clientes: [cliente, ...state.clientes] }, cliente }
 }
 
 export function actualizarCliente(state: ClientesState, id: string, input: ClienteInput, actor: Actor, inventario?: InventoryState): ClientesState {
-  assertCan(actor.rol, 'clientes.editar')
+  assertCan(actor, 'clientes.editar')
   const c = buscar(state, id, actor)
-  if (input.asesor.trim() !== c.asesor && !can(actor.rol, 'clientes.asignar')) throw new ClienteError('Solo gerencia puede reasignar el asesor.')
+  if (input.asesorId !== c.asesorId) verificarAsignacion(input.asesorId, actor)
   const errores = validarCliente(input, inventario)
   if (errores.length) throw new ClienteError(errores.join(' '))
-  const dup = buscarDuplicado(state, input, id)
-  if (dup) throw new ClienteError(`Ya existe un cliente con ese teléfono o correo: ${dup.nombre}.`)
+  avisarDuplicado(state, input, actor, id)
   const cambios: string[] = []
-  if (input.asesor.trim() !== c.asesor) cambios.push(`Asesor reasignado: ${c.asesor} → ${input.asesor.trim()}`)
+  // La atribución de origen se conserva; solo cambia el responsable actual y queda en el historial.
+  if (input.asesorId !== c.asesorId) cambios.push(`Asesor reasignado: ${c.asesor} → ${input.asesor.trim()}`)
   const unidadesNuevas = input.unidadesInteres.filter((u) => !c.unidadesInteres.includes(u))
   if (unidadesNuevas.length) cambios.push(`Interés en ${unidadesNuevas.join(', ')}`)
   return reemplazar(state, {
@@ -131,7 +147,7 @@ export interface MoverOpciones {
 }
 
 export function moverEtapa(state: ClientesState, id: string, etapa: Etapa, actor: Actor, opts: MoverOpciones = {}): ClientesState {
-  assertCan(actor.rol, 'clientes.editar')
+  assertCan(actor, 'clientes.editar')
   const c = buscar(state, id, actor)
   if (c.etapa === etapa) return state
   if (etapa === 'reserva') throw new ClienteError('La etapa Reserva se activa al confirmar una reserva en el módulo Reservas (con pago verificado).')
@@ -160,7 +176,7 @@ export function moverEtapa(state: ClientesState, id: string, etapa: Etapa, actor
 /* -------------------------------------------------------------- actividades */
 
 export function registrarActividad(state: ClientesState, id: string, input: { tipo: Exclude<TipoActividad, 'etapa' | 'cotizacion'>; descripcion: string; fecha: string }, actor: Actor): ClientesState {
-  assertCan(actor.rol, 'clientes.editar')
+  assertCan(actor, 'clientes.editar')
   const c = buscar(state, id, actor)
   if (input.descripcion.trim().length < 3) throw new ClienteError('Describe la actividad.')
   if (!FECHA.test(input.fecha) || input.fecha > hoyGuayaquil()) throw new ClienteError('La fecha de una actividad realizada no puede ser futura.')
@@ -172,7 +188,7 @@ export function registrarActividad(state: ClientesState, id: string, input: { ti
 }
 
 export function programarProxima(state: ClientesState, id: string, proxima: ProximaActividad | null, actor: Actor): ClientesState {
-  assertCan(actor.rol, 'clientes.editar')
+  assertCan(actor, 'clientes.editar')
   const c = buscar(state, id, actor)
   if (proxima) {
     if (proxima.descripcion.trim().length < 3) throw new ClienteError('Describe la próxima actividad.')

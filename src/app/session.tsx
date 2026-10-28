@@ -1,39 +1,51 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { Actor, Rol } from '@/features/inventario/types'
-import { can as canRol, ROLES, type Permiso } from './permissions'
+import { DirectorioContext } from '@/features/config/store'
+import { actorDe, ID_ADMIN_INICIAL, permisosEfectivos } from '@/features/config/service'
+import { can as canActor, rolLabel, type Permiso } from './permissions'
 
 /**
- * Sesión de DEMOSTRACIÓN: el rol se elige manualmente para probar permisos.
- * Con Supabase Auth el rol vendrá del perfil del usuario y la autorización se aplicará con RLS.
+ * Sesión. Mientras no se conecte Supabase Auth, se elige un usuario del directorio para trabajar como él (modo demostración).
+ * La identidad es el identificador del usuario; sus permisos y alcance salen de su rol, excepciones y equipos.
  */
 interface SessionValue {
   actor: Actor
-  setRol: (rol: Rol) => void
+  usuarioId: string
+  setUsuario: (id: string) => void
   can: (permiso: Permiso) => boolean
 }
 
-const KEY = 'amura.demo.rol'
+const KEY = 'amura.demo.usuario'
 const SessionContext = createContext<SessionValue | null>(null)
 
-function leerRol(): Rol {
-  try {
-    const v = localStorage.getItem(KEY)
-    if (v && v in ROLES) return v as Rol
-  } catch { /* almacenamiento no disponible */ }
-  return 'gerencia'
+function leerUsuario() {
+  try { return localStorage.getItem(KEY) ?? ID_ADMIN_INICIAL } catch { return ID_ADMIN_INICIAL }
 }
 
+/** `initialRol` crea una sesión fija por plantilla de rol (usado en pruebas aisladas). */
 export function SessionProvider({ children, initialRol }: { children: ReactNode; initialRol?: Rol }) {
-  const [rol, setRolState] = useState<Rol>(() => initialRol ?? leerRol())
-  const setRol = useCallback((r: Rol) => {
-    setRolState(r)
-    try { localStorage.setItem(KEY, r) } catch { /* ignorar */ }
+  const dir = useContext(DirectorioContext)
+  const [uid, setUid] = useState<string>(() => leerUsuario())
+  const setUsuario = useCallback((id: string) => {
+    setUid(id)
+    try { localStorage.setItem(KEY, id) } catch { /* ignorar */ }
   }, [])
-  const value = useMemo<SessionValue>(() => ({
-    actor: { nombre: `${ROLES[rol].label} (demo)`, rol },
-    setRol,
-    can: (p) => canRol(rol, p),
-  }), [rol, setRol])
+
+  const value = useMemo<SessionValue>(() => {
+    let actor: Actor
+    if (initialRol || !dir) {
+      const rol = initialRol ?? 'administrador'
+      actor = { id: `demo-${rol}`, nombre: `${rolLabel(rol)} (demo)`, rol }
+    } else {
+      const activos = dir.state.usuarios.filter((u) => u.estado === 'activo')
+      const u = activos.find((x) => x.id === uid)
+        ?? activos.find((x) => permisosEfectivos(dir.state, x).includes('config.usuarios'))
+        ?? activos[0]
+      actor = actorDe(dir.state, u)
+    }
+    return { actor, usuarioId: actor.id, setUsuario, can: (p) => canActor(actor, p) }
+  }, [initialRol, dir, uid, setUsuario])
+
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }
 

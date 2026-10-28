@@ -6,9 +6,9 @@ import type { Actor } from '@/features/inventario/types'
 import { comparacionPorPiso, conteoPosiciones, RANGO_FRATELLI_TOTAL, RANGOS_FRATELLI } from '../competencia'
 import { FRATELLI } from '../data/fratelli'
 
-const admin: Actor = { nombre: 'Admin', rol: 'administrador' }
-const gerencia: Actor = { nombre: 'Gerencia', rol: 'gerencia' }
-const asesor: Actor = { nombre: 'Asesor', rol: 'asesor' }
+const admin: Actor = { id: 'u-admin', nombre: 'Admin', rol: 'administrador' }
+const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
+const asesor: Actor = { id: 'u-asesor', nombre: 'Asesor', rol: 'asesor' }
 
 describe('competencia FRATELLI', () => {
   it('60 unidades con los rangos de la lista PDF', () => {

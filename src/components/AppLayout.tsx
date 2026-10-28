@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { Bell, ChevronDown, ChevronRight, Search, Settings, X } from 'lucide-react'
+import { ChevronRight, Lock, Search, Settings, X } from 'lucide-react'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu,
@@ -9,33 +9,39 @@ import {
 } from '@/components/ui/sidebar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { NAV_GROUPS, NAV_ITEMS } from '@/app/navigation'
-import { ROLES } from '@/app/permissions'
+import { NAV_GROUPS, NAV_ITEMS, type NavItem } from '@/app/navigation'
+import { rolLabel } from '@/app/permissions'
 import { useSession } from '@/app/session'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { Rol } from '@/features/inventario/types'
+import { useDirectorio } from '@/features/config/store'
 
-function RoleSwitcher() {
-  const { actor, setRol } = useSession()
+/** Mientras no exista inicio de sesión con Supabase, se trabaja como un usuario del directorio. */
+function UserSwitcher() {
+  const { actor, setUsuario } = useSession()
+  const { state } = useDirectorio()
+  const activos = state.usuarios.filter((u) => u.estado === 'activo')
   return (
-    <Select value={actor.rol} onValueChange={(v) => setRol(v as Rol)}>
-      <SelectTrigger size="sm" className="h-8 text-[11px]" aria-label="Rol de demostración" title="Rol de demostración para probar permisos">
+    <Select value={actor.id} onValueChange={setUsuario}>
+      <SelectTrigger size="sm" className="h-8 max-w-56 text-[11px]" aria-label="Trabajar como (modo demostración)" title="Modo demostración: elige el usuario con el que trabajas">
         <SelectValue />
       </SelectTrigger>
       <SelectContent align="end">
-        {(Object.keys(ROLES) as Rol[]).map((r) => <SelectItem key={r} value={r}>{ROLES[r].label}</SelectItem>)}
+        {activos.map((u) => <SelectItem key={u.id} value={u.id}>{u.nombre} · {rolLabel(u.rolId)}</SelectItem>)}
       </SelectContent>
     </Select>
   )
 }
 
+function usePermitido() {
+  const { can } = useSession()
+  return (item: NavItem) => item.permisos.some((p) => can(p))
+}
+
 function AppSidebar() {
   const { pathname } = useLocation()
   const { isMobile, setOpenMobile } = useSidebar()
+  const permitido = usePermitido()
+  const { actor } = useSession()
   return (
     <Sidebar collapsible="icon" className="app-sidebar">
       <SidebarHeader className="relative px-[18px] pt-5 pb-2 group-data-[collapsible=icon]:p-2">
@@ -49,7 +55,7 @@ function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter(permitido) })).filter((g) => g.items.length).map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -76,8 +82,8 @@ function AppSidebar() {
         <Link to="/configuracion" className="sidebar-profile group-data-[collapsible=icon]:justify-center" onClick={() => { if (isMobile) setOpenMobile(false) }}>
           <span className="profile-avatar group-data-[collapsible=icon]:size-8">AM</span>
           <span className="flex-1 group-data-[collapsible=icon]:hidden">
-            <span className="block text-[11px] font-medium text-[#e2e9f6]">Equipo AMURA</span>
-            <span className="block mt-1 text-[9px] text-[#91a2c1]">Entorno de demostración</span>
+            <span className="block truncate text-[11px] font-medium text-[#e2e9f6]">{actor.nombre}</span>
+            <span className="block mt-1 text-[9px] text-[#91a2c1]">{rolLabel(actor.rol)} · modo demostración</span>
           </span>
           <Settings className="size-3.5 group-data-[collapsible=icon]:hidden" aria-hidden="true" />
         </Link>
@@ -92,7 +98,8 @@ function GlobalSearch() {
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-  const matches = NAV_ITEMS.filter((item) => normalize(item.label).includes(normalize(query.trim())))
+  const permitido = usePermitido()
+  const matches = NAV_ITEMS.filter(permitido).filter((item) => normalize(item.label).includes(normalize(query.trim())))
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
@@ -124,7 +131,11 @@ function GlobalSearch() {
 
 export default function AppLayout() {
   const { pathname } = useLocation()
-  const currentModule = NAV_ITEMS.find((item) => item.to !== '/' && pathname.startsWith(item.to))?.label ?? 'Inicio'
+  const item = pathname === '/' ? NAV_ITEMS[0] : NAV_ITEMS.find((i) => i.to !== '/' && pathname.startsWith(i.to))
+  const currentModule = item?.label ?? 'Inicio'
+  const permitido = usePermitido()
+  // Las rutas directas también verifican permisos (además del menú).
+  const bloqueado = item ? !permitido(item) : false
   return (
     <SidebarProvider className="app-sidebar" style={{ '--sidebar-width': '236px' } as React.CSSProperties}>
       <AppSidebar />
@@ -136,27 +147,20 @@ export default function AppLayout() {
           </div>
           <GlobalSearch />
           <div className="ml-auto flex shrink-0 items-center gap-3">
-            <span className="demo-badge hidden sm:inline-flex"><i aria-hidden="true" />Datos demo</span>
-            <RoleSwitcher />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" className="relative text-muted-foreground" aria-label="Ver 4 alertas de demostración"><Bell className="size-4" /><span className="notification-dot" /></Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel>Alertas · Demostración</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild><Link to="/reservas">Depósito de reserva por verificar</Link></DropdownMenuItem>
-                <DropdownMenuItem asChild><Link to="/cobranzas">Cuota de entrada vencida</Link></DropdownMenuItem>
-                <DropdownMenuItem asChild><Link to="/cotizaciones">Cotización próxima a vencer</Link></DropdownMenuItem>
-                <DropdownMenuItem asChild><Link to="/configuracion">Lista de precios por confirmar</Link></DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Link to="/configuracion" aria-label="Configuración del equipo" className="flex items-center gap-2 border-l border-border pl-3">
-              <span className="profile-avatar size-8 rounded-full text-[10px]">AM</span><ChevronDown className="hidden size-3 text-muted-foreground sm:block" />
-            </Link>
+            <span className="demo-badge hidden sm:inline-flex" title="Los datos se guardan en este navegador hasta conectar Supabase"><i aria-hidden="true" />Modo local</span>
+            <UserSwitcher />
           </div>
         </header>
-        <div className="app-content"><Outlet /></div>
+        <div className="app-content">
+          {bloqueado ? (
+            <div className="module-empty">
+              <span className="module-empty-icon"><Lock className="size-7" aria-hidden="true" /></span>
+              <h2 className="text-xl font-semibold tracking-tight">Sin acceso a {currentModule}</h2>
+              <p className="mt-3 max-w-sm text-sm text-muted-foreground">Tu usuario no tiene permiso para este módulo. Si lo necesitas, solicítalo al administrador.</p>
+              <Button variant="outline" asChild className="mt-6"><Link to="/">Volver al inicio</Link></Button>
+            </div>
+          ) : <Outlet />}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

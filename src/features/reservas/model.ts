@@ -15,6 +15,8 @@ export interface Reserva {
   codigo: string
   clienteId: string
   clienteNombre: string
+  /** Responsable del cliente al solicitar (identificador de usuario). */
+  asesorId: string
   unidad: string
   cotizacionId: string
   cotizacionNumero: string
@@ -32,7 +34,7 @@ export interface Reserva {
   montoRecibido: number | null
   fechaConfirmacion: string | null
   motivoAnulacion: string
-  creadaPor: { nombre: string; rol: Rol }
+  creadaPor: { id: string; nombre: string; rol: Rol }
   creadaEn: string
   historial: HistorialReserva[]
 }

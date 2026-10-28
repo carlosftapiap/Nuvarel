@@ -70,7 +70,7 @@ describe('Clientes', () => {
 
   it('Perdido pide motivo', async () => {
     const user = userEvent.setup()
-    const { state, cliente } = crearCliente(estadoInicialClientes(), { nombre: 'Pedro Ruiz', telefono: '0990001111', email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [], presupuesto: null, proposito: null, formaPago: null, asesor: 'Asesor comercial (demo)' }, { nombre: 'Asesor comercial (demo)', rol: 'asesor' }, createInitialState())
+    const { state, cliente } = crearCliente(estadoInicialClientes(), { nombre: 'Pedro Ruiz', telefono: '0990001111', email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [], presupuesto: null, proposito: null, formaPago: null, asesorId: 'demo-asesor', asesor: 'Vendedor (demo)' }, { id: 'demo-asesor', nombre: 'Vendedor (demo)', rol: 'asesor' }, createInitialState())
     renderApp(`/clientes?cliente=${cliente.id}`, state)
     const ficha = await screen.findByRole('dialog', { name: /Pedro Ruiz/ })
     await user.click(within(ficha).getByRole('button', { name: 'Perdido' }))
@@ -84,8 +84,8 @@ describe('Clientes', () => {
 
   it('la cotización desde la ficha queda vinculada y mueve al cliente a Cotización', async () => {
     const user = userEvent.setup()
-    const actor = { nombre: 'Asesor comercial (demo)', rol: 'asesor' as const }
-    const { state, cliente } = crearCliente(estadoInicialClientes(), { nombre: 'Andrea Mora', telefono: '0995556677', email: 'andrea@correo.com', origen: 'instagram', origenDetalle: '', unidadesInteres: ['E1-PB-A2'], presupuesto: 175000, proposito: 'vivir', formaPago: 'biess', asesor: actor.nombre }, actor, createInitialState())
+    const actor = { id: 'demo-asesor', nombre: 'Vendedor (demo)', rol: 'asesor' as const }
+    const { state, cliente } = crearCliente(estadoInicialClientes(), { nombre: 'Andrea Mora', telefono: '0995556677', email: 'andrea@correo.com', origen: 'instagram', origenDetalle: '', unidadesInteres: ['E1-PB-A2'], presupuesto: 175000, proposito: 'vivir', formaPago: 'biess', asesorId: actor.id, asesor: actor.nombre }, actor, createInitialState())
     function Etapa() { const { state: s } = useClientes(); return <output aria-label="etapa">{s.clientes[0].etapa}</output> }
     renderApp(`/cotizaciones?cliente=${cliente.id}&unidad=E1-PB-A2&fecha=2026-10-28`, state, <Etapa />)
     expect(screen.getByLabelText('Nombre completo *')).toHaveValue('Andrea Mora')

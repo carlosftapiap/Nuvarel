@@ -58,7 +58,7 @@ export function validarCotizacion(input: CotizacionInput, unit: Unit | undefined
   return e
 }
 
-const canDescuento = (actor: Actor) => can(actor.rol, 'cotizaciones.descuento')
+const canDescuento = (actor: Actor) => can(actor, 'cotizaciones.descuento')
 
 export function siguienteNumero(existentes: Cotizacion[], fecha: string) {
   const anio = fecha.slice(0, 4)
@@ -68,8 +68,8 @@ export function siguienteNumero(existentes: Cotizacion[], fecha: string) {
 }
 
 export function crearCotizacion(state: InventoryState, input: CotizacionInput, actor: Actor, existentes: Cotizacion[]): Cotizacion {
-  assertCan(actor.rol, 'cotizaciones.crear')
-  if (input.descuentoPct > 0) assertCan(actor.rol, 'cotizaciones.descuento')
+  assertCan(actor, 'cotizaciones.crear')
+  if (input.descuentoPct > 0) assertCan(actor, 'cotizaciones.descuento')
   const unit = state.units.find((u) => u.codigo === input.codigo)
   const errores = validarCotizacion(input, unit, actor)
   if (errores.length) throw new Error(errores.join(' '))

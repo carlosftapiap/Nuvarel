@@ -8,14 +8,14 @@ import {
   programarProxima, registrarActividad, resumenClientes, urgencia, vincularCotizacion, type ClienteInput,
 } from '../service'
 
-const asesor: Actor = { nombre: 'Ana Asesora', rol: 'asesor' }
-const gerencia: Actor = { nombre: 'Gerencia', rol: 'gerencia' }
-const corredor: Actor = { nombre: 'Carlos Corredor', rol: 'corredor' }
+const asesor: Actor = { id: 'u-ana-asesora', nombre: 'Ana Asesora', rol: 'asesor' }
+const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia', alcance: { tipo: 'empresa', usuarios: [] } }
+const corredor: Actor = { id: 'u-carlos-corredor', nombre: 'Carlos Corredor', rol: 'corredor' }
 const inv = createInitialState()
 
 const input = (o: Partial<ClienteInput> = {}): ClienteInput => ({
   nombre: 'María Pérez', telefono: '0991234567', email: 'maria@correo.com', origen: 'instagram', origenDetalle: '',
-  unidadesInteres: [], presupuesto: 170000, proposito: 'vivir', formaPago: 'banco', asesor: asesor.nombre, ...o,
+  unidadesInteres: [], presupuesto: 170000, proposito: 'vivir', formaPago: 'banco', asesorId: asesor.id, asesor: asesor.nombre, ...o,
 })
 const nuevo = (o: Partial<ClienteInput> = {}, actor = asesor) => crearCliente(estadoInicialClientes(), input(o), actor, inv)
 const fecha = (dias: number) => { const [y, m, d] = hoyGuayaquil().split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10) }
@@ -44,19 +44,35 @@ describe('registro de clientes', () => {
     expect(() => crearCliente(state, input({ nombre: 'Otra persona', telefono: '', email: 'MARIA@correo.com' }), asesor, inv)).toThrow(/Ya existe/)
   })
 
-  it('solo gerencia asigna o reasigna asesores', () => {
-    expect(() => nuevo({ asesor: 'Otro Asesor' })).toThrow(/gerencia/)
-    const { state, cliente } = nuevo({ asesor: 'Otro Asesor' }, gerencia)
-    expect(cliente.asesor).toBe('Otro Asesor')
-    const s2 = actualizarCliente(state, cliente.id, input({ asesor: 'Ana Asesora' }), gerencia, inv)
+  it('solo quien tiene permiso asigna o reasigna, y la atribución de origen se conserva', () => {
+    expect(() => nuevo({ asesorId: 'u-otro', asesor: 'Otro Asesor' })).toThrow(/permiso para asignar/)
+    const { state, cliente } = nuevo({ asesorId: 'u-otro', asesor: 'Otro Asesor' }, gerencia)
+    expect(cliente).toMatchObject({ asesorId: 'u-otro', asesor: 'Otro Asesor', atribucion: { usuarioId: 'u-gerencia' } })
+    const s2 = actualizarCliente(state, cliente.id, input({ asesorId: asesor.id, asesor: 'Ana Asesora' }), gerencia, inv)
     expect(s2.clientes[0].actividades[0].descripcion).toMatch(/reasignado/)
+    expect(s2.clientes[0].atribucion.usuarioId).toBe('u-gerencia')
+  })
+
+  it('un supervisor solo asigna dentro de su equipo', () => {
+    const supervisor: Actor = { id: 'u-sup', nombre: 'Sup', rol: 'supervisor', alcance: { tipo: 'equipo', usuarios: ['u-sup', 'u-ana-asesora'] } }
+    expect(nuevo({ asesorId: 'u-ana-asesora' }, supervisor).cliente.asesorId).toBe('u-ana-asesora')
+    expect(() => nuevo({ asesorId: 'u-fuera', asesor: 'Fuera' }, supervisor)).toThrow(/tu equipo/)
+  })
+
+  it('el aviso de duplicado no revela datos de otro equipo', () => {
+    const { state } = nuevo()
+    const otro: Actor = { id: 'u-otro', nombre: 'Otro', rol: 'asesor' }
+    expect(() => crearCliente(state, input({ nombre: 'X Y Z', email: '', asesorId: 'u-otro', asesor: 'Otro' }), otro, inv)).toThrow(/otro equipo/)
+    expect(() => crearCliente(state, input({ nombre: 'X Y Z', email: '', asesorId: 'u-otro', asesor: 'Otro' }), otro, inv)).not.toThrow(/María/)
   })
 
   it('corredores ven solo sus clientes', () => {
     const a = nuevo()
-    const b = crearCliente(a.state, input({ nombre: 'Cliente Corredor', telefono: '0987654321', email: '', asesor: corredor.nombre, origen: 'corredor', origenDetalle: 'Carlos Corredor' }), corredor, inv)
+    const b = crearCliente(a.state, input({ nombre: 'Cliente Corredor', telefono: '0987654321', email: '', asesorId: corredor.id, asesor: corredor.nombre, origen: 'corredor', origenDetalle: 'Carlos Corredor' }), corredor, inv)
     expect(clientesVisibles(b.state.clientes, corredor).map((c) => c.nombre)).toEqual(['Cliente Corredor'])
-    expect(clientesVisibles(b.state.clientes, asesor)).toHaveLength(2)
+    // Un vendedor ve por defecto solo los suyos; la visibilidad ampliada se concede expresamente.
+    expect(clientesVisibles(b.state.clientes, asesor).map((c) => c.nombre)).toEqual(['María Pérez'])
+    expect(clientesVisibles(b.state.clientes, gerencia)).toHaveLength(2)
     expect(() => moverEtapa(b.state, a.cliente.id, 'contactado', corredor)).toThrow(/no tienes acceso/)
   })
 })
@@ -111,6 +127,6 @@ describe('tablero comercial', () => {
 
   it('el rol sin permiso no edita', () => {
     // Todos los roles comerciales editan clientes; se valida que la verificación existe.
-    expect(() => crearCliente(estadoInicialClientes(), input(), { nombre: 'X', rol: 'nadie' as never }, inv)).toThrow(PermissionError)
+    expect(() => crearCliente(estadoInicialClientes(), input(), { id: 'u-x', nombre: 'X', rol: 'nadie' as never }, inv)).toThrow(PermissionError)
   })
 })

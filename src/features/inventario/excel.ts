@@ -217,7 +217,7 @@ export function validarImportacion(state: InventoryState, filas: FilaExcel[]): R
 /* ---------------------------------------------------------------- aplicación */
 
 export function aplicarImportacion(state: InventoryState, v: ResultadoValidacion, motivo: string, actor: Actor, archivo: string): InventoryState {
-  assertCan(actor.rol, 'inventario.importar')
+  assertCan(actor, 'inventario.importar')
   if (v.conErrores) throw new Error('Corrige los errores del archivo antes de importar.')
   if (motivo.trim().length < 5) throw new Error('Indica el motivo de la importación (mínimo 5 caracteres).')
   const filas = v.filas.filter((f) => f.cambios.length)

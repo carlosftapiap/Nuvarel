@@ -6,8 +6,8 @@ import { calcularPrecio } from '../pricing'
 import { createInitialState } from '../service'
 import type { Actor } from '../types'
 
-const gerencia: Actor = { nombre: 'Gerencia', rol: 'gerencia' }
-const asesor: Actor = { nombre: 'Asesor', rol: 'asesor' }
+const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
+const asesor: Actor = { id: 'u-asesor', nombre: 'Asesor', rol: 'asesor' }
 
 function libro(rows: unknown[][], hoja = 'Inventario') {
   const wb = XLSX.utils.book_new()

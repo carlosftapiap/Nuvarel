@@ -4,6 +4,7 @@ import AppLayout from './components/AppLayout'
 import DashboardPage from './pages/DashboardPage'
 import ModulePlaceholder from './pages/ModulePlaceholder'
 import { SessionProvider } from './app/session'
+import { DirectorioProvider } from './features/config/store'
 import { InventoryProvider } from './features/inventario/store'
 import { ClientesProvider } from './features/clientes/store'
 import { ReservasProvider } from './features/reservas/store'
@@ -18,14 +19,16 @@ const CotizacionesPage = lazy(() => import('./pages/CotizacionesPage'))
 const ClientesPage = lazy(() => import('./pages/ClientesPage'))
 const GestionComercialPage = lazy(() => import('./pages/GestionComercialPage'))
 const ReservasPage = lazy(() => import('./pages/ReservasPage'))
+const ConfiguracionPage = lazy(() => import('./pages/ConfiguracionPage'))
 const cargando = <p className="p-6 text-sm text-muted-foreground">Cargando…</p>
 
-const CUSTOM_ROUTES = new Set(['/', '/inventario', '/precios', '/financiamiento', '/cotizaciones', '/clientes', '/comercial', '/reservas'])
+const CUSTOM_ROUTES = new Set(['/', '/inventario', '/precios', '/financiamiento', '/cotizaciones', '/clientes', '/comercial', '/reservas', '/configuracion'])
 
 export default function App() {
   const placeholders = NAV_ITEMS.filter((item) => !CUSTOM_ROUTES.has(item.to))
 
   return (
+    <DirectorioProvider>
     <SessionProvider>
     <InventoryProvider>
     <ClientesProvider>
@@ -41,6 +44,7 @@ export default function App() {
           <Route path="clientes" element={<Suspense fallback={cargando}><ClientesPage /></Suspense>} />
           <Route path="comercial" element={<Suspense fallback={cargando}><GestionComercialPage /></Suspense>} />
           <Route path="reservas" element={<Suspense fallback={cargando}><ReservasPage /></Suspense>} />
+          <Route path="configuracion" element={<Suspense fallback={cargando}><ConfiguracionPage /></Suspense>} />
           {placeholders.map((item) => (
             <Route
               key={item.to}
@@ -55,5 +59,6 @@ export default function App() {
     </ClientesProvider>
     </InventoryProvider>
     </SessionProvider>
+    </DirectorioProvider>
   )
 }

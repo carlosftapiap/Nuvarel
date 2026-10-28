@@ -1,4 +1,4 @@
-import { assertCan, can } from '@/app/permissions'
+import { assertCan, puedeVerDe } from '@/app/permissions'
 import type { Cotizacion } from '@/features/cotizaciones/cotizacion'
 import { marcarClienteReserva, liberarClienteReserva } from '@/features/clientes/service'
 import type { ClientesState } from '@/features/clientes/model'
@@ -36,10 +36,9 @@ const hist = (actor: Actor, texto: string) => ({ fecha: nowIso(), usuario: actor
 
 export const estadoInicialReservas = (): ReservasState => ({ version: 1, reservas: [] })
 
-/** Corredores solo ven sus propias solicitudes; el resto ve todas. */
+/** Cada usuario ve las reservas de su alcance: las que creó o las de clientes que le corresponden. */
 export function reservasVisibles(reservas: Reserva[], actor: Actor) {
-  if (can(actor.rol, 'clientes.ver_todos')) return reservas
-  return reservas.filter((r) => r.creadaPor.nombre === actor.nombre)
+  return reservas.filter((r) => puedeVerDe(actor, [r.creadaPor.id, r.asesorId]))
 }
 
 export function siguienteCodigo(reservas: Reserva[], fecha: string) {
@@ -58,7 +57,7 @@ function buscar(res: ReservasState, id: string) {
 
 /** Solicitud: no bloquea la unidad. Valida que la cotización esté vigente y la unidad sea reservable. */
 export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Estado {
-  assertCan(actor.rol, 'reservas.solicitar')
+  assertCan(actor, 'reservas.solicitar')
   if (!cot.clienteId) throw new ReservaError('La cotización no está vinculada a un cliente registrado. Vincúlala desde Cotizaciones.')
   const hoy = hoyGuayaquil()
   if (cot.validaHasta < hoy) throw new ReservaError(`La cotización ${cot.numero} venció el ${cot.validaHasta}. Emite una nueva cotización.`)
@@ -75,6 +74,7 @@ export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Esta
     codigo: siguienteCodigo(e.res.reservas, hoy),
     clienteId: cot.clienteId,
     clienteNombre: cliente?.nombre ?? cot.cliente.nombre,
+    asesorId: cliente?.asesorId ?? cot.creadaPor.id,
     unidad: u.codigo,
     cotizacionId: cot.id,
     cotizacionNumero: cot.numero,
@@ -90,7 +90,7 @@ export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Esta
     montoRecibido: null,
     fechaConfirmacion: null,
     motivoAnulacion: '',
-    creadaPor: { nombre: actor.nombre, rol: actor.rol },
+    creadaPor: { id: actor.id, nombre: actor.nombre, rol: actor.rol },
     creadaEn: nowIso(),
     historial: [hist(actor, `Solicitud desde ${cot.numero} · reserva USD ${usd(cot.plan.reserva)} · precio USD ${usd(cot.plan.precioFinal)}`)],
   }
@@ -102,7 +102,9 @@ export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Esta
  * Todo ocurre en una sola operación: si algo falla, no cambia nada.
  */
 export function confirmarReserva(e: Estado, id: string, input: ConfirmarInput, actor: Actor): Estado {
-  assertCan(actor.rol, 'reservas.confirmar')
+  // Verificar el pago y confirmar son permisos separados; ambos son necesarios.
+  assertCan(actor, 'reservas.verificar_pago')
+  assertCan(actor, 'reservas.confirmar')
   const r = buscar(e.res, id)
   if (r.estado !== 'solicitada') throw new ReservaError(`La reserva ${r.codigo} ya está ${r.estado}.`)
   const comprobante = input.comprobante.trim()
@@ -130,7 +132,7 @@ export function confirmarReserva(e: Estado, id: string, input: ConfirmarInput, a
 
 /** Anulación: una solicitud solo se cierra; una confirmada libera la unidad y devuelve al cliente a Negociación. */
 export function anularReserva(e: Estado, id: string, motivo: string, actor: Actor): Estado {
-  assertCan(actor.rol, 'reservas.anular')
+  assertCan(actor, 'reservas.anular')
   const r = buscar(e.res, id)
   if (r.estado === 'anulada') throw new ReservaError(`La reserva ${r.codigo} ya está anulada.`)
   if (motivo.trim().length < 5) throw new ReservaError('Indica el motivo de la anulación (mínimo 5 caracteres).')

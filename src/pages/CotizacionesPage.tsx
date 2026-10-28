@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Download, FileText } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { useSession } from '@/app/session'
+import { puedeVerDe } from '@/app/permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,7 +29,9 @@ export default function CotizacionesPage() {
   const { state } = useInventory()
   const { actor, can } = useSession()
   const [params] = useSearchParams()
-  const { lista, agregar } = useCotizaciones()
+  const { lista: todas, agregar } = useCotizaciones()
+  // Solo las cotizaciones del alcance del usuario (comparando identificadores).
+  const lista = todas.filter((c) => puedeVerDe(actor, [c.creadaPor.id]))
   const { state: cs, update: updateClientes } = useClientes()
   const reservas = useReservaFlujo()
   const [avisoReserva, setAvisoReserva] = useState<string | null>(null)
@@ -65,7 +68,7 @@ export default function CotizacionesPage() {
   async function generar() {
     setError(null); setOk(null); setGenerando(true)
     try {
-      const c = crearCotizacion(state, input, actor, lista)
+      const c = crearCotizacion(state, input, actor, todas)
       agregar(c)
       guardarAsesor(asesor)
       if (c.clienteId) updateClientes((s) => vincularCotizacion(s, c.clienteId!, { numero: c.numero, codigo: c.unidad.codigo, precioFinal: c.plan.precioFinal }, actor))

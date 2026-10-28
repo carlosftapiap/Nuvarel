@@ -8,10 +8,10 @@ import type { Actor, InventoryState } from '@/features/inventario/types'
 import { anularReserva, confirmarReserva, reservasVisibles, ReservaError, solicitarReserva, type Estado } from '../service'
 import { estadoInicialReservas } from '../service'
 
-const asesor: Actor = { nombre: 'Ana Asesora', rol: 'asesor' }
-const gerencia: Actor = { nombre: 'Gerencia', rol: 'gerencia' }
-const admin: Actor = { nombre: 'Admin', rol: 'administrador' }
-const corredor: Actor = { nombre: 'Carlos Corredor', rol: 'corredor' }
+const asesor: Actor = { id: 'u-ana-asesora', nombre: 'Ana Asesora', rol: 'asesor' }
+const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
+const admin: Actor = { id: 'u-admin', nombre: 'Admin', rol: 'administrador' }
+const corredor: Actor = { id: 'u-carlos-corredor', nombre: 'Carlos Corredor', rol: 'corredor' }
 
 /** Escenario: cliente, unidad disponible y cotización emitida para ese cliente. */
 function escenario(opts: { fecha?: string; unidad?: string; disponible?: boolean } = {}) {
@@ -20,7 +20,7 @@ function escenario(opts: { fecha?: string; unidad?: string; disponible?: boolean
   if (opts.disponible !== false) inv = cambiarEstado(inv, unidad, 'disponible', 'Disponibilidad confirmada', gerencia)
   const cli = crearCliente(estadoInicialClientes(), {
     nombre: 'María Pérez', telefono: '0991234567', email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [unidad],
-    presupuesto: null, proposito: null, formaPago: null, asesor: asesor.nombre,
+    presupuesto: null, proposito: null, formaPago: null, asesorId: asesor.id, asesor: asesor.nombre,
   }, asesor, inv)
   const input: CotizacionInput = {
     codigo: unidad, clienteId: cli.cliente.id,
@@ -68,8 +68,9 @@ describe('solicitud de reserva', () => {
     const { e, cot } = escenario()
     const s = solicitarReserva(e, cot, corredor)
     expect(reservasVisibles(s.res.reservas, corredor)).toHaveLength(1)
-    expect(reservasVisibles(s.res.reservas, asesor)).toHaveLength(1) // asesores ven todas, como en Clientes
-    expect(reservasVisibles(s.res.reservas, gerencia)).toHaveLength(1)
+    expect(reservasVisibles(s.res.reservas, asesor)).toHaveLength(1) // es el responsable del cliente
+    expect(reservasVisibles(s.res.reservas, { id: 'u-otro', nombre: 'Otro', rol: 'asesor' })).toHaveLength(0)
+    expect(reservasVisibles(s.res.reservas, admin)).toHaveLength(1)
   })
 })
 

@@ -129,7 +129,7 @@ function requireMotivo(motivo: string) {
 
 /** Aplica un cambio oficial de precio. Sólo quien aprueba precios puede hacerlo. */
 export function aplicarCambioPrecio(state: InventoryState, input: CambioPrecioInput, actor: Actor): InventoryState {
-  assertCan(actor.rol, 'precios.aprobar')
+  assertCan(actor, 'precios.aprobar')
   requireMotivo(input.motivo)
   const preview = previsualizarCambioPrecio(state, input)
   if (!preview.cambios.length) throw new InventoryError('El cambio no modifica ningún precio.')
@@ -158,7 +158,7 @@ export function aplicarCambioPrecio(state: InventoryState, input: CambioPrecioIn
 
 /** Registra una propuesta sin tocar los precios oficiales. */
 export function crearPropuesta(state: InventoryState, input: CambioPrecioInput, actor: Actor): InventoryState {
-  assertCan(actor.rol, 'precios.proponer')
+  assertCan(actor, 'precios.proponer')
   requireMotivo(input.motivo)
   const preview = previsualizarCambioPrecio(state, input)
   if (!preview.cambios.length) throw new InventoryError('La propuesta no modifica ningún precio.')
@@ -190,7 +190,7 @@ function buscarPendiente(state: InventoryState, id: string) {
 
 /** Aprueba la propuesta: el cambio se recalcula sobre los precios vigentes y pasa a ser oficial. */
 export function aprobarPropuesta(state: InventoryState, id: string, comentario: string, actor: Actor): InventoryState {
-  assertCan(actor.rol, 'precios.aprobar')
+  assertCan(actor, 'precios.aprobar')
   const p = buscarPendiente(state, id)
   const aplicado = aplicarCambioPrecio(
     state,
@@ -204,7 +204,7 @@ export function aprobarPropuesta(state: InventoryState, id: string, comentario: 
 }
 
 export function rechazarPropuesta(state: InventoryState, id: string, comentario: string, actor: Actor): InventoryState {
-  assertCan(actor.rol, 'precios.aprobar')
+  assertCan(actor, 'precios.aprobar')
   buscarPendiente(state, id)
   if (comentario.trim().length < 5) throw new InventoryError('Indica el motivo del rechazo (mínimo 5 caracteres).')
   return {
@@ -228,7 +228,7 @@ export function validarParametros(p: PricingParams) {
 }
 
 export function actualizarParametros(state: InventoryState, params: PricingParams, motivo: string, actor: Actor): InventoryState {
-  assertCan(actor.rol, 'inventario.parametros')
+  assertCan(actor, 'inventario.parametros')
   requireMotivo(motivo)
   const errores = validarParametros(params)
   if (errores.length) throw new InventoryError(errores.join(' '))
@@ -254,7 +254,7 @@ export function actualizarParametros(state: InventoryState, params: PricingParam
 
 /** Vuelve todos los precios por m² a la lista base del 28/10/2026 (deja trazabilidad). */
 export function restablecerListaBase(state: InventoryState, motivo: string, actor: Actor): InventoryState {
-  assertCan(actor.rol, 'inventario.parametros')
+  assertCan(actor, 'inventario.parametros')
   requireMotivo(motivo)
   const base = createInitialState()
   const seed = new Map(base.units.map((u) => [u.codigo, u.usdM2]))
@@ -284,7 +284,7 @@ export function cambiarEstado(
   actor: Actor,
   opts: { reservaId?: string | null; sistema?: boolean } = {},
 ): InventoryState {
-  if (!opts.sistema) assertCan(actor.rol, 'inventario.cambiar_estado')
+  if (!opts.sistema) assertCan(actor, 'inventario.cambiar_estado')
   requireMotivo(motivo)
   const u = state.units.find((x) => x.codigo === codigo)
   if (!u) throw new InventoryError(`No existe la unidad ${codigo}.`)

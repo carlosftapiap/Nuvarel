@@ -71,3 +71,12 @@ See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rule
 - **Anulación**: una solicitud se cierra sin tocar el inventario; una reserva confirmada libera la unidad y devuelve al cliente a Negociación.
 - Una sola reserva activa por unidad, también en la base de datos (índice único).
 - Migración: `supabase/migrations/20261028200000_reservas.sql`.
+
+## Usuarios, roles y permisos
+
+- **Configuración** (`/configuracion`): Usuarios (invitar, editar, activar/desactivar, excepciones), Roles y permisos (perfiles editables y nuevos), Equipos (supervisor y gerencias) y Auditoría (accesos, precios, estados y reservas).
+- **Permisos** = rol + excepciones individuales (heredar, permitir, denegar; denegar prevalece; lo no definido se deniega). Catálogo por módulo y acción en `src/app/permissions.ts`.
+- **Alcance de datos**: propio, equipo o empresa, comparando identificadores de usuario (nunca nombres). Un vendedor ve por defecto solo lo suyo.
+- **Controles**: menú y rutas directas verifican permisos; nadie amplía sus propios permisos ni concede los que no tiene; no se puede quedar sin administrador activo; desactivar conserva el historial; el aviso de duplicado no revela datos de otro equipo.
+- **Servidor**: `supabase/migrations/20261028220000_usuarios_permisos.sql` (perfiles, roles, excepciones, equipos, proyectos, auditoría, `tiene_permiso`, `en_alcance` y políticas por alcance) + `supabase/seed_roles.sql` (generado; una prueba verifica que coincide con la app) + función `supabase/functions/invitar-usuario`.
+- **Modo local**: hasta conectar Supabase Auth se trabaja como un usuario del directorio (selector superior). El directorio empieza con un único "Administrador inicial".

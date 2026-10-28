@@ -34,7 +34,11 @@ export interface Cliente {
   presupuesto: number | null
   proposito: Proposito | null
   formaPago: FormaPago | null
+  /** Responsable actual (identificador de usuario) y su nombre mostrado. */
+  asesorId: string
   asesor: string
+  /** Atribución de origen: quién captó al cliente. No cambia al reasignar (base para comisiones). */
+  atribucion: { usuarioId: string; nombre: string; fecha: string }
   etapa: Etapa
   motivoPerdida: string
   /** Para "Seguimiento futuro": cuándo retomar el contacto. */
@@ -42,7 +46,7 @@ export interface Cliente {
   proxima: ProximaActividad | null
   actividades: Actividad[]
   cotizaciones: string[]
-  creadoPor: { nombre: string; rol: Rol }
+  creadoPor: { id: string; nombre: string; rol: Rol }
   creadoEn: string
   actualizadoEn: string
 }
