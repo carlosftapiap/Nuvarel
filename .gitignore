@@ -25,3 +25,11 @@ dist-ssr
 
 # PDF generados por pruebas
 COT-*.pdf
+
+# Secretos del servidor: nunca se suben al repositorio (las variables VITE_ son públicas)
+.env
+.env.*
+!.env.example
+
+# PDF generados por el simulador
+SIM-*.pdf
