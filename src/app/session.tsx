@@ -22,8 +22,11 @@ function leerUsuario() {
   try { return localStorage.getItem(KEY) ?? ID_ADMIN_INICIAL } catch { return ID_ADMIN_INICIAL }
 }
 
-/** `initialRol` crea una sesión fija por plantilla de rol (usado en pruebas aisladas). */
-export function SessionProvider({ children, initialRol }: { children: ReactNode; initialRol?: Rol }) {
+/**
+ * `actorRemoto`: usuario autenticado en Supabase (identidad, permisos y alcance desde la base de datos).
+ * `initialRol` crea una sesión fija por plantilla de rol (usado en pruebas aisladas).
+ */
+export function SessionProvider({ children, initialRol, actorRemoto }: { children: ReactNode; initialRol?: Rol; actorRemoto?: Actor }) {
   const dir = useContext(DirectorioContext)
   const [uid, setUid] = useState<string>(() => leerUsuario())
   const setUsuario = useCallback((id: string) => {
@@ -33,7 +36,9 @@ export function SessionProvider({ children, initialRol }: { children: ReactNode;
 
   const value = useMemo<SessionValue>(() => {
     let actor: Actor
-    if (initialRol || !dir) {
+    if (actorRemoto) {
+      actor = actorRemoto
+    } else if (initialRol || !dir) {
       const rol = initialRol ?? 'administrador'
       actor = { id: `demo-${rol}`, nombre: `${rolLabel(rol)} (demo)`, rol }
     } else {
@@ -44,7 +49,7 @@ export function SessionProvider({ children, initialRol }: { children: ReactNode;
       actor = actorDe(dir.state, u)
     }
     return { actor, usuarioId: actor.id, setUsuario, can: (p) => canActor(actor, p) }
-  }, [initialRol, dir, uid, setUsuario])
+  }, [initialRol, actorRemoto, dir, uid, setUsuario])
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }

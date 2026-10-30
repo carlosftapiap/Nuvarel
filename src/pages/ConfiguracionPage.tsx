@@ -21,8 +21,47 @@ import { fmtFecha } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import { useReservas } from '@/features/reservas/store'
 import { cn } from '@/lib/utils'
+import { useConexion } from '@/app/auth'
+import UsuariosRemoto, { AuditoriaRemota, type AccionesCuenta } from '@/features/config/remoto/UsuariosRemoto'
+import { supabase } from '@/lib/supabase'
+
+/** Acciones de Supabase Auth: recuperación (cualquier correo, respuesta neutra) e invitación (función del servidor con permisos verificados). */
+const accionesSupabase: AccionesCuenta = {
+  enviarRecuperacion: async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` })
+    if (error) throw new Error(error.message)
+  },
+  invitar: async ({ nombre, email, rolId, motivo }) => {
+    const { error } = await supabase.functions.invoke('invitar-usuario', { body: { nombre, email, rolId, alcance: null, supervisorId: null, equipoId: null, proyectos: ['AMURA'], motivo } })
+    if (error) throw new Error(`No se pudo invitar: ${error.message}. Verifica que la función invitar-usuario esté desplegada.`)
+  },
+}
 
 export default function ConfiguracionPage() {
+  const { remoto, datos } = useConexion()
+  return remoto && datos ? <ConfiguracionRemota /> : <ConfiguracionLocal />
+}
+
+/** Con Supabase: usuarios y auditoría reales. Roles, equipos y excepciones individuales aún se editan en modo local. */
+function ConfiguracionRemota() {
+  const { can } = useSession()
+  const { datos } = useConexion()
+  return (
+    <>
+      <PageHeader eyebrow="Sistema · Configuración" title="Configuración" subtitle="Usuarios reales de Supabase y auditoría. Cada cambio de acceso exige motivo y queda registrado." />
+      <Tabs defaultValue={can('config.usuarios') ? 'usuarios' : 'auditoria'} className="min-w-0">
+        <TabsList className="mb-3">
+          {can('config.usuarios') && <TabsTrigger value="usuarios">Usuarios</TabsTrigger>}
+          {can('config.auditoria') && <TabsTrigger value="auditoria">Auditoría</TabsTrigger>}
+        </TabsList>
+        {can('config.usuarios') && <TabsContent value="usuarios"><UsuariosRemoto datos={datos!} acciones={accionesSupabase} /></TabsContent>}
+        {can('config.auditoria') && <TabsContent value="auditoria"><AuditoriaRemota datos={datos!} /></TabsContent>}
+      </Tabs>
+    </>
+  )
+}
+
+function ConfiguracionLocal() {
   const { can } = useSession()
   const [aviso, setAviso] = useState<string | null>(null)
   const tabs = [

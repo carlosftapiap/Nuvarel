@@ -4,6 +4,7 @@ import AppLayout from './components/AppLayout'
 import DashboardPage from './pages/DashboardPage'
 import ModulePlaceholder from './pages/ModulePlaceholder'
 import { SessionProvider } from './app/session'
+import { AuthProvider, modoRemoto, RequireAuth } from './app/auth'
 import { DirectorioProvider } from './features/config/store'
 import { InventoryProvider } from './features/inventario/store'
 import { ClientesProvider } from './features/clientes/store'
@@ -20,20 +21,17 @@ const ClientesPage = lazy(() => import('./pages/ClientesPage'))
 const GestionComercialPage = lazy(() => import('./pages/GestionComercialPage'))
 const ReservasPage = lazy(() => import('./pages/ReservasPage'))
 const ConfiguracionPage = lazy(() => import('./pages/ConfiguracionPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
 const cargando = <p className="p-6 text-sm text-muted-foreground">Cargando…</p>
 
 const CUSTOM_ROUTES = new Set(['/', '/inventario', '/precios', '/financiamiento', '/cotizaciones', '/clientes', '/comercial', '/reservas', '/configuracion'])
 
-export default function App() {
+function Modulos() {
   const placeholders = NAV_ITEMS.filter((item) => !CUSTOM_ROUTES.has(item.to))
-
   return (
-    <DirectorioProvider>
-    <SessionProvider>
     <InventoryProvider>
     <ClientesProvider>
     <ReservasProvider>
-    <BrowserRouter>
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
@@ -54,11 +52,28 @@ export default function App() {
           ))}
         </Route>
       </Routes>
-    </BrowserRouter>
     </ReservasProvider>
     </ClientesProvider>
     </InventoryProvider>
-    </SessionProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <DirectorioProvider>
+      <BrowserRouter>
+        {modoRemoto ? (
+          // Con Supabase configurado: /login es la única ruta pública; el resto exige sesión y perfil activo.
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<Suspense fallback={cargando}><LoginPage /></Suspense>} />
+              <Route path="/*" element={<RequireAuth><Modulos /></RequireAuth>} />
+            </Routes>
+          </AuthProvider>
+        ) : (
+          <SessionProvider><Modulos /></SessionProvider>
+        )}
+      </BrowserRouter>
     </DirectorioProvider>
   )
 }

@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { ChevronRight, Lock, Search, Settings, X } from 'lucide-react'
+import { ChevronRight, CloudOff, Lock, LogOut, Search, Settings, X } from 'lucide-react'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu,
@@ -14,6 +14,20 @@ import { rolLabel } from '@/app/permissions'
 import { useSession } from '@/app/session'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useDirectorio } from '@/features/config/store'
+import { useConexion } from '@/app/auth'
+
+/** Módulos que ya trabajan con datos compartidos en Supabase. Los demás todavía guardan en este navegador. */
+const CONECTADOS = ['/plan', '/configuracion', '/inventario', '/cobranzas', '/financiamiento']
+
+function CuentaMenu() {
+  const { cuenta, salir } = useConexion()
+  return (
+    <div className="flex items-center gap-2">
+      <span className="hidden max-w-48 truncate text-[11px] text-muted-foreground sm:inline" title={cuenta?.email}>{cuenta?.nombre} · {cuenta?.rolNombre}</span>
+      <Button variant="outline" size="sm" className="h-8 text-[11px]" onClick={() => void salir()}><LogOut />Salir</Button>
+    </div>
+  )
+}
 
 /** Mientras no exista inicio de sesión con Supabase, se trabaja como un usuario del directorio. */
 function UserSwitcher() {
@@ -42,6 +56,7 @@ function AppSidebar() {
   const { isMobile, setOpenMobile } = useSidebar()
   const permitido = usePermitido()
   const { actor } = useSession()
+  const { remoto } = useConexion()
   return (
     <Sidebar collapsible="icon" className="app-sidebar">
       <SidebarHeader className="relative px-[18px] pt-5 pb-2 group-data-[collapsible=icon]:p-2">
@@ -83,7 +98,7 @@ function AppSidebar() {
           <span className="profile-avatar group-data-[collapsible=icon]:size-8">AM</span>
           <span className="flex-1 group-data-[collapsible=icon]:hidden">
             <span className="block truncate text-[11px] font-medium text-[#e2e9f6]">{actor.nombre}</span>
-            <span className="block mt-1 text-[9px] text-[#91a2c1]">{rolLabel(actor.rol)} · modo demostración</span>
+            <span className="block mt-1 text-[9px] text-[#91a2c1]">{rolLabel(actor.rol)}{remoto ? '' : ' · modo demostración'}</span>
           </span>
           <Settings className="size-3.5 group-data-[collapsible=icon]:hidden" aria-hidden="true" />
         </Link>
@@ -136,6 +151,8 @@ export default function AppLayout() {
   const permitido = usePermitido()
   // Las rutas directas también verifican permisos (además del menú).
   const bloqueado = item ? !permitido(item) : false
+  const { remoto } = useConexion()
+  const local = remoto && !CONECTADOS.some((r) => pathname.startsWith(r))
   return (
     <SidebarProvider className="app-sidebar" style={{ '--sidebar-width': '236px' } as React.CSSProperties}>
       <AppSidebar />
@@ -147,11 +164,21 @@ export default function AppLayout() {
           </div>
           <GlobalSearch />
           <div className="ml-auto flex shrink-0 items-center gap-3">
-            <span className="demo-badge hidden sm:inline-flex" title="Los datos se guardan en este navegador hasta conectar Supabase"><i aria-hidden="true" />Modo local</span>
-            <UserSwitcher />
+            {remoto ? <CuentaMenu /> : (
+              <>
+                <span className="demo-badge hidden sm:inline-flex" title="Los datos se guardan en este navegador hasta conectar Supabase"><i aria-hidden="true" />Modo local</span>
+                <UserSwitcher />
+              </>
+            )}
           </div>
         </header>
         <div className="app-content">
+          {local && !bloqueado && (
+            <p role="note" className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              Este módulo todavía guarda sus datos en este navegador: otros usuarios no los ven. Su conexión con Supabase está pendiente.
+            </p>
+          )}
           {bloqueado ? (
             <div className="module-empty">
               <span className="module-empty-icon"><Lock className="size-7" aria-hidden="true" /></span>
