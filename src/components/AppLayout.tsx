@@ -17,7 +17,7 @@ import { useDirectorio } from '@/features/config/store'
 import { useConexion } from '@/app/auth'
 
 /** Módulos que ya trabajan con datos compartidos en Supabase. Los demás todavía guardan en este navegador. */
-const CONECTADOS = ['/plan', '/configuracion', '/inventario', '/precios', '/cobranzas', '/financiamiento', '/clientes', '/comercial', '/cotizaciones', '/reservas']
+const CONECTADOS = ['/plan', '/configuracion', '/inventario', '/precios', '/cobranzas', '/financiamiento', '/clientes', '/comercial', '/cotizaciones', '/reservas', '/ventas']
 
 function CuentaMenu() {
   const { cuenta, salir } = useConexion()

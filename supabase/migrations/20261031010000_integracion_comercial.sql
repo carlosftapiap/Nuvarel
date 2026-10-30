@@ -68,6 +68,7 @@ alter table public.contracts add column if not exists responsable_id uuid refere
 alter table public.contracts add column if not exists atribucion_usuario_id uuid references auth.users (id);
 alter table public.contracts add column if not exists corredor_origen_id uuid references auth.users (id);
 alter table public.contracts add column if not exists origen text;
+alter table public.contracts add column if not exists origen_detalle text;
 
 create or replace function public.contrato_datos_venta() returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -80,6 +81,7 @@ begin
   new.atribucion_usuario_id := c.atribucion_usuario_id;
   new.corredor_origen_id := c.corredor_origen_id;
   new.origen := c.origen;
+  new.origen_detalle := c.origen_detalle;
   return new;
 end $$;
 drop trigger if exists contrato_datos_venta on public.contracts;

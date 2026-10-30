@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "entorno:pruebas": "node scripts/entorno-pruebas.mjs"
+    "entorno:pruebas": "node scripts/entorno-pruebas.mjs",
+    "dev:pruebas": "vite --mode staging --port 5174"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

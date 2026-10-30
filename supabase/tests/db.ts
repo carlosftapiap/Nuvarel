@@ -8,7 +8,7 @@ import { PGlite } from '@electric-sql/pglite'
  */
 const RAIZ = path.resolve(__dirname, '..')
 
-const STUB_SUPABASE = `
+export const STUB_SUPABASE = `
 create role anon nologin;
 create role authenticated nologin;
 create schema auth;
@@ -21,7 +21,7 @@ grant execute on function auth.uid() to authenticated;
 grant select on auth.users to authenticated;
 `
 
-const GRANTS_SUPABASE = `
+export const GRANTS_SUPABASE = `
 grant usage on schema public to authenticated, anon;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant usage on all sequences in schema public to authenticated;
@@ -54,12 +54,20 @@ export async function crearUsuario(db: PGlite, nombre: string, rol: string, extr
   return id
 }
 
+const turnos = new WeakMap<PGlite, Promise<unknown>>()
+
 /** Ejecuta una función como un usuario autenticado concreto (RLS aplicada). */
-export async function como<T>(db: PGlite, userId: string, fn: () => Promise<T>): Promise<T> {
-  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${userId}', false);`)
-  try {
-    return await fn()
-  } finally {
-    await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`)
-  }
+export function como<T>(db: PGlite, userId: string, fn: () => Promise<T>): Promise<T> {
+  // Hay una sola conexión: las pantallas leen en paralelo y, sin turno, una lectura correría con el usuario de otra o sin ninguno.
+  const anterior = turnos.get(db) ?? Promise.resolve()
+  const resultado = anterior.catch(() => undefined).then(async () => {
+    await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${userId}', false);`)
+    try {
+      return await fn()
+    } finally {
+      await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`)
+    }
+  })
+  turnos.set(db, resultado)
+  return resultado
 }

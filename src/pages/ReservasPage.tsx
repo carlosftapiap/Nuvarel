@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckCircle2, Clock, FileCheck2, Lock, ShieldCheck, XCircle } from 'lucide-react'
+import DatosLocalesAviso from '@/components/DatosLocalesAviso'
 import PageHeader from '@/components/PageHeader'
 import { useSession } from '@/app/session'
 import { Button } from '@/components/ui/button'
@@ -48,6 +49,7 @@ export default function ReservasPage() {
     <>
       <PageHeader eyebrow="Seguimiento · Reservas" title="Reservas"
         subtitle="Una solicitud no bloquea la unidad. Finanzas verifica el ingreso y, cuando Gerencia aprueba, el departamento queda reservado." />
+      <DatosLocalesAviso solo="amura.reservas.v1" />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi t="Solicitudes por verificar" v={solicitadas.length} d="Esperan comprobante de pago" tone={solicitadas.length ? 'text-amber-700' : undefined} />

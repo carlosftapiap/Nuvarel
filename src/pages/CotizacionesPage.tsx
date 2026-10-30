@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Download, FileText } from 'lucide-react'
+import DatosLocalesAviso from '@/components/DatosLocalesAviso'
 import PageHeader from '@/components/PageHeader'
 import { useConexion } from '@/app/auth'
 import { useSession } from '@/app/session'
@@ -112,6 +113,7 @@ export default function CotizacionesPage() {
   return (
     <>
       <PageHeader eyebrow="Ventas · Cotizaciones" title="Cotizaciones" subtitle="Genera una cotización en PDF con precio, condiciones de pago, cronograma y vigencia." />
+      <DatosLocalesAviso solo="amura.cotizaciones.v1" />
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <section className="dashboard-card p-5 grid content-start gap-5" aria-label="Datos de la cotización">
           <div className="grid gap-3 sm:grid-cols-2">

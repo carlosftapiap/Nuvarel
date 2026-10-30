@@ -39,7 +39,7 @@ Haz una copia de seguridad del proyecto antes de continuar.
 
 ## 2. Aplicar las migraciones ⚠️
 
-Ejecuta en el SQL Editor, primero en un proyecto de pruebas, `20261031000000_clientes_crm.sql` y luego `20261031010000_integracion_comercial.sql`. Se pueden repetir sin efectos.
+Ejecuta en el SQL Editor, primero en un proyecto de pruebas, `20261031000000_clientes_crm.sql`, luego `20261031010000_integracion_comercial.sql` y luego `20261031020000_ventas_contratos.sql`. Se pueden repetir sin efectos.
 
 Vuelve a ejecutar la consulta de conteo: los números deben coincidir.
 

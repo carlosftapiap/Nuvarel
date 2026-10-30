@@ -50,6 +50,7 @@ async function crearUsuario(nombre, email, rol, extra = {}) {
 const admin = await crearUsuario('Ana Administradora', 'admin@prueba.local', 'administrador')
 await crearUsuario('Gabriel Gerente', 'gerente@prueba.local', 'gerencia')
 await crearUsuario('Fernanda Finanzas', 'finanzas@prueba.local', 'finanzas', { alcance: 'empresa' })
+await crearUsuario('Luis Legal', 'legal@prueba.local', 'legal', { alcance: 'empresa' })
 const supervisora = await crearUsuario('Sofía Supervisora', 'supervisora@prueba.local', 'supervisor')
 const equipo = (await db.query(`insert into public.teams (nombre, supervisor_id) values ('Equipo Norte', $1) returning id`, [supervisora])).rows[0].id
 await crearUsuario('Carlos Corredor', 'corredor1@prueba.local', 'corredor', { equipo })

@@ -24,9 +24,10 @@ const ConfiguracionPage = lazy(() => import('./pages/ConfiguracionPage'))
 const PlanPage = lazy(() => import('./pages/PlanPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const CobranzaPage = lazy(() => import('./pages/CobranzaPage'))
+const VentasPage = lazy(() => import('./pages/VentasPage'))
 const cargando = <p className="p-6 text-sm text-muted-foreground">Cargando…</p>
 
-const CUSTOM_ROUTES = new Set(['/', '/inventario', '/precios', '/financiamiento', '/cotizaciones', '/clientes', '/comercial', '/reservas', '/configuracion', '/plan', '/cobranzas'])
+const CUSTOM_ROUTES = new Set(['/', '/inventario', '/precios', '/financiamiento', '/cotizaciones', '/clientes', '/comercial', '/reservas', '/configuracion', '/plan', '/cobranzas', '/ventas'])
 
 function Modulos() {
   const placeholders = NAV_ITEMS.filter((item) => !CUSTOM_ROUTES.has(item.to))
@@ -47,6 +48,7 @@ function Modulos() {
           <Route path="configuracion" element={<Suspense fallback={cargando}><ConfiguracionPage /></Suspense>} />
           <Route path="plan" element={<Suspense fallback={cargando}><PlanPage /></Suspense>} />
           <Route path="cobranzas" element={<Suspense fallback={cargando}><CobranzaPage /></Suspense>} />
+          <Route path="ventas" element={<Suspense fallback={cargando}><VentasPage /></Suspense>} />
           {placeholders.map((item) => (
             <Route
               key={item.to}

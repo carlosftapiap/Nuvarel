@@ -57,7 +57,8 @@ function Cobranza({ datos }: { datos: Datos }) {
   const [d, setD] = useState<api.DatosCobranza | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  const [seleccion, setSeleccion] = useState<string | null>(null)
+  // Desde Ventas se puede abrir un contrato con ?contrato=<id>.
+  const [seleccion, setSeleccion] = useState<string | null>(() => new URLSearchParams(window.location.search).get('contrato'))
   const [edificio, setEdificio] = useState('todos')
   const [responsable, setResponsable] = useState('todos')
   const hoy = hoyGuayaquil()
