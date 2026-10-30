@@ -20,6 +20,8 @@ export interface Actividad {
   automatica?: boolean
   /** Motivo de una reasignación. */
   motivo?: string
+  /** Reasignación: el asesor anterior conserva acceso por autorización expresa. */
+  mantenerAcceso?: boolean
 }
 
 export interface ProximaActividad {
@@ -31,11 +33,15 @@ export interface ProximaActividad {
 export interface Cliente {
   id: string
   nombre: string
+  /** Cédula o RUC. */
+  documento?: string
   telefono: string
   email: string
   origen: Origen
   /** Quién lo refirió o qué corredor lo trajo. */
   origenDetalle: string
+  /** Corredor de origen, si es usuario de la app. Con el origen, define la comisión: no cambia al reasignar. */
+  corredorOrigenId?: string | null
   unidadesInteres: string[]
   presupuesto: number | null
   proposito: Proposito | null
@@ -57,6 +63,17 @@ export interface Cliente {
   actualizadoEn: string
   /** Versión en la base de datos, para no sobrescribir cambios de otra persona. */
   version?: number
+  /** Personas con acceso por autorización expresa (asesores anteriores u otras). */
+  accesos?: AccesoCliente[]
+  /** Llegó de la base de datos, que ya aplicó el alcance del usuario (RLS). */
+  deLaBase?: boolean
+}
+
+export interface AccesoCliente {
+  usuarioId: string
+  nombre: string
+  motivo: string
+  otorgadoEn: string
 }
 
 export interface ClientesState {

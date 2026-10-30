@@ -61,6 +61,8 @@ interface Value {
   error: string | null
   oportunidades: Oportunidad[]
   asignables: Persona[]
+  corredores: Persona[]
+  importacionAbierta: boolean
   recargar: () => Promise<void>
 }
 
@@ -86,7 +88,7 @@ function ClientesLocal({ children, initialState }: { children: ReactNode; initia
   }, [])
   const value = useMemo<Value>(() => ({
     state, update, guardar: async (fn) => update(fn),
-    remoto: false, datos: null, cargando: false, faltaMigracion: false, error: null, oportunidades: [], asignables: [], recargar: async () => {},
+    remoto: false, datos: null, cargando: false, faltaMigracion: false, error: null, oportunidades: [], asignables: [], corredores: [], importacionAbierta: false, recargar: async () => {},
   }), [state, update])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
@@ -95,6 +97,8 @@ function ClientesRemoto({ children, datos }: { children: ReactNode; datos: Datos
   const [state, setState] = useState<ClientesState>(estadoInicialClientes)
   const [oportunidades, setOportunidades] = useState<Oportunidad[]>([])
   const [asignables, setAsignables] = useState<Persona[]>([])
+  const [corredores, setCorredores] = useState<Persona[]>([])
+  const [importacionAbierta, setImportacionAbierta] = useState(true)
   const [cargando, setCargando] = useState(true)
   const [faltaMigracion, setFaltaMigracion] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -112,6 +116,8 @@ function ClientesRemoto({ children, datos }: { children: ReactNode; datos: Datos
       setState(d.state)
       setOportunidades(d.oportunidades)
       setAsignables(d.asignables)
+      setCorredores(d.corredores)
+      setImportacionAbierta(d.importacionAbierta)
       setFaltaMigracion(d.faltaMigracion)
     } catch (e) {
       if (n === lectura.current) setError(`No se pudieron cargar los clientes: ${(e as Error).message}`)
@@ -155,8 +161,8 @@ function ClientesRemoto({ children, datos }: { children: ReactNode; datos: Datos
   }, [guardar])
 
   const value = useMemo<Value>(() => ({
-    state, update, guardar, remoto: true, datos, cargando, faltaMigracion, error, oportunidades, asignables, recargar,
-  }), [state, update, guardar, datos, cargando, faltaMigracion, error, oportunidades, asignables, recargar])
+    state, update, guardar, remoto: true, datos, cargando, faltaMigracion, error, oportunidades, asignables, corredores, importacionAbierta, recargar,
+  }), [state, update, guardar, datos, cargando, faltaMigracion, error, oportunidades, asignables, corredores, importacionAbierta, recargar])
   return (
     <Ctx.Provider value={value}>
       {error && <p role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{error}</p>}

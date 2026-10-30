@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { configure, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PGlite } from '@electric-sql/pglite'
 import { MemoryRouter } from 'react-router-dom'
@@ -14,6 +14,9 @@ import { ReservasProvider } from '@/features/reservas/store'
 import ClientesPage from '@/pages/ClientesPage'
 import { datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario } from './db'
+
+// Cada pantalla lee varias tablas de Postgres real; con toda la suite en paralelo tarda más que la espera por defecto.
+configure({ asyncUtilTimeout: 15_000 })
 
 let db: PGlite
 let admin: string, cora: string, carlos: string

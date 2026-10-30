@@ -10,10 +10,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { FieldError } from '@/features/inventario/components/shared'
 import { useInventory } from '@/features/inventario/store'
 import { ETAPAS_OPORTUNIDAD, OPORTUNIDAD_ABIERTA, type Cliente, type Oportunidad } from '../model'
-import { abrirOportunidad, cerrarOportunidad, transferirOportunidad, vincularUnidad } from '../remoto'
+import { abrirOportunidad, cerrarOportunidad, revocarAcceso, transferirOportunidad, vincularUnidad } from '../remoto'
 import { useClientes } from '../store'
 
-type Pedido = { tipo: 'transferir' | 'cerrar'; o: Oportunidad }
+type Pedido = { tipo: 'transferir' | 'cerrar'; o: Oportunidad } | { tipo: 'revocar'; usuarioId: string; nombre: string }
 
 /** Negociaciones concretas del cliente: una por unidad o tipología. El servidor impide duplicarlas. */
 export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onMessage: (m: string) => void }) {
@@ -93,11 +93,24 @@ export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onM
           <Button size="sm" variant="outline" disabled={!destino} onClick={abrir}>Abrir negociación</Button>
         </div>
       )}
+      {!!c.accesos?.length && can('clientes.asignar') && (
+        <div className="grid gap-1 border-t border-border pt-2 text-xs">
+          <p className="font-medium">Acceso autorizado</p>
+          {c.accesos.map((a) => (
+            <div key={a.usuarioId} className="flex items-center gap-2">
+              <span>{a.nombre}</span><span className="truncate text-[11px] text-muted-foreground">{a.motivo}</span>
+              <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setPedido({ tipo: 'revocar', usuarioId: a.usuarioId, nombre: a.nombre })}>Revocar</Button>
+            </div>
+          ))}
+        </div>
+      )}
       {pedido && (
-        <PedidoDialog pedido={pedido} personas={asignables.filter((p) => puedeVerDe(actor, [p.id]) && p.id !== pedido.o.responsableId)} onClose={() => setPedido(null)}
-          onConfirm={(motivo, responsable) => pedido.tipo === 'cerrar'
-            ? ejecutar(() => cerrarOportunidad(datos, pedido.o.id, motivo), 'Negociación cerrada')
-            : ejecutar(() => transferirOportunidad(datos, pedido.o.id, responsable, motivo), 'Negociación transferida')} />
+        <PedidoDialog pedido={pedido} personas={pedido.tipo === 'revocar' ? [] : asignables.filter((p) => puedeVerDe(actor, [p.id]) && p.id !== pedido.o.responsableId)} onClose={() => setPedido(null)}
+          onConfirm={(motivo, responsable) => pedido.tipo === 'revocar'
+            ? ejecutar(() => revocarAcceso(datos, c.id, pedido.usuarioId, motivo), `Acceso de ${pedido.nombre} revocado`)
+            : pedido.tipo === 'cerrar'
+              ? ejecutar(() => cerrarOportunidad(datos, pedido.o.id, motivo), 'Negociación cerrada')
+              : ejecutar(() => transferirOportunidad(datos, pedido.o.id, responsable, motivo), 'Negociación transferida')} />
       )}
     </section>
   )
@@ -117,8 +130,8 @@ function PedidoDialog({ pedido, personas, onClose, onConfirm }: {
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{transferir ? 'Transferir negociación' : 'Cerrar negociación'}</DialogTitle>
-          <DialogDescription>{transferir ? 'El asesor principal del cliente y la atribución de comisiones no cambian.' : 'El cliente conserva su etapa y sus demás negociaciones.'}</DialogDescription>
+          <DialogTitle>{pedido.tipo === 'revocar' ? `Revocar el acceso de ${pedido.nombre}` : transferir ? 'Transferir negociación' : 'Cerrar negociación'}</DialogTitle>
+          <DialogDescription>{pedido.tipo === 'revocar' ? 'Dejará de ver a este cliente, salvo que sea su asesor o tenga una negociación a cargo.' : transferir ? 'El asesor principal del cliente y la atribución de comisiones no cambian.' : 'El cliente conserva su etapa y sus demás negociaciones.'}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           {transferir && (

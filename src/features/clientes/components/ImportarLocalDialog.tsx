@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { FieldError } from '@/features/inventario/components/shared'
 import type { Cliente } from '../model'
-import { importarClientes, revisarImportacion, verificarImportacion, type EstadoImportacion, type ResultadoImportacion } from '../remoto'
+import { definirImportacion, importarClientes, revisarImportacion, verificarImportacion, type EstadoImportacion, type ResultadoImportacion } from '../remoto'
 import { archivarClientesLocales, leerClientesLocales, useClientes } from '../store'
 
 const TEXTO: Record<EstadoImportacion, { label: string; tono: string }> = {
@@ -17,11 +17,12 @@ const TEXTO: Record<EstadoImportacion, { label: string; tono: string }> = {
 
 /** Aviso y asistente para pasar a la base de datos los clientes guardados solo en este navegador. */
 export default function ImportarLocal({ onMessage }: { onMessage: (m: string) => void }) {
-  const { remoto, datos, faltaMigracion, recargar } = useClientes()
+  const { remoto, datos, faltaMigracion, recargar, importacionAbierta } = useClientes()
   const { can } = useSession()
   const [locales, setLocales] = useState<Cliente[]>(() => (remoto ? leerClientesLocales() : []))
   const [abierto, setAbierto] = useState(false)
-  if (!remoto || !datos || !can('clientes.editar') || locales.length === 0) return null
+  // Cerrada la importación ordinaria, solo administración conserva la recuperación.
+  if (!remoto || !datos || !can('clientes.editar') || locales.length === 0 || (!importacionAbierta && !can('config.usuarios'))) return null
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -37,7 +38,8 @@ export default function ImportarLocal({ onMessage }: { onMessage: (m: string) =>
 }
 
 function ImportarDialog({ clientes, onClose, onImportado, onArchivado }: { clientes: Cliente[]; onClose: () => void; onImportado: () => Promise<void>; onArchivado: () => void }) {
-  const { datos } = useClientes()
+  const { datos, importacionAbierta, recargar } = useClientes()
+  const { can } = useSession()
   const [filas, setFilas] = useState<ResultadoImportacion[] | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,6 +118,15 @@ function ImportarDialog({ clientes, onClose, onImportado, onArchivado }: { clien
         {importables.length > 0 && !sinVerificar && <p className="text-[11px] text-muted-foreground">Si el asesor original no existe en la base de datos o no tienes permiso para asignarle, el cliente quedará a tu nombre.</p>}
         {sinVerificar && sinVerificar.length > 0 && <FieldError>{`No se pudo comprobar: ${sinVerificar.join(', ')}. La copia local se conserva; vuelve a intentarlo.`}</FieldError>}
         {sinVerificar?.length === 0 && <p role="status" className="text-xs text-emerald-800">Comprobado en la base de datos: los clientes importados y su historial quedaron guardados.</p>}
+        {can('config.usuarios') && (
+          <p className="flex flex-wrap items-center gap-2 rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">
+            {importacionAbierta ? 'Importación abierta para todo el equipo. Ciérrala al terminar la migración; administración podrá seguir usándola.' : 'Importación cerrada para el equipo: solo administración puede usarla.'}
+            <Button size="xs" variant="outline" className="ml-auto" disabled={enviando}
+              onClick={() => { setError(null); definirImportacion(datos!, !importacionAbierta, importacionAbierta ? 'Migración de clientes locales terminada' : 'Recuperación de datos locales').then(recargar).catch((e: Error) => setError(e.message)) }}>
+              {importacionAbierta ? 'Cerrar importación' : 'Reabrir importación'}
+            </Button>
+          </p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cerrar</Button>
           {puedeArchivar

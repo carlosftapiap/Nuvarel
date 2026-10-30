@@ -1,5 +1,5 @@
 import type { ConsultaOpciones, Datos } from '@/features/conexion/datos'
-import type { Actividad, Cliente, ClientesState, Etapa, EtapaOportunidad, Oportunidad, ProximaActividad } from './model'
+import type { AccesoCliente, Actividad, Cliente, ClientesState, Etapa, EtapaOportunidad, Oportunidad, ProximaActividad } from './model'
 
 /**
  * Clientes desde Supabase. Lectura con RLS; cada cambio se guarda con su función del servidor
@@ -16,6 +16,10 @@ export interface DatosClientes {
   oportunidades: Oportunidad[]
   /** Usuarios activos a los que se puede asignar (los perfiles que permite leer la base de datos). */
   asignables: Persona[]
+  /** Corredores registrados, para indicar el origen de un cliente. */
+  corredores: Persona[]
+  /** Importación ordinaria desde el navegador abierta. Administración conserva la recuperación aunque esté cerrada. */
+  importacionAbierta: boolean
   /** La base de datos conectada todavía no tiene la migración de este módulo. */
   faltaMigracion: boolean
 }
@@ -39,11 +43,17 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
     datos.select<Fila>('profiles', { filtros: { estado: 'activo' }, orden: [{ columna: 'nombre' }] }),
   ])
   let personas: Fila[] = []
+  let corredores: Fila[] = []
+  let accesos: Fila[] = []
+  let ajustes: Fila[] = []
   let faltaMigracion = false
   try {
-    personas = await datos.rpc<Fila[]>('clientes_personas')
+    ;[personas, corredores, accesos, ajustes] = await Promise.all([
+      datos.rpc<Fila[]>('clientes_personas'), datos.rpc<Fila[]>('clientes_corredores'),
+      datos.select<Fila>('client_access', { filtros: { revocado_en: null } }), datos.select<Fila>('client_import_settings'),
+    ])
   } catch (e) {
-    if (!/falta aplicar una migración/.test((e as Error).message)) throw e
+    if (!/falta aplicar una migración|client_access|client_import_settings/.test((e as Error).message)) throw e
     faltaMigracion = true
   }
   const nombre = new Map([...perfiles, ...personas].map((p) => [String(p.id), String(p.nombre)]))
@@ -57,6 +67,10 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
       usuario: quien(a.user_id), registradaEn: String(a.created_at), referencia: s(a.referencia),
     })
     porCliente.set(String(a.client_id), lista)
+  }
+  const accesosPor = new Map<string, AccesoCliente[]>()
+  for (const a of accesos) {
+    accesosPor.set(String(a.client_id), [...(accesosPor.get(String(a.client_id)) ?? []), { usuarioId: String(a.usuario_id), nombre: quien(a.usuario_id), motivo: String(a.motivo), otorgadoEn: String(a.otorgado_en) }])
   }
   const numeros = new Map<string, string[]>()
   for (const q of cotizaciones) {
@@ -75,8 +89,8 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
           ? { tipo: c.proxima_tipo as ProximaActividad['tipo'], descripcion: String(c.proxima_descripcion ?? ''), fecha: fecha(c.proxima_fecha)! }
           : null
         return {
-          id: String(c.id), nombre: String(c.nombre), telefono: String(c.telefono ?? ''), email: String(c.email ?? ''),
-          origen: c.origen as Cliente['origen'], origenDetalle: String(c.origen_detalle ?? ''), unidadesInteres: (c.unidades_interes as string[] | null) ?? [],
+          id: String(c.id), nombre: String(c.nombre), documento: String(c.documento ?? ''), telefono: String(c.telefono ?? ''), email: String(c.email ?? ''),
+          origen: c.origen as Cliente['origen'], origenDetalle: String(c.origen_detalle ?? ''), corredorOrigenId: s(c.corredor_origen_id), unidadesInteres: (c.unidades_interes as string[] | null) ?? [],
           presupuesto: c.presupuesto === null || c.presupuesto === undefined ? null : Number(c.presupuesto),
           proposito: (c.proposito as Cliente['proposito']) ?? null, formaPago: (c.forma_pago as Cliente['formaPago']) ?? null,
           asesorId: String(c.asesor_id), asesor: quien(c.asesor_id),
@@ -85,6 +99,7 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
           cotizaciones: [...new Set([...(numeros.get(String(c.id)) ?? []), ...referencias])],
           creadoPor: { id: String(c.created_by), nombre: quien(c.created_by), rol: '' },
           creadoEn: String(c.created_at), actualizadoEn: String(c.updated_at), version: Number(c.version ?? 1),
+          accesos: accesosPor.get(String(c.id)) ?? [], deLaBase: true,
         }
       }),
     },
@@ -93,11 +108,13 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
       responsableId: String(o.responsable_id), motivoPerdida: s(o.motivo_perdida), creadaEn: String(o.created_at),
     })),
     asignables: perfiles.map((p) => ({ id: String(p.id), nombre: String(p.nombre) })),
+    corredores: corredores.map((p) => ({ id: String(p.id), nombre: String(p.nombre) })),
+    importacionAbierta: ajustes[0] ? Boolean(ajustes[0].habilitada) : true,
   }
 }
 
 const aDatos = (c: Cliente) => ({
-  nombre: c.nombre, telefono: c.telefono, email: c.email, origen: c.origen, origen_detalle: c.origenDetalle, unidades_interes: c.unidadesInteres,
+  nombre: c.nombre, documento: c.documento ?? '', corredor_origen_id: c.corredorOrigenId ?? null, telefono: c.telefono, email: c.email, origen: c.origen, origen_detalle: c.origenDetalle, unidades_interes: c.unidadesInteres,
   presupuesto: c.presupuesto, proposito: c.proposito, forma_pago: c.formaPago,
 })
 
@@ -123,8 +140,8 @@ export async function persistirCambios(datos: Datos, prev: ClientesState, next: 
     const conocidas = new Set(p.actividades.map((a) => a.id))
     const nuevas = c.actividades.filter((a) => !conocidas.has(a.id))
     if (p.asesorId !== c.asesorId) {
-      const motivo = nuevas.find((a) => a.motivo)?.motivo ?? ''
-      v = await datos.rpc<number>('clientes_asignar', { p_id: c.id, p_version: v, p_asesor: c.asesorId, p_motivo: motivo })
+      const reasignacion = nuevas.find((a) => a.motivo)
+      v = await datos.rpc<number>('clientes_asignar', { p_id: c.id, p_version: v, p_asesor: c.asesorId, p_motivo: reasignacion?.motivo ?? '', p_mantener_acceso: !!reasignacion?.mantenerAcceso })
     }
     for (const a of [...nuevas].reverse()) {
       if (a.automatica) continue
@@ -156,6 +173,8 @@ export const vincularUnidad = (d: Datos, id: string, unidad: string) => d.rpc('o
 export const transferirOportunidad = (d: Datos, id: string, responsable: string, motivo: string) =>
   d.rpc('oportunidades_transferir', { p_id: id, p_responsable: responsable, p_motivo: motivo })
 export const cerrarOportunidad = (d: Datos, id: string, motivo: string) => d.rpc('oportunidades_cerrar', { p_id: id, p_motivo: motivo })
+export const revocarAcceso = (d: Datos, clienteId: string, usuario: string, motivo: string) => d.rpc('clientes_revocar_acceso', { p_client: clienteId, p_usuario: usuario, p_motivo: motivo })
+export const definirImportacion = (d: Datos, habilitada: boolean, motivo: string) => d.rpc('clientes_importacion_definir', { p_habilitada: habilitada, p_motivo: motivo })
 
 /* ---------------------------------------- importación desde el navegador */
 

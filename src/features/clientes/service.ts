@@ -26,7 +26,8 @@ export const estadoInicialClientes = (): ClientesState => ({ version: 1, cliente
 /** Cada usuario ve los clientes de su alcance (propio, equipo o empresa), comparando identificadores. */
 export function clientesVisibles(clientes: Cliente[], actor: Actor) {
   if (!can(actor, 'clientes.ver')) return []
-  return clientes.filter((c) => puedeVerDe(actor, [c.asesorId, c.creadoPor.id]))
+  // Registrar a un cliente no da acceso permanente: lo tiene su asesor actual. Con Supabase, la base ya filtró (también negociaciones y accesos autorizados).
+  return clientes.filter((c) => c.deLaBase || puedeVerDe(actor, [c.asesorId]))
 }
 
 function buscar(state: ClientesState, id: string, actor: Actor) {
@@ -63,6 +64,10 @@ export interface ClienteInput {
   asesor: string
   /** Obligatorio al cambiar de asesor a un cliente existente. */
   motivoAsignacion?: string
+  /** Al reasignar: el asesor anterior conserva acceso por autorización expresa. */
+  mantenerAcceso?: boolean
+  documento?: string
+  corredorOrigenId?: string | null
 }
 
 export function validarCliente(input: ClienteInput, inventario?: InventoryState): string[] {
@@ -104,13 +109,13 @@ function verificarAsignacion(asesorId: string, actor: Actor) {
 function avisarDuplicado(state: ClientesState, input: Pick<ClienteInput, 'telefono' | 'email'>, actor: Actor, excluirId?: string) {
   const dup = buscarDuplicado(state, input, excluirId)
   if (!dup) return
-  if (puedeVerDe(actor, [dup.asesorId, dup.creadoPor.id])) throw new ClienteError(`Ya existe un cliente con ese teléfono o correo: ${dup.nombre} (asesor ${dup.asesor}).`)
+  if (clientesVisibles([dup], actor).length) throw new ClienteError(`Ya existe un cliente con ese teléfono o correo: ${dup.nombre} (asesor ${dup.asesor}).`)
   throw new ClienteError('Ese teléfono o correo ya está registrado por otro equipo. Solicita a tu supervisor o a gerencia que revise el caso.')
 }
 
 function limpiar(input: ClienteInput) {
   return {
-    nombre: input.nombre.trim(), telefono: input.telefono.trim(), email: input.email.trim().toLowerCase(),
+    nombre: input.nombre.trim(), documento: input.documento?.trim() ?? '', corredorOrigenId: input.corredorOrigenId ?? null, telefono: input.telefono.trim(), email: input.email.trim().toLowerCase(),
     origen: input.origen, origenDetalle: input.origenDetalle.trim(), unidadesInteres: [...new Set(input.unidadesInteres)],
     presupuesto: input.presupuesto, proposito: input.proposito, formaPago: input.formaPago, asesorId: input.asesorId, asesor: input.asesor.trim(),
   }
@@ -147,7 +152,7 @@ export function actualizarCliente(state: ClientesState, id: string, input: Clien
   // La atribución de origen se conserva; solo cambia el responsable actual y queda en el historial.
   if (reasigna) {
     const motivo = input.motivoAsignacion!.trim()
-    cambios.push(automatica('nota', `Asesor reasignado: ${c.asesor} → ${input.asesor.trim()} · motivo: ${motivo}`, actor, { motivo }))
+    cambios.push(automatica('nota', `Asesor reasignado: ${c.asesor} → ${input.asesor.trim()} · motivo: ${motivo}`, actor, { motivo, mantenerAcceso: !!input.mantenerAcceso }))
   }
   const unidadesNuevas = input.unidadesInteres.filter((u) => !c.unidadesInteres.includes(u))
   if (unidadesNuevas.length) cambios.push(automatica('nota', `Interés en ${unidadesNuevas.join(', ')}`, actor))

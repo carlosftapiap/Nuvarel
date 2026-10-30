@@ -29,7 +29,7 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
   onSaved: (id: string, mensaje: string) => void
 }) {
   const { state: inv } = useInventory()
-  const { guardar: guardarCliente, remoto, asignables: remotos } = useClientes()
+  const { guardar: guardarCliente, remoto, asignables: remotos, corredores } = useClientes()
   const { actor, can } = useSession()
   const dir = useContext(DirectorioContext)
   // Personas a las que se puede asignar: dentro del alcance del usuario (y siempre él mismo).
@@ -46,9 +46,9 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
     if (!open) return
     const base = cliente ? { ...cliente } : vacio(actor.id, actor.nombre)
     setF({
-      nombre: base.nombre, telefono: base.telefono, email: base.email, origen: base.origen, origenDetalle: base.origenDetalle,
+      nombre: base.nombre, documento: base.documento ?? '', corredorOrigenId: base.corredorOrigenId ?? null, telefono: base.telefono, email: base.email, origen: base.origen, origenDetalle: base.origenDetalle,
       unidadesInteres: [...base.unidadesInteres], presupuesto: base.presupuesto, proposito: base.proposito, formaPago: base.formaPago,
-      asesorId: base.asesorId, asesor: base.asesor, motivoAsignacion: '',
+      asesorId: base.asesorId, asesor: base.asesor, motivoAsignacion: '', mantenerAcceso: false,
     })
     setPresupuesto(base.presupuesto ? String(base.presupuesto) : '')
     setUnidad(''); setError(null)
@@ -86,16 +86,23 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
           <DialogDescription>Los datos del cliente son confidenciales y solo los ve el equipo comercial autorizado.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Campo id="cf-nombre" label="Nombre *" value={f.nombre} onChange={(v) => set('nombre', v)} />
+            <Campo id="cf-doc" label="Cédula o RUC" value={f.documento ?? ''} onChange={(v) => set('documento', v)} />
             <Campo id="cf-tel" label="Teléfono" value={f.telefono} onChange={(v) => set('telefono', v)} />
             <Campo id="cf-email" label="Correo" type="email" value={f.email} onChange={(v) => set('email', v)} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Sel id="cf-origen" label="Origen *" value={f.origen} onChange={(v) => set('origen', v as Origen)} items={Object.entries(ORIGENES)} />
-            {(f.origen === 'referido' || f.origen === 'corredor') && (
-              <Campo id="cf-origen-det" label={f.origen === 'referido' ? 'Referido por *' : 'Corredor *'} value={f.origenDetalle} onChange={(v) => set('origenDetalle', v)} />
+            <Sel id="cf-origen" label="Origen *" value={f.origen} disabled={!!cliente} items={Object.entries(ORIGENES)}
+              onChange={(v) => setF((x) => ({ ...x, origen: v as Origen, corredorOrigenId: null, origenDetalle: v === 'corredor' && actor.rol === 'corredor' ? actor.nombre : '' }))} />
+            {f.origen === 'corredor' && !cliente && corredores.length > 0 && can('clientes.asignar') && (
+              <Sel id="cf-corredor" label="Corredor registrado" value={f.corredorOrigenId ?? 'ninguno'} items={[['ninguno', 'No está registrado'], ...corredores.map((p) => [p.id, p.nombre] as [string, string])]}
+                onChange={(v) => setF((x) => ({ ...x, corredorOrigenId: v === 'ninguno' ? null : v, origenDetalle: corredores.find((p) => p.id === v)?.nombre ?? '' }))} />
             )}
+            {(f.origen === 'referido' || f.origen === 'corredor') && (
+              <Campo id="cf-origen-det" label={f.origen === 'referido' ? 'Referido por *' : 'Corredor *'} value={f.origenDetalle} disabled={!!cliente || !!f.corredorOrigenId} onChange={(v) => set('origenDetalle', v)} />
+            )}
+            {cliente && <p className="text-[11px] text-muted-foreground sm:col-span-2">El origen define la comisión y no se cambia después. Si hay un error, pide la corrección a administración.</p>}
           </div>
           <fieldset className="grid gap-3">
             <legend className="mb-1 text-sm font-semibold">Interés</legend>
@@ -129,7 +136,8 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
             <div className="grid gap-1.5">
               <Label htmlFor="cf-motivo-asig" className="text-xs">Motivo de la reasignación *</Label>
               <Textarea id="cf-motivo-asig" rows={2} value={f.motivoAsignacion ?? ''} onChange={(e) => set('motivoAsignacion', e.target.value)} />
-              <p className="text-[11px] text-muted-foreground">Cambia el asesor actual. Quién captó al cliente, para comisiones, no cambia.</p>
+              <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!f.mantenerAcceso} onChange={(e) => set('mantenerAcceso', e.target.checked)} />Autorizar a {cliente?.asesor} a conservar el acceso</label>
+              <p className="text-[11px] text-muted-foreground">El nuevo asesor recibe el expediente y sus negociaciones abiertas; el anterior deja de verlo salvo que lo autorices. Quién captó al cliente, para comisiones, no cambia.</p>
             </div>
           )}
           <FieldError>{error}</FieldError>
@@ -152,11 +160,11 @@ function Campo({ id, label, value, onChange, type = 'text', inputMode, disabled 
   )
 }
 
-function Sel({ id, label, value, onChange, items }: { id: string; label: string; value: string; onChange: (v: string) => void; items: [string, string][] }) {
+function Sel({ id, label, value, onChange, items, disabled }: { id: string; label: string; value: string; onChange: (v: string) => void; items: [string, string][]; disabled?: boolean }) {
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id} className="text-xs">{label}</Label>
-      <Select value={value} onValueChange={onChange}>
+      <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger id={id} className="h-9 w-full"><SelectValue /></SelectTrigger>
         <SelectContent>{items.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
       </Select>
