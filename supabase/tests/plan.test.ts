@@ -149,3 +149,27 @@ describe('reprogramación, dependencias y cierre', () => {
     expect(await uno(`select estado, excluida_alcance from public.plan_activities where id = $1`, [d03.id])).toEqual({ estado: 'cancelada', excluida_alcance: true })
   })
 })
+
+describe('responsable externo', () => {
+  it('se puede asignar una persona fuera de la app como texto, sin usuario vinculado', async () => {
+    const d03 = await act('D03')
+    await como(db, admin, () => db.query(`select public.plan_actividad_asignar($1, $2, null, null, null, 'Responsable externo confirmado', 'Juan Pérez (proveedor)')`, [d03.id, d03.version]))
+    const r = await uno<{ responsable_id: string | null; responsable_externo: string; responsable_texto: string }>(`select responsable_id, responsable_externo, responsable_texto from public.plan_activities where id = $1`, [d03.id])
+    expect(r).toEqual({ responsable_id: null, responsable_externo: 'Juan Pérez (proveedor)', responsable_texto: 'Área Comercial' })
+  })
+
+  it('el externo se puede modificar y borrar después de guardado; el texto del cronograma no cambia', async () => {
+    let d03 = await act('D03')
+    await como(db, admin, () => db.query(`select public.plan_actividad_asignar($1, $2, null, null, null, 'Corrección de nombre', 'Juana Pérez (proveedora)')`, [d03.id, d03.version]))
+    d03 = await act('D03')
+    await como(db, admin, () => db.query(`select public.plan_actividad_asignar($1, $2, null, null, null, 'Sin responsable por ahora', null)`, [d03.id, d03.version]))
+    const r = await uno<{ responsable_id: string | null; responsable_externo: string | null; responsable_texto: string }>(`select responsable_id, responsable_externo, responsable_texto from public.plan_activities where id = $1`, [d03.id])
+    expect(r).toEqual({ responsable_id: null, responsable_externo: null, responsable_texto: 'Área Comercial' })
+  })
+
+  it('no admite usuario y nombre externo a la vez, ni un nombre demasiado corto', async () => {
+    const d03 = await act('D03')
+    await expect(como(db, admin, () => db.query(`select public.plan_actividad_asignar($1, $2, $3, null, null, 'Motivo de prueba', 'Juan Pérez')`, [d03.id, d03.version, victor]))).rejects.toThrow(/no ambos/)
+    await expect(como(db, admin, () => db.query(`select public.plan_actividad_asignar($1, $2, null, null, null, 'Motivo de prueba', 'Jo')`, [d03.id, d03.version]))).rejects.toThrow(/al menos 3/)
+  })
+})

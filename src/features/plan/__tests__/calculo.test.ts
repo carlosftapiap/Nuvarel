@@ -10,7 +10,7 @@ function act(o: Partial<Actividad> = {}): Actividad {
   n++
   return {
     id: `a${n}`, planId: 'p', codigo: `A${String(n).padStart(2, '0')}`, nombre: 'Actividad', descripcion: '', resultadoEsperado: '', tipo: 'actividad',
-    frenteId: 'f1', faseId: null, parentId: null, responsableId: 'u1', equipoId: null, responsableTexto: null, aprobadorTexto: null,
+    frenteId: 'f1', faseId: null, parentId: null, responsableId: 'u1', equipoId: null, responsableTexto: null, responsableExterno: null, aprobadorTexto: null,
     baseInicio: '2026-11-01', baseFin: '2026-11-10', planInicio: '2026-11-01', planFin: '2026-11-10', realInicio: null, realFin: null,
     prioridad: null, peso: 1, avance: 0, estado: 'pendiente', bloqueada: false, motivoBloqueo: null, excluidaAlcance: false, requiereEvidencia: false,
     bloqueaLanzamiento: null, observaciones: '', fuente: '', version: 1, updatedAt: '', updatedBy: null, ...o,

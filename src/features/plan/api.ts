@@ -26,7 +26,7 @@ export const aActividad = (r: Fila): Actividad => ({
   id: String(r.id), planId: String(r.plan_id), codigo: String(r.codigo), nombre: String(r.nombre), descripcion: String(r.descripcion ?? ''),
   resultadoEsperado: String(r.resultado_esperado ?? ''), tipo: r.tipo === 'hito' ? 'hito' : 'actividad',
   frenteId: s(r.frente_id), faseId: s(r.fase_id), parentId: s(r.parent_id), responsableId: s(r.responsable_id), equipoId: s(r.equipo_id),
-  responsableTexto: s(r.responsable_texto), aprobadorTexto: s(r.aprobador_texto),
+  responsableTexto: s(r.responsable_texto), responsableExterno: s(r.responsable_externo), aprobadorTexto: s(r.aprobador_texto),
   baseInicio: fecha(r.base_inicio), baseFin: fecha(r.base_fin), planInicio: fecha(r.plan_inicio), planFin: fecha(r.plan_fin),
   realInicio: fecha(r.real_inicio), realFin: fecha(r.real_fin), prioridad: (s(r.prioridad) as Actividad['prioridad']) ?? null,
   peso: n(r.peso), avance: n(r.avance), estado: r.estado as Actividad['estado'], bloqueada: Boolean(r.bloqueada), motivoBloqueo: s(r.motivo_bloqueo),
@@ -118,8 +118,9 @@ export const reprogramar = (d: Datos, a: Pick<Actividad, 'id' | 'version'>, inic
 export const impacto = (d: Datos, id: string, fin: string) =>
   d.rpc<{ codigo: string; nombre: string; plan_inicio: string | null; conflicto: boolean }[]>('plan_impacto', { p_id: id, p_fin: fin })
 
-export const asignar = (d: Datos, a: Pick<Actividad, 'id' | 'version'>, responsableId: string | null, motivo: string) =>
-  d.rpc('plan_actividad_asignar', { p_id: a.id, p_version: a.version, p_responsable: responsableId, p_equipo: null, p_colaboradores: null, p_motivo: motivo })
+/** Asigna un usuario, o un responsable externo escrito como texto (sin usuario vinculado). */
+export const asignar = (d: Datos, a: Pick<Actividad, 'id' | 'version'>, responsableId: string | null, motivo: string, responsableExterno: string | null = null) =>
+  d.rpc('plan_actividad_asignar', { p_id: a.id, p_version: a.version, p_responsable: responsableId, p_equipo: null, p_colaboradores: null, p_motivo: motivo, p_responsable_texto: responsableExterno })
 
 export const pesoActividad = (d: Datos, a: Pick<Actividad, 'id' | 'version'>, peso: number | null, motivo: string) =>
   d.rpc('plan_actividad_peso', { p_id: a.id, p_version: a.version, p_peso: peso, p_motivo: motivo })

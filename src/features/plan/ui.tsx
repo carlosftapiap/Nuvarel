@@ -54,5 +54,6 @@ export const pendiente = <span className="text-[11px] italic text-muted-foregrou
 /** Nombre del responsable o texto original del archivo marcado como pendiente de vincular. */
 export function nombreResponsable(a: Actividad, personas: Map<string, string>) {
   if (a.responsableId) return personas.get(a.responsableId) ?? 'Usuario fuera de tu alcance'
+  if (a.responsableExterno) return a.responsableExterno
   return a.responsableTexto ? `${a.responsableTexto} (sin vincular)` : 'Sin responsable'
 }

@@ -83,9 +83,9 @@ describe('vista previa de importación', () => {
       aprobadorTexto: null, baseInicio: null, baseFin: null, realInicio: null, realFin: null, prioridad: null, peso: null, bloqueada: false, motivoBloqueo: null,
       excluidaAlcance: false, requiereEvidencia: false, bloqueaLanzamiento: null, observaciones: '', fuente: '', version: 1, updatedAt: '', updatedBy: null } as const
     const existentes: Actividad[] = [
-      { ...base, id: 'x1', codigo: 'D01', nombre: 'Confirmar alcance', estado: 'pendiente', responsableId: 'u-ana', responsableTexto: 'Ana Pérez', avance: 0, planInicio: '2026-10-27', planFin: '2026-10-28' },
-      { ...base, id: 'x2', codigo: 'D02', nombre: 'Asignar responsables', estado: 'pendiente', responsableId: null, responsableTexto: null, avance: 0, planInicio: '2026-10-29', planFin: '2026-10-30' },
-      { ...base, id: 'x9', codigo: 'D09', nombre: 'Solo en la app', estado: 'pendiente', responsableId: null, responsableTexto: null, avance: null, planInicio: null, planFin: null },
+      { ...base, id: 'x1', codigo: 'D01', nombre: 'Confirmar alcance', estado: 'pendiente', responsableId: 'u-ana', responsableTexto: 'Ana Pérez', responsableExterno: null, avance: 0, planInicio: '2026-10-27', planFin: '2026-10-28' },
+      { ...base, id: 'x2', codigo: 'D02', nombre: 'Asignar responsables', estado: 'pendiente', responsableId: null, responsableTexto: null, responsableExterno: null, avance: 0, planInicio: '2026-10-29', planFin: '2026-10-30' },
+      { ...base, id: 'x9', codigo: 'D09', nombre: 'Solo en la app', estado: 'pendiente', responsableId: null, responsableTexto: null, responsableExterno: null, avance: null, planInicio: null, planFin: null },
     ]
     const fases = [{ id: 'fase-01', planId: 'p', frenteId: null, codigo: '01', nombre: 'Dirección', orden: 1 }]
     const deps = [{ predecesoraId: 'x1', sucesoraId: 'x2' }]

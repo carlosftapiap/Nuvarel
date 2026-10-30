@@ -26,7 +26,7 @@ export function libroPlan(d: DatosPlan, acts: Actividad[], usuario: string): XLS
     const f = a.faseId ? fase.get(a.faseId) : undefined
     return [
       a.codigo, a.nombre, a.tipo === 'hito' ? 'Hito' : 'Actividad', a.frenteId ? frente.get(a.frenteId) ?? '' : '', f ? `${f.codigo} ${f.nombre}` : '',
-      a.parentId ? porId.get(a.parentId)?.codigo ?? '' : '', a.responsableId ? personas.get(a.responsableId) ?? '' : '', a.responsableTexto ?? '',
+      a.parentId ? porId.get(a.parentId)?.codigo ?? '' : '', a.responsableId ? personas.get(a.responsableId) ?? '' : a.responsableExterno ?? '', a.responsableTexto ?? '',
       ESTADO_ACTIVIDAD[a.estado].label, a.bloqueada ? 'Sí' : 'No', a.avance, a.peso,
       serial(a.baseInicio), serial(a.baseFin), serial(a.planInicio), serial(a.planFin), serial(a.realInicio), serial(a.realFin),
       duracion(a.planInicio, a.planFin), retrasoBase(a), preds(a.id), semaforo(a, plan.fechaCorte, plan.alertaDias).texto,

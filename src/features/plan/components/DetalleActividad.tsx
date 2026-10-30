@@ -188,7 +188,8 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
   const [inicio, setInicio] = useState(a.planInicio ?? '')
   const [fin, setFin] = useState(a.planFin ?? '')
   const [fecha, setFecha] = useState(hoy)
-  const [responsable, setResponsable] = useState(a.responsableId ?? 'ninguno')
+  const [responsable, setResponsable] = useState(a.responsableId ?? (a.responsableExterno ? 'otro' : 'ninguno'))
+  const [responsableExterno, setResponsableExterno] = useState(a.responsableExterno ?? '')
   const [peso, setPeso] = useState(a.peso === null ? '' : String(a.peso))
   const [url, setUrl] = useState('')
   const [impacto, setImpacto] = useState<{ codigo: string; nombre: string; plan_inicio: string | null; conflicto: boolean }[] | null>(null)
@@ -221,6 +222,7 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
   if (accion === 'peso') valido = motivoOk && (peso.trim() === '' || Number(peso.replace(',', '.')) > 0)
   if (accion === 'evidencia') valido = /^https?:\/\/\S{4,}$/.test(url.trim())
   if (accion === 'editar') valido = motivoOk && nombre.trim().length >= 3
+  if (accion === 'asignar') valido = motivoOk && (responsable !== 'otro' || responsableExterno.trim().length >= 3)
   const motivoExigido = accion !== 'evidencia' && (accion !== 'avance' || baja)
   // Explica por qué Guardar sigue deshabilitado, en lugar de dejar el botón apagado sin aviso.
   const falta = valido ? null
@@ -231,6 +233,7 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
     : accion === 'editar' && nombre.trim().length < 3 ? 'El nombre debe tener al menos 3 caracteres'
     : accion === 'peso' && !(peso.trim() === '' || Number(peso.replace(',', '.')) > 0) ? 'El peso debe ser un número positivo'
     : accion === 'cerrar' && !fecha ? 'Indica la fecha real de fin'
+    : accion === 'asignar' && responsable === 'otro' && responsableExterno.trim().length < 3 ? 'Escribe el nombre del responsable (mínimo 3 caracteres)'
     : motivoExigido && !motivoOk ? `Escribe el motivo (mínimo 5 caracteres; llevas ${motivo.trim().length})`
     : accion === 'reprogramar' && conflictos.length && !aceptaImpacto ? 'Marca la casilla de impacto en sucesoras'
     : null
@@ -240,7 +243,7 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
     const run: Record<Accion, () => Promise<unknown>> = {
       avance: () => api.actualizarAvance(datos, a, num, motivo.trim() || null),
       reprogramar: () => api.reprogramar(datos, a, inicio, fin, motivo),
-      asignar: () => api.asignar(datos, a, responsable === 'ninguno' ? null : responsable, motivo),
+      asignar: () => api.asignar(datos, a, responsable === 'ninguno' || responsable === 'otro' ? null : responsable, motivo, responsable === 'otro' ? responsableExterno.trim() : null),
       peso: () => api.pesoActividad(datos, a, peso.trim() === '' ? null : Number(peso.replace(',', '.')), motivo),
       cerrar: () => api.cambiarEstado(datos, a, 'cerrar', fecha, motivo),
       reabrir: () => api.cambiarEstado(datos, a, 'reabrir', null, motivo),
@@ -337,8 +340,15 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
                 <SelectContent>
                   <SelectItem value="ninguno">Sin responsable</SelectItem>
                   {activos.map((p) => <SelectItem key={p.id} value={p.id}>{p.nombre} · {p.email}</SelectItem>)}
+                  <SelectItem value="otro">Otro (persona fuera de la app)</SelectItem>
                 </SelectContent>
               </Select>
+              {responsable === 'otro' && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ac-ext" className="text-xs">Nombre del responsable</Label>
+                  <Input id="ac-ext" value={responsableExterno} onChange={(e) => setResponsableExterno(e.target.value)} placeholder="Ej.: Juan Pérez (proveedor)" />
+                </div>
+              )}
               {a.responsableTexto && <p className="text-[11px] text-muted-foreground">Texto original del cronograma: “{a.responsableTexto}”.</p>}
             </div>
           )}

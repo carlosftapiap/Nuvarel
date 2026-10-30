@@ -52,6 +52,8 @@ export interface Actividad {
   responsableId: string | null
   equipoId: string | null
   responsableTexto: string | null
+  /** Persona fuera de la app, escrita a mano. Excluyente con responsableId. */
+  responsableExterno: string | null
   aprobadorTexto: string | null
   baseInicio: string | null
   baseFin: string | null
