@@ -25,6 +25,7 @@ export const CATALOGO = [
   ] },
   { modulo: 'Financiamiento', permisos: [
     ['financiamiento.simular', 'Simular con condiciones aprobadas'],
+    ['financiamiento.catalogo', 'Administrar tasas y productos bancarios (con fuente y fecha)'],
   ] },
   { modulo: 'Clientes y gestión comercial', permisos: [
     ['clientes.ver', 'Ver clientes de su alcance'],
@@ -68,6 +69,19 @@ export const CATALOGO = [
     ['recursos.cargar', 'Cargar documentos'],
     ['recursos.publicar', 'Aprobar y publicar'],
   ] },
+  { modulo: 'Plan de implementación', permisos: [
+    ['plan.ver', 'Consultar el plan (según su alcance)'],
+    ['plan.editar', 'Crear y editar actividades'],
+    ['plan.asignar', 'Asignar responsables'],
+    ['plan.avance', 'Actualizar avances, bloqueos y evidencias'],
+    ['plan.reprogramar', 'Reprogramar fechas'],
+    ['plan.alcance', 'Modificar pesos, frentes y alcance'],
+    ['plan.dependencias', 'Gestionar dependencias'],
+    ['plan.cerrar', 'Cerrar, cancelar o reabrir actividades'],
+    ['plan.importar', 'Importar desde Excel'],
+    ['plan.exportar', 'Exportar a Excel'],
+    ['plan.reportes', 'Consultar reportes del plan'],
+  ] },
   { modulo: 'Configuración', permisos: [
     ['config.usuarios', 'Administrar usuarios'],
     ['config.roles', 'Administrar roles y permisos'],
@@ -98,6 +112,10 @@ export interface PlantillaRol {
   permisos: Permiso[]
 }
 
+/** Cada responsable consulta y actualiza el avance de sus actividades. */
+const BASE_PLAN: Permiso[] = ['plan.ver', 'plan.avance', 'plan.exportar']
+const PLAN_SUPERVISION: Permiso[] = [...BASE_PLAN, 'plan.editar', 'plan.asignar', 'plan.reprogramar', 'plan.dependencias', 'plan.cerrar', 'plan.reportes']
+
 const BASE_VENTA: Permiso[] = [
   'dashboard.ver', 'inventario.ver', 'precios.ver', 'financiamiento.simular',
   'clientes.ver', 'clientes.editar', 'cotizaciones.ver', 'cotizaciones.crear',
@@ -108,20 +126,39 @@ const BASE_VENTA: Permiso[] = [
 export const PLANTILLAS_ROL: PlantillaRol[] = [
   { id: 'administrador', nombre: 'Administrador', descripcion: 'Usuarios, roles, equipos, configuración y accesos', alcance: 'empresa', permisos: [...TODOS_LOS_PERMISOS] },
   {
-    id: 'gerencia', nombre: 'Gerencia', descripcion: 'Supervisión comercial, reportes y aprobaciones autorizadas', alcance: 'equipo',
+    // Gerencia aprueba reservas; la verificación del ingreso corresponde a Finanzas.
+    id: 'gerencia', nombre: 'Gerencia', descripcion: 'Supervisión comercial, reportes y aprobaciones autorizadas', alcance: 'empresa',
     permisos: [
       ...BASE_VENTA, 'reportes.ver', 'reportes.exportar', 'inventario.exportar', 'inventario.importar', 'inventario.cambiar_estado',
       'inventario.editar_precios', 'precios.competencia', 'precios.proponer', 'clientes.asignar', 'clientes.exportar',
-      'cotizaciones.descuento', 'reservas.verificar_pago', 'reservas.confirmar', 'reservas.anular', 'ventas.ver',
+      'cotizaciones.descuento', 'reservas.confirmar', 'reservas.anular', 'ventas.ver',
       'cobranzas.ver', 'comisiones.calcular', 'corredores.ver', 'config.auditoria',
+      ...PLAN_SUPERVISION, 'plan.importar',
     ],
   },
   {
-    id: 'supervisor', nombre: 'Supervisor', descripcion: 'Seguimiento y asignación dentro de su equipo', alcance: 'equipo',
-    permisos: [...BASE_VENTA, 'reportes.ver', 'inventario.exportar', 'precios.competencia', 'clientes.asignar', 'ventas.ver'],
+    id: 'supervisor', nombre: 'Supervisor', descripcion: 'Seguimiento y asignación dentro de su equipo (p. ej. líder de corredores)', alcance: 'equipo',
+    permisos: [...BASE_VENTA, 'reportes.ver', 'inventario.exportar', 'precios.competencia', 'clientes.asignar', 'ventas.ver', ...PLAN_SUPERVISION],
   },
-  { id: 'asesor', nombre: 'Vendedor', descripcion: 'Clientes, cotizaciones y solicitudes de reserva propias', alcance: 'propio', permisos: [...BASE_VENTA, 'inventario.exportar', 'precios.competencia'] },
+  { id: 'asesor', nombre: 'Vendedor', descripcion: 'Clientes, cotizaciones y solicitudes de reserva propias', alcance: 'propio', permisos: [...BASE_VENTA, 'inventario.exportar', 'precios.competencia', ...BASE_PLAN] },
   { id: 'corredor', nombre: 'Corredor externo', descripcion: 'Sus clientes y operaciones autorizadas', alcance: 'propio', permisos: [...BASE_VENTA] },
+  {
+    id: 'finanzas', nombre: 'Finanzas', descripcion: 'Verificación de ingresos y cobranzas', alcance: 'empresa',
+    permisos: [
+      'dashboard.ver', 'reportes.ver', 'reportes.exportar', 'inventario.ver', 'clientes.ver', 'cotizaciones.ver',
+      'reservas.ver', 'reservas.verificar_pago', 'ventas.ver', 'cobranzas.ver', 'cobranzas.registrar', 'cobranzas.verificar',
+      ...BASE_PLAN,
+    ],
+  },
+  {
+    id: 'legal', nombre: 'Legal / Operaciones', descripcion: 'Contratos, documentos y formalización', alcance: 'empresa',
+    permisos: ['dashboard.ver', 'inventario.ver', 'clientes.ver', 'cotizaciones.ver', 'reservas.ver', 'ventas.ver', 'ventas.preparar', 'ventas.formalizar', 'recursos.ver', 'recursos.cargar', ...BASE_PLAN],
+  },
+  {
+    // Punto de partida de solo consulta; el administrador ajusta sus permisos en Configuración.
+    id: 'jarval', nombre: 'JARVAL (consulta)', descripcion: 'Promotor: consulta según los permisos asignados', alcance: 'empresa',
+    permisos: ['dashboard.ver', 'reportes.ver', 'inventario.ver', 'reservas.ver', 'ventas.ver', 'cobranzas.ver', 'plan.ver', 'plan.reportes'],
+  },
 ]
 
 const PLANTILLA = Object.fromEntries(PLANTILLAS_ROL.map((p) => [p.id, p])) as Record<string, PlantillaRol | undefined>

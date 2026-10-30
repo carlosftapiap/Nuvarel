@@ -8,7 +8,7 @@ export function generarSqlRoles() {
   const roles = PLANTILLAS_ROL.map((r) => `  (${q(r.id)}, ${q(r.nombre)}, ${q(r.descripcion)}, ${q(r.alcance)}, true)`)
   const rp = PLANTILLAS_ROL.flatMap((r) => r.permisos.map((p) => `  (${q(r.id)}, ${q(p)})`))
   return `-- Generado desde src/app/permissions.ts (catálogo y perfiles iniciales). No editar a mano.
--- Ejecutar después de 20261028220000_usuarios_permisos.sql.
+-- Ejecutar después de 20261028220000_usuarios_tablas.sql y antes de 20261028220100_usuarios_funciones.sql.
 insert into public.permissions (clave, modulo, descripcion) values
 ${permisos.join(',\n')}
 on conflict (clave) do update set modulo = excluded.modulo, descripcion = excluded.descripcion;
