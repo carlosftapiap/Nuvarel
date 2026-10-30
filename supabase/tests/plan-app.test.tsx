@@ -38,6 +38,28 @@ beforeAll(async () => {
   await db.exec(fs.readFileSync(path.resolve(__dirname, '../carga/plan_amura_inicial.sql'), 'utf8').replace('REEMPLAZAR@correo.com', 'admin@prueba.local'))
 }, 60_000)
 
+describe('Asignar responsable desde la app', () => {
+  const asignarCon = async (base: PGlite, u: string, externo: string | null, responsable: string | null) => {
+    const a = (await base.query<{ id: string; version: number }>(`select id, version from public.plan_activities where codigo = 'D01'`)).rows[0]
+    await api.asignar(datosPglite(base, u), a, responsable, 'Motivo de la asignación', externo)
+    return (await base.query<{ responsable_id: string | null; responsable_externo?: string | null }>(`select * from public.plan_activities where codigo = 'D01'`)).rows[0]
+  }
+
+  it('asigna a un usuario y a una persona externa, con los nombres reales de la función', async () => {
+    expect(await asignarCon(db, admin, null, vera)).toMatchObject({ responsable_id: vera, responsable_externo: null })
+    expect(await asignarCon(db, admin, 'Juan Pérez (proveedor)', null)).toMatchObject({ responsable_id: null, responsable_externo: 'Juan Pérez (proveedor)' })
+    expect(await asignarCon(db, admin, null, null)).toMatchObject({ responsable_id: null, responsable_externo: null })
+  })
+
+  it('sin la migración del Gantt, asignar a un usuario sigue funcionando', async () => {
+    const vieja = await crearDb({ hasta: '20261029060000_financiamiento_catalogo.sql' })
+    const a2 = await crearUsuario(vieja, 'Admin', 'administrador')
+    const v2 = await crearUsuario(vieja, 'Vera', 'asesor')
+    await vieja.exec(fs.readFileSync(path.resolve(__dirname, '../carga/plan_amura_inicial.sql'), 'utf8').replace('REEMPLAZAR@correo.com', 'admin@prueba.local'))
+    expect(await asignarCon(vieja, a2, null, v2)).toMatchObject({ responsable_id: v2 })
+  }, 60_000)
+})
+
 describe('Plan de implementación conectado (Postgres real con RLS)', () => {
   it('el administrador ve las 147 actividades, los indicadores y el consolidado no habilitado por falta de pesos', async () => {
     await abrirComo(admin)

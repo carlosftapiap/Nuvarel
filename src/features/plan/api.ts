@@ -120,7 +120,11 @@ export const impacto = (d: Datos, id: string, fin: string) =>
 
 /** Asigna un usuario, o un responsable externo escrito como texto (sin usuario vinculado). */
 export const asignar = (d: Datos, a: Pick<Actividad, 'id' | 'version'>, responsableId: string | null, motivo: string, responsableExterno: string | null = null) =>
-  d.rpc('plan_actividad_asignar', { p_id: a.id, p_version: a.version, p_responsable: responsableId, p_equipo: null, p_colaboradores: null, p_motivo: motivo, p_responsable_texto: responsableExterno })
+  d.rpc('plan_actividad_asignar', {
+    p_id: a.id, p_version: a.version, p_responsable: responsableId, p_equipo: null, p_colaboradores: null, p_motivo: motivo,
+    // Solo se envía si hay nombre externo: así asignar a un usuario funciona también sin la migración 20261030000000.
+    ...(responsableExterno ? { p_responsable_externo: responsableExterno } : {}),
+  })
 
 export const pesoActividad = (d: Datos, a: Pick<Actividad, 'id' | 'version'>, peso: number | null, motivo: string) =>
   d.rpc('plan_actividad_peso', { p_id: a.id, p_version: a.version, p_peso: peso, p_motivo: motivo })
