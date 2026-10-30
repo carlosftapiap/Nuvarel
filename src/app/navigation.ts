@@ -35,9 +35,15 @@ export interface NavGroup {
 // Navegación: primero las herramientas de venta diaria; después seguimiento, finanzas y sistema.
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Ventas',
+    label: 'General',
     items: [
       { to: '/', label: 'Dashboard', icon: LayoutDashboard, permisos: ['dashboard.ver'] },
+      { to: '/plan', label: 'Plan de implementación', icon: GanttChart, permisos: ['plan.ver'] },
+    ],
+  },
+  {
+    label: 'Ventas',
+    items: [
       { to: '/inventario', label: 'Inventario', icon: Building2, permisos: ['inventario.ver'] },
       { to: '/financiamiento', label: 'Financiamiento', icon: Landmark, permisos: ['financiamiento.simular'] },
       { to: '/precios', label: 'Precios', icon: Tags, permisos: ['precios.ver'] },
@@ -67,7 +73,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/recursos', label: 'Centro de recursos', icon: FolderOpen, permisos: ['recursos.ver'] },
       { to: '/configuracion', label: 'Configuración', icon: Settings, permisos: ['config.usuarios', 'config.roles', 'config.equipos', 'config.auditoria'] },
-      { to: '/plan', label: 'Plan de implementación', icon: GanttChart, permisos: ['reportes.ver'] },
     ],
   },
 ]
