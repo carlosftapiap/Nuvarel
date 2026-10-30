@@ -1,0 +1,145 @@
+import { useState } from 'react'
+import { Handshake } from 'lucide-react'
+import { puedeVerDe } from '@/app/permissions'
+import { useSession } from '@/app/session'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { FieldError } from '@/features/inventario/components/shared'
+import { useInventory } from '@/features/inventario/store'
+import { ETAPAS_OPORTUNIDAD, OPORTUNIDAD_ABIERTA, type Cliente, type Oportunidad } from '../model'
+import { abrirOportunidad, cerrarOportunidad, transferirOportunidad, vincularUnidad } from '../remoto'
+import { useClientes } from '../store'
+
+type Pedido = { tipo: 'transferir' | 'cerrar'; o: Oportunidad }
+
+/** Negociaciones concretas del cliente: una por unidad o tipología. El servidor impide duplicarlas. */
+export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onMessage: (m: string) => void }) {
+  const { datos, oportunidades, asignables, recargar } = useClientes()
+  const { state: inv } = useInventory()
+  const { actor, can } = useSession()
+  const [destino, setDestino] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [pedido, setPedido] = useState<Pedido | null>(null)
+  if (!datos) return null
+
+  const propias = oportunidades.filter((o) => o.clienteId === c.id)
+  const nombre = (id: string) => (id === c.asesorId ? c.asesor : asignables.find((p) => p.id === id)?.nombre ?? 'Otro usuario')
+  const dptDe = (codigo: string) => inv.units.find((u) => u.codigo === codigo)?.dpt ?? codigo
+  const abiertas = propias.filter((o) => o.etapa !== 'perdida')
+  const unidadesLibres = c.unidadesInteres.filter((u) => !abiertas.some((o) => o.codigoUnidad === u))
+  const tipologias = [...new Set(inv.units.map((u) => u.tipologia))].filter((t) => !abiertas.some((o) => !o.codigoUnidad && o.tipologia === t))
+  const puedeAbrir = can('clientes.editar') && c.etapa !== 'perdido'
+
+  const ejecutar = async (fn: () => Promise<unknown>, ok: string) => {
+    setError(null)
+    try {
+      await fn()
+      await recargar()
+      onMessage(ok)
+      return true
+    } catch (e) {
+      setError((e as Error).message)
+      return false
+    }
+  }
+  const abrir = () => {
+    const [tipo, valor] = destino.split(':')
+    void ejecutar(() => abrirOportunidad(datos, c.id, tipo === 'u' ? { unidad: valor } : { tipologia: valor }), 'Negociación abierta').then((ok) => { if (ok) setDestino('') })
+  }
+
+  return (
+    <section aria-labelledby="cs-neg" className="grid gap-2 rounded-xl border border-border p-4">
+      <h3 id="cs-neg" className="flex items-center gap-1.5 text-sm font-semibold"><Handshake className="size-4" />Negociaciones</h3>
+      <FieldError>{error}</FieldError>
+      {propias.length === 0 && <p className="text-xs text-muted-foreground">Ábrela cuando el cliente muestre interés concreto en un departamento o tipología.</p>}
+      {propias.length > 0 && (
+        <ul className="grid gap-1.5">
+          {propias.map((o) => {
+            const abierta = OPORTUNIDAD_ABIERTA.includes(o.etapa)
+            const opciones = o.codigoUnidad ? [] : inv.units.filter((u) => u.tipologia === o.tipologia && u.estado === 'disponible')
+            return (
+              <li key={o.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs">
+                <b>{o.codigoUnidad ? dptDe(o.codigoUnidad) : o.tipologia}</b>
+                <span className="text-muted-foreground">{ETAPAS_OPORTUNIDAD[o.etapa]}</span>
+                <span className="text-muted-foreground">· {nombre(o.responsableId)}</span>
+                <span className="ml-auto flex items-center gap-1">
+                  {o.etapa !== 'perdida' && can('clientes.asignar') && <Button size="xs" variant="ghost" onClick={() => setPedido({ tipo: 'transferir', o })}>Transferir</Button>}
+                  {abierta && can('clientes.editar') && <Button size="xs" variant="ghost" onClick={() => setPedido({ tipo: 'cerrar', o })}>Cerrar</Button>}
+                </span>
+                {abierta && !o.codigoUnidad && can('clientes.editar') && opciones.length > 0 && (
+                  <Select onValueChange={(u) => void ejecutar(() => vincularUnidad(datos, o.id, u), 'Unidad vinculada')}>
+                    <SelectTrigger aria-label={`Elegir unidad de ${o.tipologia}`} className="h-7 basis-full text-xs"><SelectValue placeholder="Elegir unidad" /></SelectTrigger>
+                    <SelectContent>{opciones.map((u) => <SelectItem key={u.codigo} value={u.codigo}>{u.dpt}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+                {o.etapa === 'perdida' && o.motivoPerdida && <span className="basis-full text-[11px] text-muted-foreground">{o.motivoPerdida}</span>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {puedeAbrir && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={destino} onValueChange={setDestino}>
+            <SelectTrigger aria-label="Unidad o tipología de la negociación" className="h-8 min-w-48 text-xs"><SelectValue placeholder="Unidad o tipología" /></SelectTrigger>
+            <SelectContent>
+              {unidadesLibres.map((u) => <SelectItem key={u} value={`u:${u}`}>{dptDe(u)}</SelectItem>)}
+              {tipologias.map((t) => <SelectItem key={t} value={`t:${t}`}>Tipología {t}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" disabled={!destino} onClick={abrir}>Abrir negociación</Button>
+        </div>
+      )}
+      {pedido && (
+        <PedidoDialog pedido={pedido} personas={asignables.filter((p) => puedeVerDe(actor, [p.id]) && p.id !== pedido.o.responsableId)} onClose={() => setPedido(null)}
+          onConfirm={(motivo, responsable) => pedido.tipo === 'cerrar'
+            ? ejecutar(() => cerrarOportunidad(datos, pedido.o.id, motivo), 'Negociación cerrada')
+            : ejecutar(() => transferirOportunidad(datos, pedido.o.id, responsable, motivo), 'Negociación transferida')} />
+      )}
+    </section>
+  )
+}
+
+function PedidoDialog({ pedido, personas, onClose, onConfirm }: {
+  pedido: Pedido
+  personas: { id: string; nombre: string }[]
+  onClose: () => void
+  onConfirm: (motivo: string, responsable: string) => Promise<boolean>
+}) {
+  const [motivo, setMotivo] = useState('')
+  const [responsable, setResponsable] = useState('')
+  const transferir = pedido.tipo === 'transferir'
+  const valido = motivo.trim().length >= 5 && (!transferir || !!responsable)
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{transferir ? 'Transferir negociación' : 'Cerrar negociación'}</DialogTitle>
+          <DialogDescription>{transferir ? 'El asesor principal del cliente y la atribución de comisiones no cambian.' : 'El cliente conserva su etapa y sus demás negociaciones.'}</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3">
+          {transferir && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="neg-resp" className="text-xs">Nuevo responsable *</Label>
+              <Select value={responsable} onValueChange={setResponsable}>
+                <SelectTrigger id="neg-resp" className="h-9 w-full"><SelectValue placeholder="Elegir persona" /></SelectTrigger>
+                <SelectContent>{personas.map((p) => <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="grid gap-1.5">
+            <Label htmlFor="neg-motivo" className="text-xs">Motivo *</Label>
+            <Textarea id="neg-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button disabled={!valido} onClick={() => void onConfirm(motivo.trim(), responsable).then(onClose)}>Confirmar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

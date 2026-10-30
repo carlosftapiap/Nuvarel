@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { puedeVerDe } from '@/app/permissions'
 import UnitPicker from '@/features/inventario/components/UnitPicker'
 import { FieldError } from '@/features/inventario/components/shared'
 import { useInventory } from '@/features/inventario/store'
@@ -27,16 +29,18 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
   onSaved: (id: string, mensaje: string) => void
 }) {
   const { state: inv } = useInventory()
-  const { update } = useClientes()
+  const { guardar: guardarCliente, remoto, asignables: remotos } = useClientes()
   const { actor, can } = useSession()
   const dir = useContext(DirectorioContext)
   // Personas a las que se puede asignar: dentro del alcance del usuario (y siempre él mismo).
-  const opciones = dir ? asignables(dir.state, actor) : []
+  const opciones = remoto ? remotos.filter((p) => puedeVerDe(actor, [p.id])) : dir ? asignables(dir.state, actor) : []
   const personas = opciones.some((u) => u.id === actor.id) ? opciones : [{ id: actor.id, nombre: actor.nombre }, ...opciones]
   const [f, setF] = useState<ClienteInput>(() => vacio(actor.id, actor.nombre))
   const [presupuesto, setPresupuesto] = useState('')
   const [unidad, setUnidad] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const reasigna = !!cliente && f.asesorId !== cliente.asesorId
 
   useEffect(() => {
     if (!open) return
@@ -44,7 +48,7 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
     setF({
       nombre: base.nombre, telefono: base.telefono, email: base.email, origen: base.origen, origenDetalle: base.origenDetalle,
       unidadesInteres: [...base.unidadesInteres], presupuesto: base.presupuesto, proposito: base.proposito, formaPago: base.formaPago,
-      asesorId: base.asesorId, asesor: base.asesor,
+      asesorId: base.asesorId, asesor: base.asesor, motivoAsignacion: '',
     })
     setPresupuesto(base.presupuesto ? String(base.presupuesto) : '')
     setUnidad(''); setError(null)
@@ -53,22 +57,24 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
 
   const set = <K extends keyof ClienteInput>(k: K, v: ClienteInput[K]) => setF((x) => ({ ...x, [k]: v }))
 
-  function guardar() {
-    setError(null)
+  async function guardar() {
+    setError(null); setEnviando(true)
     const p = presupuesto.trim() ? Number(presupuesto.replace(/\./g, '').replace(',', '.')) : null
     const input = { ...f, presupuesto: p }
     try {
       if (cliente) {
-        update((s) => actualizarCliente(s, cliente.id, input, actor, inv))
+        await guardarCliente((s) => actualizarCliente(s, cliente.id, input, actor, inv))
         onSaved(cliente.id, `Datos de ${input.nombre} actualizados`)
       } else {
         let id = ''
-        update((s) => { const r = crearCliente(s, input, actor, inv); id = r.cliente.id; return r.state })
+        await guardarCliente((s) => { const r = crearCliente(s, input, actor, inv); id = r.cliente.id; return r.state })
         onSaved(id, `Cliente ${input.nombre.trim()} registrado`)
       }
       onOpenChange(false)
     } catch (e) {
       setError((e as Error).message)
+    } finally {
+      setEnviando(false)
     }
   }
 
@@ -119,11 +125,18 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
           ) : (
             <p className="text-xs text-muted-foreground">Asesor responsable: <b>{f.asesor}</b>. Solo quien tiene permiso de asignación puede cambiarlo.</p>
           )}
+          {reasigna && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="cf-motivo-asig" className="text-xs">Motivo de la reasignación *</Label>
+              <Textarea id="cf-motivo-asig" rows={2} value={f.motivoAsignacion ?? ''} onChange={(e) => set('motivoAsignacion', e.target.value)} />
+              <p className="text-[11px] text-muted-foreground">Cambia el asesor actual. Quién captó al cliente, para comisiones, no cambia.</p>
+            </div>
+          )}
           <FieldError>{error}</FieldError>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={guardar}>{cliente ? 'Guardar cambios' : 'Registrar cliente'}</Button>
+          <Button disabled={enviando} onClick={() => void guardar()}>{enviando ? 'Guardando…' : cliente ? 'Guardar cambios' : 'Registrar cliente'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

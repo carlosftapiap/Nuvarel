@@ -48,8 +48,9 @@ describe('registro de clientes', () => {
     expect(() => nuevo({ asesorId: 'u-otro', asesor: 'Otro Asesor' })).toThrow(/permiso para asignar/)
     const { state, cliente } = nuevo({ asesorId: 'u-otro', asesor: 'Otro Asesor' }, gerencia)
     expect(cliente).toMatchObject({ asesorId: 'u-otro', asesor: 'Otro Asesor', atribucion: { usuarioId: 'u-gerencia' } })
-    const s2 = actualizarCliente(state, cliente.id, input({ asesorId: asesor.id, asesor: 'Ana Asesora' }), gerencia, inv)
-    expect(s2.clientes[0].actividades[0].descripcion).toMatch(/reasignado/)
+    expect(() => actualizarCliente(state, cliente.id, input({ asesorId: asesor.id, asesor: 'Ana Asesora' }), gerencia, inv)).toThrow(/motivo de la reasignación/)
+    const s2 = actualizarCliente(state, cliente.id, input({ asesorId: asesor.id, asesor: 'Ana Asesora', motivoAsignacion: 'Cambio de zona' }), gerencia, inv)
+    expect(s2.clientes[0].actividades[0].descripcion).toMatch(/reasignado.*Cambio de zona/)
     expect(s2.clientes[0].atribucion.usuarioId).toBe('u-gerencia')
   })
 

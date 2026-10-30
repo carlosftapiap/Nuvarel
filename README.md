@@ -59,10 +59,11 @@ See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rule
 - **Clientes** (`/clientes`): tablero Nuevo → Contactado → Calificado → Visita → Cotización → Negociación → Reserva, más Perdido (con motivo) y Seguimiento futuro (con fecha).
   Ficha con datos, origen, interés (departamentos, presupuesto, vivir/invertir), forma de pago (contado, banco, BIESS), asesor, próxima actividad e historial.
 - **Reglas**: sin duplicados por teléfono o correo; Cotización, Negociación y Reserva exigen departamento; Reserva exige una cotización; la primera llamada pasa a Contactado.
-  Solo gerencia reasigna asesores; los corredores ven solo sus clientes.
+  Reasignar exige `clientes.asignar`, alcance y motivo; los corredores ven solo sus clientes.
 - **Cotizaciones por cliente**: desde la ficha se prepara la cotización; queda en el historial y el cliente avanza a Cotización.
 - **Gestión comercial** (`/comercial`): agenda del asesor (vencidas, hoy, 7 días, sin siguiente paso), embudo y origen.
-- **Supabase**: `supabase/migrations/20261028180000_clientes.sql`.
+- **Supabase**: `supabase/migrations/20261028180000_clientes.sql` y `20261031000000_clientes_crm.sql`. Con Supabase configurado, Clientes lee y guarda en la base de datos (ver `supabase/instalacion/CLIENTES.md`); sin configuración sigue en el navegador.
+- **Negociaciones**: `clients.etapa` es el seguimiento general; cada negociación por unidad o tipología es una oportunidad. Un cliente puede tener varias.
 
 ## Reservas
 

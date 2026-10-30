@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import ClienteFormDialog from '@/features/clientes/components/ClienteFormDialog'
 import ClienteSheet, { EtapaBadge } from '@/features/clientes/components/ClienteSheet'
+import ImportarLocal from '@/features/clientes/components/ImportarLocalDialog'
 import MoverEtapaDialog from '@/features/clientes/components/MoverEtapaDialog'
 import { ETAPA_ORDEN, ETAPAS, ORIGENES, TIPOS_ACTIVIDAD, type Cliente, type Etapa } from '@/features/clientes/model'
 import { clientesVisibles, moverEtapa, resumenClientes, urgencia } from '@/features/clientes/service'
@@ -21,7 +22,7 @@ import { cn } from '@/lib/utils'
 const norm = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 export default function ClientesPage() {
-  const { state, update } = useClientes()
+  const { state, guardar, cargando, faltaMigracion } = useClientes()
   const { state: inv } = useInventory()
   const { actor } = useSession()
   const [params, setParams] = useSearchParams()
@@ -48,12 +49,12 @@ export default function ClientesPage() {
 
   useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(null), 4000); return () => clearTimeout(t) }, [aviso])
 
-  function mover(c: Cliente, etapa: Etapa) {
+  async function mover(c: Cliente, etapa: Etapa) {
     setError(null)
     if (c.etapa === etapa) return
     if (etapa === 'perdido' || etapa === 'seguimiento') return setPedido({ id: c.id, nombre: c.nombre, etapa })
     try {
-      update((s) => moverEtapa(s, c.id, etapa, actor))
+      await guardar((s) => moverEtapa(s, c.id, etapa, actor))
       setAviso(`${c.nombre} → ${ETAPAS[etapa].label}`)
     } catch (e) { setError((e as Error).message) }
   }
@@ -91,7 +92,16 @@ export default function ClientesPage() {
       {aviso && <p role="status" className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"><CheckCircle2 className="size-4" />{aviso}<button type="button" className="ml-auto" aria-label="Cerrar aviso" onClick={() => setAviso(null)}><X className="size-3.5" /></button></p>}
       {error && <div className="mb-3"><FieldError>{error}</FieldError></div>}
 
-      {visibles.length === 0 ? (
+      {faltaMigracion && (
+        <p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          La base de datos todavía no tiene las funciones de Clientes: puedes consultar, pero no guardar. Falta aplicar la migración <code>20261031000000_clientes_crm.sql</code>. Tus datos locales siguen intactos.
+        </p>
+      )}
+      <ImportarLocal onMessage={setAviso} />
+
+      {cargando ? (
+        <p className="p-6 text-sm text-muted-foreground">Cargando clientes…</p>
+      ) : visibles.length === 0 ? (
         <div className="module-empty">
           <span className="module-empty-icon"><UserPlus className="size-7" aria-hidden="true" /></span>
           <h2 className="text-xl font-semibold tracking-tight">Aún no hay clientes</h2>
@@ -106,7 +116,7 @@ export default function ClientesPage() {
               <section key={etapa} aria-label={`${ETAPAS[etapa].label}: ${col.length} clientes`}
                 className={cn('flex w-64 shrink-0 flex-col rounded-xl border border-border bg-muted/40 transition-colors', arrastrando && 'border-dashed')}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => { e.preventDefault(); const c = state.clientes.find((x) => x.id === e.dataTransfer.getData('text/plain')); setArrastrando(null); if (c) mover(c, etapa) }}>
+                onDrop={(e) => { e.preventDefault(); const c = state.clientes.find((x) => x.id === e.dataTransfer.getData('text/plain')); setArrastrando(null); if (c) void mover(c, etapa) }}>
                 <header className="flex items-center gap-2 px-3 py-2.5">
                   <span className="size-2 rounded-full" style={{ background: ETAPAS[etapa].color }} />
                   <h2 className="text-xs font-semibold">{ETAPAS[etapa].label}</h2>

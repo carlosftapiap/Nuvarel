@@ -16,22 +16,23 @@ export default function MoverEtapaDialog({ pedido, onClose, onDone }: {
   onClose: () => void
   onDone: (m: string) => void
 }) {
-  const { update } = useClientes()
+  const { guardar } = useClientes()
   const { actor } = useSession()
   const [motivo, setMotivo] = useState('')
   const [fecha, setFecha] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
   useEffect(() => { setMotivo(''); setFecha(''); setError(null) }, [pedido])
   if (!pedido) return null
   const perdido = pedido.etapa === 'perdido'
 
-  function confirmar() {
-    setError(null)
+  async function confirmar() {
+    setError(null); setEnviando(true)
     try {
-      update((s) => moverEtapa(s, pedido!.id, pedido!.etapa, actor, perdido ? { motivo } : { fechaRetomar: fecha }))
+      await guardar((s) => moverEtapa(s, pedido!.id, pedido!.etapa, actor, perdido ? { motivo } : { fechaRetomar: fecha }))
       onDone(`${pedido!.nombre} → ${ETAPAS[pedido!.etapa].label}`)
       onClose()
-    } catch (e) { setError((e as Error).message) }
+    } catch (e) { setError((e as Error).message) } finally { setEnviando(false) }
   }
 
   return (
@@ -55,7 +56,7 @@ export default function MoverEtapaDialog({ pedido, onClose, onDone }: {
         <FieldError>{error}</FieldError>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button onClick={confirmar}>Confirmar</Button>
+          <Button disabled={enviando} onClick={() => void confirmar()}>Confirmar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

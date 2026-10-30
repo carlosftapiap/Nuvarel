@@ -17,6 +17,7 @@ import { useInventory } from '@/features/inventario/store'
 import { ETAPA_ORDEN, ETAPAS, FORMAS_PAGO, ORIGENES, PROPOSITOS, TIPOS_ACTIVIDAD, type Etapa, type ProximaActividad } from '../model'
 import { completarProxima, moverEtapa, programarProxima, registrarActividad, urgencia } from '../service'
 import { useClientes } from '../store'
+import NegociacionesCliente from './NegociacionesCliente'
 
 type TipoRegistrable = ProximaActividad['tipo']
 const TIPOS: TipoRegistrable[] = ['llamada', 'mensaje', 'visita', 'nota']
@@ -33,7 +34,7 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
   onPedirEtapa: (id: string, etapa: Etapa) => void
   onMessage: (m: string) => void
 }) {
-  const { state, update } = useClientes()
+  const { state, guardar } = useClientes()
   const { state: inv } = useInventory()
   const { actor } = useSession()
   const { lista: cotizaciones } = useCotizaciones()
@@ -53,10 +54,13 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
 
   if (!c) return <Sheet open={false} onOpenChange={onClose}><SheetContent /></Sheet>
 
-  const run = (fn: () => void, ok: string) => { setError(null); try { fn(); onMessage(ok) } catch (e) { setError((e as Error).message) } }
+  const run = async (fn: () => Promise<void>, ok: string) => {
+    setError(null)
+    try { await fn(); onMessage(ok); return true } catch (e) { setError((e as Error).message); return false }
+  }
   const cambiarEtapa = (etapa: Etapa) => {
     if (etapa === 'perdido' || etapa === 'seguimiento') return onPedirEtapa(c.id, etapa)
-    run(() => update((s) => moverEtapa(s, c.id, etapa, actor)), `${c.nombre} → ${ETAPAS[etapa].label}`)
+    void run(() => guardar((s) => moverEtapa(s, c.id, etapa, actor)), `${c.nombre} → ${ETAPAS[etapa].label}`)
   }
   const unidades = c.unidadesInteres.map((cod) => inv.units.find((u) => u.codigo === cod)).filter((u) => !!u)
   const urg = urgencia(c)
@@ -92,7 +96,7 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
                 <p className="text-sm"><b>{TIPOS_ACTIVIDAD[c.proxima.tipo]}</b> · {c.proxima.descripcion} · <span className={urg === 'vencida' ? 'font-semibold text-rose-700' : ''}>{fmtFechaCorta(c.proxima.fecha)}{urg === 'vencida' ? ' (vencida)' : urg === 'hoy' ? ' (hoy)' : ''}</span></p>
                 <div className="flex gap-2">
                   <Input aria-label="Resultado de la actividad" value={resultado} onChange={(e) => setResultado(e.target.value)} placeholder="Resultado (opcional)" className="h-8 text-xs" />
-                  <Button size="sm" onClick={() => run(() => { update((s) => completarProxima(s, c.id, resultado, actor)); setResultado('') }, 'Actividad completada')}><Check />Hecha</Button>
+                  <Button size="sm" onClick={() => void run(() => guardar((s) => completarProxima(s, c.id, resultado, actor)), 'Actividad completada').then((ok) => { if (ok) setResultado('') })}><Check />Hecha</Button>
                 </div>
               </div>
             ) : c.etapa !== 'perdido' && <p className="mt-1 text-xs text-muted-foreground">Sin actividad programada. Define el siguiente paso para no perder al cliente.</p>}
@@ -101,7 +105,7 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
                 <TipoSelect id="cs-prox-tipo" value={prox.tipo} onChange={(t) => setProx({ ...prox, tipo: t })} />
                 <Input aria-label="Qué hacer" value={prox.descripcion} onChange={(e) => setProx({ ...prox, descripcion: e.target.value })} placeholder="Qué hacer" className="h-8 text-xs" />
                 <Input aria-label="Fecha de la próxima actividad" type="date" value={prox.fecha} onChange={(e) => setProx({ ...prox, fecha: e.target.value })} className="h-8 text-xs" />
-                <Button size="sm" variant="outline" onClick={() => run(() => { update((s) => programarProxima(s, c.id, prox, actor)); setProx({ tipo: 'llamada', descripcion: '', fecha: '' }) }, 'Próxima actividad programada')}>{c.proxima ? 'Reprogramar' : 'Programar'}</Button>
+                <Button size="sm" variant="outline" onClick={() => void run(() => guardar((s) => programarProxima(s, c.id, prox, actor)), 'Próxima actividad programada').then((ok) => { if (ok) setProx({ tipo: 'llamada', descripcion: '', fecha: '' }) })}>{c.proxima ? 'Reprogramar' : 'Programar'}</Button>
               </div>
             )}
           </section>
@@ -112,7 +116,8 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
             <div className="flex flex-wrap gap-1.5">
               {ETAPA_ORDEN.map((e) => (
                 <button key={e} type="button" aria-pressed={c.etapa === e} onClick={() => cambiarEtapa(e)}
-                  className="rounded-full border px-2.5 py-1 text-[11px] transition-colors hover:bg-muted aria-pressed:text-white"
+                  disabled={e === 'reserva' || c.etapa === 'reserva'} title={e === 'reserva' || c.etapa === 'reserva' ? 'La reserva se gestiona en el módulo Reservas' : undefined}
+                  className="rounded-full border px-2.5 py-1 text-[11px] transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60 aria-pressed:text-white aria-pressed:opacity-100"
                   style={c.etapa === e ? { background: ETAPAS[e].color, borderColor: ETAPAS[e].color } : undefined}>
                   {ETAPAS[e].label}
                 </button>
@@ -148,6 +153,8 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
               </ul>
             ) : <p className="mt-2 text-xs text-muted-foreground">Sin departamento de interés. <button type="button" className="text-primary hover:underline" onClick={() => onEdit(c.id)}>Agregar</button></p>}
           </section>
+
+          <NegociacionesCliente c={c} onMessage={onMessage} />
 
           {/* Cotizar */}
           <section aria-labelledby="cs-cot" className="grid gap-2 rounded-xl border border-border p-4">
@@ -191,7 +198,7 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
             <Label htmlFor="cs-act-desc" className="sr-only">Descripción</Label>
             <Textarea id="cs-act-desc" rows={2} value={act.descripcion} onChange={(e) => setAct({ ...act, descripcion: e.target.value })} placeholder="Ej. Llamada: confirma interés en 2 habitaciones, pide cuota mensual" />
             <Button size="sm" className="justify-self-end" disabled={act.descripcion.trim().length < 3}
-              onClick={() => run(() => { update((s) => registrarActividad(s, c.id, act, actor)); setAct({ ...act, descripcion: '' }) }, 'Actividad registrada')}>Registrar</Button>
+              onClick={() => void run(() => guardar((s) => registrarActividad(s, c.id, act, actor)), 'Actividad registrada').then((ok) => { if (ok) setAct({ ...act, descripcion: '' }) })}>Registrar</Button>
           </section>
 
           {/* Historial */}

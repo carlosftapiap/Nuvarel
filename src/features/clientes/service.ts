@@ -7,8 +7,14 @@ export class ClienteError extends Error {
   constructor(m: string) { super(m); this.name = 'ClienteError' }
 }
 
-let seq = 0
-const newId = (p: string) => `${p}-${Date.now().toString(36)}-${(seq++).toString(36)}`
+/** Identificador generado en el navegador; también funciona fuera de https, donde no existe crypto.randomUUID. */
+function newId() {
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
 const nowIso = () => new Date().toISOString()
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
@@ -34,8 +40,11 @@ function reemplazar(state: ClientesState, c: Cliente): ClientesState {
 }
 
 function actividad(tipo: TipoActividad, descripcion: string, actor: Actor, fecha = hoyGuayaquil()): Actividad {
-  return { id: newId('act'), tipo, fecha, descripcion, usuario: actor.nombre, registradaEn: nowIso() }
+  return { id: newId(), tipo, fecha, descripcion, usuario: actor.nombre, registradaEn: nowIso() }
 }
+
+/** Registro que también escribe el servidor al ejecutar la acción. */
+const automatica = (tipo: TipoActividad, descripcion: string, actor: Actor, extra: Partial<Actividad> = {}): Actividad => ({ ...actividad(tipo, descripcion, actor), automatica: true, ...extra })
 
 /* ------------------------------------------------------------------- datos */
 
@@ -52,6 +61,8 @@ export interface ClienteInput {
   /** Responsable: identificador de usuario y nombre mostrado. */
   asesorId: string
   asesor: string
+  /** Obligatorio al cambiar de asesor a un cliente existente. */
+  motivoAsignacion?: string
 }
 
 export function validarCliente(input: ClienteInput, inventario?: InventoryState): string[] {
@@ -113,9 +124,9 @@ export function crearCliente(state: ClientesState, input: ClienteInput, actor: A
   avisarDuplicado(state, input, actor)
   const ahora = nowIso()
   const cliente: Cliente = {
-    id: newId('cli'), ...limpiar(input), etapa: 'nuevo', motivoPerdida: '', fechaRetomar: null, proxima: null,
+    id: newId(), ...limpiar(input), etapa: 'nuevo', motivoPerdida: '', fechaRetomar: null, proxima: null,
     atribucion: { usuarioId: actor.id, nombre: actor.nombre, fecha: hoyGuayaquil() },
-    actividades: [actividad('nota', `Cliente registrado · origen ${input.origen}`, actor)], cotizaciones: [],
+    actividades: [automatica('nota', `Cliente registrado · origen ${input.origen}`, actor)], cotizaciones: [],
     creadoPor: { id: actor.id, nombre: actor.nombre, rol: actor.rol }, creadoEn: ahora, actualizadoEn: ahora,
   }
   return { state: { ...state, clientes: [cliente, ...state.clientes] }, cliente }
@@ -124,19 +135,23 @@ export function crearCliente(state: ClientesState, input: ClienteInput, actor: A
 export function actualizarCliente(state: ClientesState, id: string, input: ClienteInput, actor: Actor, inventario?: InventoryState): ClientesState {
   assertCan(actor, 'clientes.editar')
   const c = buscar(state, id, actor)
-  if (input.asesorId !== c.asesorId) verificarAsignacion(input.asesorId, actor)
+  const reasigna = input.asesorId !== c.asesorId
+  if (reasigna) {
+    verificarAsignacion(input.asesorId, actor)
+    if ((input.motivoAsignacion ?? '').trim().length < 5) throw new ClienteError('Indica el motivo de la reasignación.')
+  }
   const errores = validarCliente(input, inventario)
   if (errores.length) throw new ClienteError(errores.join(' '))
   avisarDuplicado(state, input, actor, id)
-  const cambios: string[] = []
+  const cambios: Actividad[] = []
   // La atribución de origen se conserva; solo cambia el responsable actual y queda en el historial.
-  if (input.asesorId !== c.asesorId) cambios.push(`Asesor reasignado: ${c.asesor} → ${input.asesor.trim()}`)
+  if (reasigna) {
+    const motivo = input.motivoAsignacion!.trim()
+    cambios.push(automatica('nota', `Asesor reasignado: ${c.asesor} → ${input.asesor.trim()} · motivo: ${motivo}`, actor, { motivo }))
+  }
   const unidadesNuevas = input.unidadesInteres.filter((u) => !c.unidadesInteres.includes(u))
-  if (unidadesNuevas.length) cambios.push(`Interés en ${unidadesNuevas.join(', ')}`)
-  return reemplazar(state, {
-    ...c, ...limpiar(input),
-    actividades: cambios.length ? [actividad('nota', cambios.join(' · '), actor), ...c.actividades] : c.actividades,
-  })
+  if (unidadesNuevas.length) cambios.push(automatica('nota', `Interés en ${unidadesNuevas.join(', ')}`, actor))
+  return reemplazar(state, { ...c, ...limpiar(input), actividades: [...cambios, ...c.actividades] })
 }
 
 /* ------------------------------------------------------------------ etapas */
@@ -151,6 +166,7 @@ export function moverEtapa(state: ClientesState, id: string, etapa: Etapa, actor
   const c = buscar(state, id, actor)
   if (c.etapa === etapa) return state
   if (etapa === 'reserva') throw new ClienteError('La etapa Reserva se activa al confirmar una reserva en el módulo Reservas (con pago verificado).')
+  if (c.etapa === 'reserva') throw new ClienteError('Este cliente tiene una reserva confirmada: su etapa solo cambia al anularla en el módulo Reservas.')
   let detalle = ''
   if (etapa === 'perdido') {
     if ((opts.motivo ?? '').trim().length < 5) throw new ClienteError('Indica el motivo por el que se perdió el cliente.')
@@ -169,7 +185,7 @@ export function moverEtapa(state: ClientesState, id: string, etapa: Etapa, actor
     motivoPerdida: etapa === 'perdido' ? opts.motivo!.trim() : '',
     fechaRetomar: etapa === 'seguimiento' ? opts.fechaRetomar! : null,
     proxima: etapa === 'perdido' ? null : etapa === 'seguimiento' ? { tipo: 'llamada', descripcion: 'Retomar contacto', fecha: opts.fechaRetomar! } : c.proxima,
-    actividades: [actividad('etapa', `${ETAPAS[c.etapa].label} → ${ETAPAS[etapa].label}${detalle}`, actor), ...c.actividades],
+    actividades: [automatica('etapa', `${ETAPAS[c.etapa].label} → ${ETAPAS[etapa].label}${detalle}`, actor), ...c.actividades],
   })
 }
 
@@ -183,7 +199,7 @@ export function registrarActividad(state: ClientesState, id: string, input: { ti
   // Una llamada o mensaje con un cliente nuevo lo pasa a "Contactado".
   const avanza = c.etapa === 'nuevo' && ['llamada', 'mensaje', 'visita'].includes(input.tipo)
   let next: Cliente = { ...c, actividades: [actividad(input.tipo, input.descripcion.trim(), actor, input.fecha), ...c.actividades] }
-  if (avanza) next = { ...next, etapa: 'contactado', actividades: [actividad('etapa', `${ETAPAS.nuevo.label} → ${ETAPAS.contactado.label} · primer contacto`, actor), ...next.actividades] }
+  if (avanza) next = { ...next, etapa: 'contactado', actividades: [automatica('etapa', `${ETAPAS.nuevo.label} → ${ETAPAS.contactado.label} · primer contacto`, actor), ...next.actividades] }
   return reemplazar(state, next)
 }
 
@@ -217,8 +233,8 @@ export function vincularCotizacion(state: ClientesState, id: string, cot: { nume
   const c = buscar(state, id, actor)
   const idx = ETAPAS_EMBUDO.indexOf(c.etapa)
   const avanzar = c.etapa === 'seguimiento' || (idx >= 0 && idx < ETAPAS_EMBUDO.indexOf('cotizacion'))
-  const acts: Actividad[] = [actividad('cotizacion', `${cot.numero} · ${cot.codigo} · USD ${Math.round(cot.precioFinal).toLocaleString('es-EC')}`, actor)]
-  if (avanzar) acts.unshift(actividad('etapa', `${ETAPAS[c.etapa].label} → ${ETAPAS.cotizacion.label} · cotización emitida`, actor))
+  const acts: Actividad[] = [{ ...actividad('cotizacion', `${cot.numero} · ${cot.codigo} · USD ${Math.round(cot.precioFinal).toLocaleString('es-EC')}`, actor), referencia: cot.numero }]
+  if (avanzar) acts.unshift(automatica('etapa', `${ETAPAS[c.etapa].label} → ${ETAPAS.cotizacion.label} · cotización emitida`, actor))
   return reemplazar(state, {
     ...c,
     etapa: avanzar ? 'cotizacion' : c.etapa,
@@ -267,7 +283,7 @@ export function marcarClienteReserva(state: ClientesState, clienteId: string, co
     ...c,
     etapa: 'reserva',
     fechaRetomar: null,
-    actividades: [actividad('etapa', `${ETAPAS[c.etapa].label} → Reserva · ${codigo} confirmada`, actor), ...c.actividades],
+    actividades: [automatica('etapa', `${ETAPAS[c.etapa].label} → Reserva · ${codigo} confirmada`, actor), ...c.actividades],
   })
 }
 
@@ -278,6 +294,6 @@ export function liberarClienteReserva(state: ClientesState, clienteId: string, c
   return reemplazar(state, {
     ...c,
     etapa: 'negociacion',
-    actividades: [actividad('etapa', `Reserva → Negociación · ${codigo} anulada`, actor), ...c.actividades],
+    actividades: [automatica('etapa', `Reserva → Negociación · ${codigo} anulada`, actor), ...c.actividades],
   })
 }

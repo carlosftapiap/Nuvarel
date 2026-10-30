@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Download, FileText } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
@@ -43,6 +43,15 @@ export default function CotizacionesPage() {
     return c ? { nombre: c.nombre, documento: '', email: c.email, telefono: c.telefono } : CLIENTE_VACIO
   }
   const [cliente, setCliente] = useState<DatosPersona>(() => (clienteId ? desdeRegistro(clienteId) : CLIENTE_VACIO))
+  // Con Supabase los clientes llegan después de abrir la página: se aplica el cliente indicado en el enlace.
+  const clienteEnlace = params.get('cliente')
+  const enlaceListo = !clienteId && !!clienteEnlace && registrados.some((c) => c.id === clienteEnlace)
+  useEffect(() => {
+    if (!enlaceListo) return
+    setClienteId(clienteEnlace!)
+    setCliente(desdeRegistro(clienteEnlace!))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enlaceListo])
   const [asesor, setAsesor] = useState<DatosPersona>(() => leerAsesor())
   const [descuento, setDescuento] = useState(params.get('descuento') ?? '0')
   const [vigencia, setVigencia] = useState('')

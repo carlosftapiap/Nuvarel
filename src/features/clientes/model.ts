@@ -14,6 +14,12 @@ export interface Actividad {
   descripcion: string
   usuario: string
   registradaEn: string
+  /** Número de la cotización, en las actividades de tipo cotización. */
+  referencia?: string | null
+  /** La escribe el servidor al ejecutar la acción: no se envía como actividad aparte. */
+  automatica?: boolean
+  /** Motivo de una reasignación. */
+  motivo?: string
 }
 
 export interface ProximaActividad {
@@ -49,6 +55,8 @@ export interface Cliente {
   creadoPor: { id: string; nombre: string; rol: Rol }
   creadoEn: string
   actualizadoEn: string
+  /** Versión en la base de datos, para no sobrescribir cambios de otra persona. */
+  version?: number
 }
 
 export interface ClientesState {
@@ -79,3 +87,25 @@ export const ETAPAS: Record<Etapa, { label: string; color: string }> = {
   seguimiento: { label: 'Seguimiento futuro', color: '#65757d' },
 }
 export const ETAPA_ORDEN: Etapa[] = [...ETAPAS_EMBUDO, 'seguimiento', 'perdido']
+
+/** Negociación concreta de un cliente por una unidad o tipología. Un cliente puede tener varias. */
+export type EtapaOportunidad = 'captacion' | 'calificacion' | 'visita' | 'cotizacion' | 'solicitud_reserva' | 'verificacion_pago' | 'aprobacion' | 'contrato' | 'cobranza' | 'entrega' | 'posventa' | 'perdida'
+
+export interface Oportunidad {
+  id: string
+  clienteId: string
+  codigoUnidad: string | null
+  tipologia: string | null
+  etapa: EtapaOportunidad
+  responsableId: string
+  motivoPerdida: string | null
+  creadaEn: string
+}
+
+export const ETAPAS_OPORTUNIDAD: Record<EtapaOportunidad, string> = {
+  captacion: 'Captación', calificacion: 'Calificación', visita: 'Visita', cotizacion: 'Cotización', solicitud_reserva: 'Reserva solicitada',
+  verificacion_pago: 'Verificando pago', aprobacion: 'Reserva aprobada', contrato: 'Contrato', cobranza: 'Cobranza', entrega: 'Entrega', posventa: 'Posventa', perdida: 'Cerrada',
+}
+
+/** Etapas previas a la reserva: se pueden cerrar desde la ficha. Las siguientes las mueve solo el flujo. */
+export const OPORTUNIDAD_ABIERTA: EtapaOportunidad[] = ['captacion', 'calificacion', 'visita', 'cotizacion']
