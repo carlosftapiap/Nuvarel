@@ -6,7 +6,7 @@ import { ESTADOS } from '@/features/inventario/estados'
 import { liberarReserva, marcarReservada, puedeReservarse } from '@/features/inventario/service'
 import type { Actor, InventoryState } from '@/features/inventario/types'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
-import type { Reserva, ReservasState } from './model'
+import { ESTADO_RESERVA, type Reserva, type ReservasState } from './model'
 
 export class ReservaError extends Error {
   constructor(m: string) {
@@ -88,6 +88,9 @@ export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Esta
     estado: 'solicitada',
     comprobante: null,
     montoRecibido: null,
+    verificadaPor: null,
+    fechaVerificacion: null,
+    aprobadaPor: null,
     fechaConfirmacion: null,
     motivoAnulacion: '',
     creadaPor: { id: actor.id, nombre: actor.nombre, rol: actor.rol },
@@ -98,22 +101,45 @@ export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Esta
 }
 
 /**
- * Confirmación: verifica pago, vigencia y disponibilidad; bloquea la unidad y avanza al cliente a Reserva.
- * Todo ocurre en una sola operación: si algo falla, no cambia nada.
+ * Paso 2 · Finanzas verifica el ingreso real. El comprobante por sí solo no confirma nada.
+ * La verificación queda bloqueada hasta que el receptor de pagos esté definido en Configuración (lo valida la base de datos).
  */
-export function confirmarReserva(e: Estado, id: string, input: ConfirmarInput, actor: Actor): Estado {
-  // Verificar el pago y confirmar son permisos separados; ambos son necesarios.
+export function verificarPagoReserva(e: Estado, id: string, input: ConfirmarInput, actor: Actor): Estado {
   assertCan(actor, 'reservas.verificar_pago')
-  assertCan(actor, 'reservas.confirmar')
   const r = buscar(e.res, id)
-  if (r.estado !== 'solicitada') throw new ReservaError(`La reserva ${r.codigo} ya está ${r.estado}.`)
+  if (r.estado !== 'solicitada') throw new ReservaError(`La reserva ${r.codigo} ya está ${r.estado === 'pago_verificado' ? 'verificada' : r.estado}.`)
+  if (r.creadaPor.id === actor.id) throw new ReservaError('Quien solicita la reserva no puede verificar su pago.')
   const comprobante = input.comprobante.trim()
   if (comprobante.length < 3) throw new ReservaError('Registra el comprobante de pago (número de transferencia o recibo).')
   if (!Number.isFinite(input.montoRecibido) || input.montoRecibido + 0.005 < r.montoReserva) {
     throw new ReservaError(`El monto recibido (USD ${usd(Number.isFinite(input.montoRecibido) ? input.montoRecibido : 0)}) es menor a la reserva acordada (USD ${usd(r.montoReserva)}).`)
   }
   const hoy = hoyGuayaquil()
-  if (r.vigenciaHasta < hoy) throw new ReservaError(`La cotización ${r.cotizacionNumero} venció el ${r.vigenciaHasta}. No se puede confirmar.`)
+  if (r.vigenciaHasta < hoy) throw new ReservaError(`La cotización ${r.cotizacionNumero} venció el ${r.vigenciaHasta}. No se puede verificar.`)
+  const reservas = e.res.reservas.map((x) => (x.id !== id ? x : {
+    ...x,
+    estado: 'pago_verificado' as const,
+    comprobante,
+    montoRecibido: input.montoRecibido,
+    verificadaPor: { id: actor.id, nombre: actor.nombre },
+    fechaVerificacion: hoy,
+    historial: [hist(actor, `Ingreso verificado · comprobante ${comprobante} · recibido USD ${usd(input.montoRecibido)}`), ...x.historial],
+  }))
+  return { ...e, res: { ...e.res, reservas } }
+}
+
+/**
+ * Paso 3 · Gerencia aprueba. Bloquea la unidad, avanza al cliente a Reserva y registra la operación en una sola acción.
+ * Si algo falla, no cambia nada.
+ */
+export function aprobarReserva(e: Estado, id: string, motivo: string, actor: Actor): Estado {
+  assertCan(actor, 'reservas.confirmar')
+  const r = buscar(e.res, id)
+  if (r.estado !== 'pago_verificado') throw new ReservaError(`Solo se aprueban reservas con el pago verificado por Finanzas (estado actual: ${ESTADO_RESERVA[r.estado].label.toLowerCase()}).`)
+  if (r.verificadaPor?.id === actor.id) throw new ReservaError('Quien verificó el pago no puede aprobar la reserva.')
+  if (motivo.trim().length < 5) throw new ReservaError('Indica el motivo de la aprobación (mínimo 5 caracteres).')
+  const hoy = hoyGuayaquil()
+  if (r.vigenciaHasta < hoy) throw new ReservaError(`La cotización ${r.cotizacionNumero} venció el ${r.vigenciaHasta}. No se puede aprobar.`)
   const otra = e.res.reservas.find((x) => x.id !== id && x.unidad === r.unidad && x.estado === 'confirmada')
   if (otra) throw new ReservaError(`La unidad ya está reservada con ${otra.codigo}.`)
 
@@ -122,10 +148,9 @@ export function confirmarReserva(e: Estado, id: string, input: ConfirmarInput, a
   const reservas = e.res.reservas.map((x) => (x.id !== id ? x : {
     ...x,
     estado: 'confirmada' as const,
-    comprobante,
-    montoRecibido: input.montoRecibido,
+    aprobadaPor: { id: actor.id, nombre: actor.nombre },
     fechaConfirmacion: hoy,
-    historial: [hist(actor, `Reserva confirmada · comprobante ${comprobante} · recibido USD ${usd(input.montoRecibido)}`), ...x.historial],
+    historial: [hist(actor, `Reserva aprobada · ${motivo.trim()}`), ...x.historial],
   }))
   return { inv, clientes, res: { ...e.res, reservas } }
 }

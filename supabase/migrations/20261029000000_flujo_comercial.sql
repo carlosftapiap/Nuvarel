@@ -1,6 +1,17 @@
 -- AMURA · Flujo comercial conectado: oportunidades, cotizaciones versionadas, reservas en tres pasos
 -- (solicitud → verificación de ingreso por Finanzas → aprobación gerencial), contratos, cuotas, pagos y saldos.
--- Ejecutar después de 20261028220000_usuarios_permisos.sql y supabase/seed_roles.sql.
+-- Ejecutar solo cuando supabase/instalacion/verificar_dependencias.sql devuelva ok = true en todas las filas.
+do $$ begin
+  if to_regclass('public.audit_log') is null or to_regclass('public.profiles') is null
+     or to_regclass('public.quotes') is null or to_regclass('public.reservations') is null or to_regclass('public.clients') is null
+     or to_regclass('public.permissions') is null
+     or to_regprocedure('public.tiene_permiso(text)') is null or to_regprocedure('public.en_alcance(uuid)') is null then
+    raise exception 'Faltan dependencias: instala 20261028220000 a 20261028220400 y seed_roles.sql, y revisa verificar_dependencias.sql';
+  end if;
+  if not exists (select 1 from public.permissions where clave = 'config.cobros') then
+    raise exception 'Falta el catálogo de permisos: ejecuta supabase/seed_roles.sql';
+  end if;
+end $$;
 
 alter table public.audit_log add column if not exists evidencia text;
 

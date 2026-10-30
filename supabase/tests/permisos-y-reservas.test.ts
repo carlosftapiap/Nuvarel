@@ -68,7 +68,7 @@ describe('reservas: pago verificado, aprobación y simultaneidad', () => {
     const quote = await cotizacion('E1-PB-A2', vendedora)
     const r = await como(db, vendedora, () => db.query<{ id: string }>(`select public.reservas_solicitar($1) as id`, [quote]))
     await expect(como(db, finanzas, () => db.query(
-      `select public.reservas_verificar_pago($1, 10328.83, current_date, 'TRF-1', 'motivo de prueba')`, [r.rows[0].id])))
+      `select public.reservas_verificar_pago($1, 10328.83, (now() at time zone 'America/Guayaquil')::date, 'TRF-1', 'motivo de prueba')`, [r.rows[0].id])))
       .rejects.toThrow(/Verificación de cobros deshabilitada/)
   })
 
@@ -76,8 +76,10 @@ describe('reservas: pago verificado, aprobación y simultaneidad', () => {
     await expect(como(db, vendedora, () => db.query(`select public.config_definir_receptor('NUVAREL', 'Intento de prueba')`))).rejects.toThrow()
     await como(db, admin, () => db.query(`select public.config_definir_receptor('FIDUCIARIA', 'Definido en comité de prueba')`))
     const { rows } = await db.query<{ id: string }>(`select id from public.reservations where estado = 'solicitada' limit 1`)
+    // El comprobante del cliente debe estar registrado antes de que Finanzas verifique el ingreso.
+    await como(db, vendedora, () => db.query(`select public.reservas_adjuntar_comprobante($1, 'TRF-1', 'comprobantes/trf-1.pdf')`, [rows[0].id]))
     await como(db, finanzas, () => db.query(
-      `select public.reservas_verificar_pago($1, 10328.83, current_date, 'TRF-1', 'Ingreso confirmado en banco')`, [rows[0].id]))
+      `select public.reservas_verificar_pago($1, 10328.83, (now() at time zone 'America/Guayaquil')::date, 'TRF-1', 'Ingreso confirmado en banco')`, [rows[0].id]))
     const st = await db.query(`select estado, pago_receptor from public.reservations where id = $1`, [rows[0].id])
     expect(st.rows[0]).toMatchObject({ estado: 'pago_verificado', pago_receptor: 'FIDUCIARIA' })
   })

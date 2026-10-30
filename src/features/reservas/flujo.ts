@@ -3,7 +3,7 @@ import type { Cotizacion } from '@/features/cotizaciones/cotizacion'
 import { useClientes } from '@/features/clientes/store'
 import { useInventory } from '@/features/inventario/store'
 import { useReservas } from './store'
-import { anularReserva, confirmarReserva, solicitarReserva, type ConfirmarInput, type Estado } from './service'
+import { anularReserva, aprobarReserva, solicitarReserva, verificarPagoReserva, type ConfirmarInput, type Estado } from './service'
 
 /**
  * Punto único para tocar reservas. Calcula inventario, clientes y reservas juntos;
@@ -25,7 +25,8 @@ export function useReservaFlujo() {
   return {
     res,
     solicitar: (cot: Cotizacion) => aplicar((e) => solicitarReserva(e, cot, actor)),
-    confirmar: (id: string, input: ConfirmarInput) => aplicar((e) => confirmarReserva(e, id, input, actor)),
+    verificarPago: (id: string, input: ConfirmarInput) => aplicar((e) => verificarPagoReserva(e, id, input, actor)),
+    aprobar: (id: string, motivo: string) => aplicar((e) => aprobarReserva(e, id, motivo, actor)),
     anular: (id: string, motivo: string) => aplicar((e) => anularReserva(e, id, motivo, actor)),
   }
 }

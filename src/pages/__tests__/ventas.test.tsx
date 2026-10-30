@@ -36,13 +36,35 @@ function renderAt(ui: React.ReactNode, rol: Rol, url: string) {
 }
 
 describe('Financiamiento', () => {
-  it('muestra el plan y el cronograma de E2-PB-A3 (42 cuotas)', () => {
+  it('muestra la entrada del 20% y el cronograma de E2-PB-A3 (42 cuotas)', () => {
     renderAt(<FinanciamientoPage />, 'asesor', '/financiamiento?unidad=E2-PB-A3')
     expect(screen.getByText('Cronograma de pagos')).toBeInTheDocument()
     expect(screen.getByText('Cuota 42 de 42')).toBeInTheDocument()
-    expect(screen.getAllByText((t) => /136\.444/.test(t)).length).toBeGreaterThan(0) // precio final
+    expect(screen.getAllByText((t) => /136.444/.test(t)).length).toBeGreaterThan(0) // precio final
     expect(screen.getByText((t) => /^42 ×/.test(t))).toBeInTheDocument()
     expect(screen.getByText('Los descuentos los autoriza gerencia.')).toBeInTheDocument()
+  })
+
+  it('una reserva menor al 6% genera un pago adicional a la firma, sin cobrarla dos veces', async () => {
+    const user = userEvent.setup()
+    renderAt(<FinanciamientoPage />, 'asesor', '/financiamiento?unidad=E2-PB-A3')
+    await user.type(screen.getByLabelText('Reserva (USD)'), '1000')
+    const caja = screen.getByText('Pago adicional a la firma').parentElement!
+    const valor = caja.children[1].textContent ?? ''
+    // 6% del precio final (8.186,66) menos la reserva de 1.000
+    expect(valor).toBe('$7.186,66')
+    expect(screen.getByText('Reserva (se acredita al 6%)')).toBeInTheDocument()
+  })
+
+  it('sin Supabase el crédito solo admite escenario manual y avisa los seguros faltantes', async () => {
+    const user = userEvent.setup()
+    renderAt(<FinanciamientoPage />, 'asesor', '/financiamiento?unidad=E2-PB-A3')
+    await user.click(screen.getByRole('tab', { name: /Crédito hipotecario/ }))
+    expect(await screen.findByText(/Ingresa la tasa del escenario manual/)).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Tasa anual (%)'), '9')
+    expect(await screen.findByText('Cuota mensual estimada')).toBeInTheDocument()
+    expect(screen.getByText(/no son gratuitos/)).toBeInTheDocument()
+    expect(screen.getByText(/Escenario manual ingresado por el asesor/)).toBeInTheDocument()
   })
 })
 
