@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Clock, Lock, ShieldCheck, XCircle } from 'lucide-react'
+import { CheckCircle2, Clock, FileCheck2, Lock, ShieldCheck, XCircle } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { useSession } from '@/app/session'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ export default function ReservasPage() {
   const [confirmar, setConfirmar] = useState<Reserva | null>(null)
   const [anular, setAnular] = useState<Reserva | null>(null)
   const [aprobar, setAprobar] = useState<Reserva | null>(null)
+  const [comprobante, setComprobante] = useState<Reserva | null>(null)
 
   const visibles = useMemo(() => reservasVisibles(flujo.res.reservas, actor), [flujo.res.reservas, actor])
   const lista = visibles.filter((r) => filtro === 'todas' || r.estado === filtro)
@@ -38,15 +39,15 @@ export default function ReservasPage() {
   const totalReservado = confirmadas.reduce((t, r) => t + r.montoRecibido!, 0)
   const bloqueadas = inv.units.filter((u) => u.estado === 'reservado').length
 
-  const run = (fn: () => void, ok: string) => {
+  const run = async (fn: () => Promise<unknown>, ok: string) => {
     setError(null)
-    try { fn(); setAviso(ok) } catch (e) { setError((e as Error).message) }
+    try { await fn(); setAviso(ok) } catch (e) { setError((e as Error).message) }
   }
 
   return (
     <>
       <PageHeader eyebrow="Seguimiento · Reservas" title="Reservas"
-        subtitle="Una solicitud no bloquea la unidad. La reserva se confirma al verificar el pago, y en ese momento el departamento queda reservado." />
+        subtitle="Una solicitud no bloquea la unidad. Finanzas verifica el ingreso y, cuando Gerencia aprueba, el departamento queda reservado." />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi t="Solicitudes por verificar" v={solicitadas.length} d="Esperan comprobante de pago" tone={solicitadas.length ? 'text-amber-700' : undefined} />
@@ -104,7 +105,9 @@ export default function ReservasPage() {
                     <td className="px-2 py-2"><span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', ESTADO_RESERVA[r.estado].tone)}>{ESTADO_RESERVA[r.estado].label}</span></td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex justify-end gap-1.5">
-                        {r.estado === 'solicitada' && can('reservas.verificar_pago') && <Button size="sm" onClick={() => setConfirmar(r)}><CheckCircle2 />Verificar pago</Button>}
+                        {flujo.remoto && r.estado === 'solicitada' && !r.comprobante && can('reservas.solicitar') && <Button size="sm" variant="outline" onClick={() => setComprobante(r)}><FileCheck2 />Registrar comprobante</Button>}
+                        {flujo.remoto && r.estado === 'solicitada' && !r.comprobante && can('reservas.verificar_pago') && <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Clock className="size-3" />Falta el comprobante</span>}
+                        {r.estado === 'solicitada' && can('reservas.verificar_pago') && (!flujo.remoto || !!r.comprobante) && <Button size="sm" onClick={() => setConfirmar(r)}><CheckCircle2 />Verificar pago</Button>}
                         {r.estado === 'pago_verificado' && can('reservas.confirmar') && <Button size="sm" onClick={() => setAprobar(r)}><ShieldCheck />Aprobar</Button>}
                         {r.estado !== 'anulada' && can('reservas.anular') && <Button size="sm" variant="outline" onClick={() => setAnular(r)}><XCircle />Anular</Button>}
                         {r.estado === 'solicitada' && !can('reservas.verificar_pago') && <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Clock className="size-3" />Pendiente de verificación</span>}
@@ -120,12 +123,48 @@ export default function ReservasPage() {
       )}
 
       <ConfirmarDialog reserva={confirmar} onClose={() => setConfirmar(null)}
-        onConfirm={(input) => { run(() => flujo.verificarPago(confirmar!.id, input), `Ingreso de ${confirmar!.codigo} verificado · pendiente de aprobación de gerencia`); setConfirmar(null) }} />
+        onConfirm={(input) => { void run(() => flujo.verificarPago(confirmar!.id, input), `Ingreso de ${confirmar!.codigo} verificado · pendiente de aprobación de gerencia`); setConfirmar(null) }} />
+      <ComprobanteDialog reserva={comprobante} onClose={() => setComprobante(null)}
+        onConfirm={(referencia, monto) => { void run(() => flujo.registrarComprobante(comprobante!, referencia, monto), `Comprobante de ${comprobante!.codigo} registrado · pendiente de verificación de Finanzas`); setComprobante(null) }} />
       <AprobarDialog reserva={aprobar} onClose={() => setAprobar(null)}
-        onConfirm={(motivo) => { run(() => flujo.aprobar(aprobar!.id, motivo), `Reserva ${aprobar!.codigo} aprobada · unidad bloqueada`); setAprobar(null) }} />
+        onConfirm={(motivo) => { void run(() => flujo.aprobar(aprobar!.id, motivo), `Reserva ${aprobar!.codigo} aprobada · unidad bloqueada`); setAprobar(null) }} />
       <AnularDialog reserva={anular} onClose={() => setAnular(null)}
-        onConfirm={(motivo) => { run(() => flujo.anular(anular!.id, motivo), `Reserva ${anular!.codigo} anulada`); setAnular(null) }} />
+        onConfirm={(motivo) => { void run(() => flujo.anular(anular!.id, motivo), `Reserva ${anular!.codigo} anulada`); setAnular(null) }} />
     </>
+  )
+}
+
+/** El vendedor registra la evidencia del pago. No confirma nada: Finanzas verifica el ingreso real. */
+function ComprobanteDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | null; onClose: () => void; onConfirm: (referencia: string, monto: number | null) => void }) {
+  const [referencia, setReferencia] = useState('')
+  const [monto, setMonto] = useState('')
+  if (!reserva) return null
+  const cerrar = () => { setReferencia(''); setMonto(''); onClose() }
+  const montoNum = monto.trim() ? Number(monto.replace(/\./g, '').replace(',', '.')) : null
+  const listo = referencia.trim().length >= 3 && (montoNum === null || (Number.isFinite(montoNum) && montoNum > 0))
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) cerrar() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Registrar comprobante de {reserva.codigo}</DialogTitle>
+          <DialogDescription>{reserva.clienteNombre}. Finanzas verificará el ingreso en el banco; este registro no confirma el pago.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div className="grid gap-1.5">
+            <Label htmlFor="rq-ref" className="text-xs">Número de transferencia o recibo *</Label>
+            <Input id="rq-ref" value={referencia} onChange={(e) => setReferencia(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="rq-monto" className="text-xs">Monto de la reserva (USD), si es menor a {fmtUsd2(reserva.montoReserva)}</Label>
+            <Input id="rq-monto" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder={String(reserva.montoReserva)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={cerrar}>Cancelar</Button>
+          <Button disabled={!listo} onClick={() => { onConfirm(referencia.trim(), montoNum); setReferencia(''); setMonto('') }}>Registrar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -133,6 +172,8 @@ function ConfirmarDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | n
   const [comprobante, setComprobante] = useState('')
   const [monto, setMonto] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // El comprobante que registró el vendedor es solo una referencia: Finanzas confirma la del banco.
+  useEffect(() => { if (reserva?.comprobante) setComprobante(reserva.comprobante) }, [reserva])
   if (!reserva) return null
   const montoNum = Number(monto.replace(/\./g, '').replace(',', '.'))
   const listo = comprobante.trim().length >= 3 && Number.isFinite(montoNum) && montoNum > 0
@@ -141,7 +182,7 @@ function ConfirmarDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | n
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Verificar pago de la reserva {reserva.codigo}</DialogTitle>
-          <DialogDescription>{reserva.clienteNombre} · Reserva acordada {fmtUsd2(reserva.montoReserva)} ({reserva.reservaPct}%). Al confirmar, el departamento queda reservado.</DialogDescription>
+          <DialogDescription>{reserva.clienteNombre} · Reserva acordada {fmtUsd2(reserva.montoReserva)} ({reserva.reservaPct}%). La unidad se bloquea cuando Gerencia apruebe la reserva.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1.5">
@@ -156,7 +197,7 @@ function ConfirmarDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | n
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!listo} onClick={() => { try { onConfirm({ comprobante, montoRecibido: montoNum }); setComprobante(''); setMonto('') } catch (e) { setError((e as Error).message) } }}>Confirmar reserva</Button>
+          <Button disabled={!listo} onClick={() => { try { onConfirm({ comprobante, montoRecibido: montoNum }); setComprobante(''); setMonto('') } catch (e) { setError((e as Error).message) } }}>Verificar ingreso</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

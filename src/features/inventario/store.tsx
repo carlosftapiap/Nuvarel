@@ -34,6 +34,8 @@ interface InventoryValue {
   update: (fn: (s: InventoryState) => InventoryState) => void
   /** Último error al guardar en Supabase (null si todo está guardado). */
   error: string | null
+  /** Relee de la base lo que cambió otro módulo (p. ej. una reserva aprobada). */
+  recargar: () => Promise<void>
 }
 
 const InventoryContext = createContext<InventoryValue | null>(null)
@@ -57,7 +59,7 @@ function InventarioLocal({ children, initialState }: { children: ReactNode; init
     ref.current = next
     setState(next)
   }, [])
-  const value = useMemo(() => ({ state, update, error: null }), [state, update])
+  const value = useMemo(() => ({ state, update, error: null, recargar: async () => {} }), [state, update])
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>
 }
 
@@ -94,7 +96,7 @@ function InventarioRemoto({ children, datos }: { children: ReactNode; datos: Dat
       })
   }, [datos, recargar])
 
-  const value = useMemo(() => (state ? { state, update, error } : null), [state, update, error])
+  const value = useMemo(() => (state ? { state, update, error, recargar } : null), [state, update, error, recargar])
   if (!value) {
     return error
       ? <p role="alert" className="p-6 text-sm text-rose-700">{error}</p>

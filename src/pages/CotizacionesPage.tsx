@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Download, FileText } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
+import { useConexion } from '@/app/auth'
 import { useSession } from '@/app/session'
 import { puedeVerDe } from '@/app/permissions'
 import { Button } from '@/components/ui/button'
@@ -29,10 +30,11 @@ export default function CotizacionesPage() {
   const { state } = useInventory()
   const { actor, can } = useSession()
   const [params] = useSearchParams()
-  const { lista: todas, agregar } = useCotizaciones()
-  // Solo las cotizaciones del alcance del usuario (comparando identificadores).
-  const lista = todas.filter((c) => puedeVerDe(actor, [c.creadaPor.id]))
-  const { state: cs, update: updateClientes } = useClientes()
+  const { lista: todas, agregar, emitir, error: errorCarga, remoto: conectado } = useCotizaciones()
+  const { cuenta } = useConexion()
+  // Solo las cotizaciones del alcance del usuario. Con Supabase ya llegan filtradas por la base de datos.
+  const lista = conectado ? todas : todas.filter((c) => puedeVerDe(actor, [c.creadaPor.id]))
+  const { state: cs, update: updateClientes, recargar: recargarClientes } = useClientes()
   const reservas = useReservaFlujo()
   const [avisoReserva, setAvisoReserva] = useState<string | null>(null)
   const registrados = clientesVisibles(cs.clientes, actor).filter((c) => c.etapa !== 'perdido')
@@ -40,7 +42,7 @@ export default function CotizacionesPage() {
   const [clienteId, setClienteId] = useState(() => (registrados.some((c) => c.id === params.get('cliente')) ? params.get('cliente')! : ''))
   const desdeRegistro = (id: string): DatosPersona => {
     const c = cs.clientes.find((x) => x.id === id)
-    return c ? { nombre: c.nombre, documento: '', email: c.email, telefono: c.telefono } : CLIENTE_VACIO
+    return c ? { nombre: c.nombre, documento: c.documento ?? '', email: c.email, telefono: c.telefono } : CLIENTE_VACIO
   }
   const [cliente, setCliente] = useState<DatosPersona>(() => (clienteId ? desdeRegistro(clienteId) : CLIENTE_VACIO))
   // Con Supabase los clientes llegan después de abrir la página: se aplica el cliente indicado en el enlace.
@@ -55,7 +57,9 @@ export default function CotizacionesPage() {
   const [asesor, setAsesor] = useState<DatosPersona>(() => leerAsesor())
   const [descuento, setDescuento] = useState(params.get('descuento') ?? '0')
   const [vigencia, setVigencia] = useState('')
-  const [fecha, setFecha] = useState(params.get('fecha') ?? hoyGuayaquil())
+  const [fechaElegida, setFecha] = useState(params.get('fecha') ?? hoyGuayaquil())
+  // Con Supabase la fecha la pone el servidor: no se puede emitir con otra.
+  const fecha = conectado ? hoyGuayaquil() : fechaElegida
   const [observaciones, setObservaciones] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
@@ -63,12 +67,15 @@ export default function CotizacionesPage() {
 
   const puedeDescontar = can('cotizaciones.descuento')
   const unit = state.units.find((u) => u.codigo === codigo)
+  // Con Supabase el asesor es quien inició sesión y los datos del cliente vienen de su ficha: no se escriben dos veces.
+  const asesorDatos = conectado ? { nombre: actor.nombre, email: cuenta?.email ?? '', telefono: '—' } : asesor
   const input = {
-    codigo, cliente, asesor, fecha, observaciones, clienteId: clienteId || undefined,
+    codigo, cliente, asesor: asesorDatos, fecha, observaciones, clienteId: clienteId || undefined,
     descuentoPct: puedeDescontar ? Number(descuento.replace(',', '.')) || 0 : 0,
     vigenciaDias: Number(vigencia),
   }
   const errores = validarCotizacion(input, unit, actor)
+  if (conectado && !clienteId) errores.unshift('Elige un cliente registrado.')
   const plan = useMemo(() => {
     if (!unit) return null
     try { return generarPlan(unit, state.params, { descuentoPct: input.descuentoPct, fechaReserva: fecha }) } catch { return null }
@@ -77,6 +84,14 @@ export default function CotizacionesPage() {
   async function generar() {
     setError(null); setOk(null); setGenerando(true)
     try {
+      if (conectado) {
+        const c = await emitir({ clienteId, codigo, descuentoPct: input.descuentoPct, vigenciaDias: input.vigenciaDias, observaciones })
+        await recargarClientes()
+        await descargarCotizacionPdf(c)
+        setOk(`Cotización ${c.numero} generada para ${c.cliente.nombre}.`)
+        setObservaciones('')
+        return
+      }
       const c = crearCotizacion(state, input, actor, todas)
       agregar(c)
       guardarAsesor(asesor)
@@ -101,33 +116,35 @@ export default function CotizacionesPage() {
         <section className="dashboard-card p-5 grid content-start gap-5" aria-label="Datos de la cotización">
           <div className="grid gap-3 sm:grid-cols-2">
             <UnitPicker id="cot-unidad" units={state.units} params={state.params} value={codigo} onChange={setCodigo} permitidos={ESTADOS_COTIZABLES} />
-            <Campo id="cot-fecha" label="Fecha de la cotización (inicio del cronograma)" type="date" value={fecha} onChange={setFecha} />
+            <Campo id="cot-fecha" label="Fecha de la cotización (inicio del cronograma)" type="date" value={fecha} onChange={setFecha} disabled={conectado} />
           </div>
           <fieldset className="grid gap-3">
             <legend className="mb-1 text-sm font-semibold">Cliente</legend>
             <Select value={clienteId || 'ninguno'} onValueChange={(v) => { const id = v === 'ninguno' ? '' : v; setClienteId(id); setCliente(id ? desdeRegistro(id) : CLIENTE_VACIO) }}>
               <SelectTrigger aria-label="Cliente registrado" className="h-9 w-full sm:max-w-md"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="ninguno">Sin vincular a un cliente registrado</SelectItem>
+                {!conectado && <SelectItem value="ninguno">Sin vincular a un cliente registrado</SelectItem>}
+                {conectado && <SelectItem value="ninguno">Elige un cliente</SelectItem>}
                 {registrados.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre} · {ETAPAS[c.etapa].label}</SelectItem>)}
               </SelectContent>
             </Select>
             {clienteId && <p className="text-[11px] text-muted-foreground">La cotización quedará en el historial del cliente y lo moverá a la etapa Cotización si estaba antes.</p>}
+            {conectado && clienteId && <p className="text-[11px] text-muted-foreground">Estos datos vienen de la ficha del cliente. Para corregirlos, <Link className="text-primary hover:underline" to={`/clientes?cliente=${clienteId}`}>edita la ficha</Link>.</p>}
             <div className="grid gap-3 sm:grid-cols-2">
-              <Campo id="cli-nombre" label="Nombre completo *" value={cliente.nombre} onChange={(v) => setCliente({ ...cliente, nombre: v })} />
-              <Campo id="cli-doc" label="Cédula o RUC" value={cliente.documento ?? ''} onChange={(v) => setCliente({ ...cliente, documento: v })} />
-              <Campo id="cli-email" label="Correo" type="email" value={cliente.email} onChange={(v) => setCliente({ ...cliente, email: v })} />
-              <Campo id="cli-tel" label="Teléfono" value={cliente.telefono} onChange={(v) => setCliente({ ...cliente, telefono: v })} />
+              <Campo id="cli-nombre" label="Nombre completo *" value={cliente.nombre} disabled={conectado} onChange={(v) => setCliente({ ...cliente, nombre: v })} />
+              <Campo id="cli-doc" label="Cédula o RUC" value={cliente.documento ?? ''} disabled={conectado} onChange={(v) => setCliente({ ...cliente, documento: v })} />
+              <Campo id="cli-email" label="Correo" type="email" value={cliente.email} disabled={conectado} onChange={(v) => setCliente({ ...cliente, email: v })} />
+              <Campo id="cli-tel" label="Teléfono" value={cliente.telefono} disabled={conectado} onChange={(v) => setCliente({ ...cliente, telefono: v })} />
             </div>
           </fieldset>
-          <fieldset className="grid gap-3">
+          {conectado ? <p className="text-xs text-muted-foreground">Asesor en la cotización: <b>{actor.nombre}</b>{cuenta?.email ? ` · ${cuenta.email}` : ''}</p> : <fieldset className="grid gap-3">
             <legend className="mb-1 text-sm font-semibold">Asesor</legend>
             <div className="grid gap-3 sm:grid-cols-3">
               <Campo id="ase-nombre" label="Nombre *" value={asesor.nombre} onChange={(v) => setAsesor({ ...asesor, nombre: v })} />
               <Campo id="ase-email" label="Correo" type="email" value={asesor.email} onChange={(v) => setAsesor({ ...asesor, email: v })} />
               <Campo id="ase-tel" label="Teléfono" value={asesor.telefono} onChange={(v) => setAsesor({ ...asesor, telefono: v })} />
             </div>
-          </fieldset>
+          </fieldset>}
           <fieldset className="grid gap-3">
             <legend className="mb-1 text-sm font-semibold">Condiciones</legend>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -144,7 +161,7 @@ export default function CotizacionesPage() {
               <Textarea id="cot-obs" rows={2} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
             </div>
           </fieldset>
-          <FieldError>{error}</FieldError>
+          <FieldError>{error ?? errorCarga}</FieldError>
           {ok && <p role="status" className="flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-200"><CheckCircle2 className="size-4" />{ok}</p>}
         </section>
 
@@ -173,15 +190,15 @@ export default function CotizacionesPage() {
             {lista.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">Aún no hay cotizaciones.</p> : (
               <ul className="mt-2 grid max-h-80 gap-1.5 overflow-auto">
                 {lista.map((c) => (
-                  <li key={c.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+                  <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">{c.numero} · {c.unidad.dpt}</div>
                       <div className="truncate text-[11px] text-muted-foreground">{c.cliente.nombre} · {fmtUsd(c.plan.precioFinal)} · vence {fmtFechaCorta(c.validaHasta)}</div>
                     </div>
-                    {c.clienteId && can('reservas.solicitar') && (
-                      <Button size="xs" variant="outline" onClick={() => { setAvisoReserva(null); try { reservas.solicitar(c); setAvisoReserva(`Solicitud de reserva creada para ${c.numero}. Pendiente de verificación de pago.`) } catch (e) { setAvisoReserva((e as Error).message) } }}>Solicitar reserva</Button>
-                    )}
                     <Button size="icon-sm" variant="ghost" aria-label={`Descargar ${c.numero}`} onClick={() => descargarCotizacionPdf(c)}><Download /></Button>
+                    {c.clienteId && can('reservas.solicitar') && (!c.estado || c.estado === 'emitida' || c.estado === 'aceptada') && !reservas.res.reservas.some((r) => r.cotizacionId === c.id && r.estado !== 'anulada') && (
+                      <Button size="xs" variant="outline" className="basis-full" onClick={() => { setAvisoReserva(null); void reservas.solicitar(c).then(() => setAvisoReserva(`Solicitud de reserva creada para ${c.numero}. Pendiente de verificación de pago.`)).catch((e: Error) => setAvisoReserva(e.message)) }}>{c.estado === 'emitida' ? 'Cliente acepta: solicitar reserva' : 'Solicitar reserva'}</Button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -193,11 +210,11 @@ export default function CotizacionesPage() {
   )
 }
 
-function Campo({ id, label, value, onChange, type = 'text', inputMode }: { id: string; label: string; value: string; onChange: (v: string) => void; type?: string; inputMode?: 'numeric' | 'decimal' }) {
+function Campo({ id, label, value, onChange, type = 'text', inputMode, disabled }: { id: string; label: string; value: string; onChange: (v: string) => void; type?: string; inputMode?: 'numeric' | 'decimal'; disabled?: boolean }) {
   return (
     <div className="grid gap-1.5">
       <Label htmlFor={id} className="text-xs">{label}</Label>
-      <Input id={id} type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} className="h-9" />
+      <Input id={id} type={type} inputMode={inputMode} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} className="h-9" />
     </div>
   )
 }

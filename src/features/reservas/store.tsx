@@ -1,8 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useConexion } from '@/app/auth'
+import type { Datos } from '@/features/conexion/datos'
+import { useRefresco } from '@/features/conexion/refresco'
 import type { ReservasState } from './model'
+import { cargarReservas } from './remoto'
 import { estadoInicialReservas } from './service'
 
-/** Reservas persistidas en el navegador hasta conectar Supabase. */
+/** Reservas. Sin Supabase: almacén local en el navegador. Con Supabase: se leen de la base y cada paso lo ejecuta el servidor. */
 const KEY = 'amura.reservas.v1'
 
 function cargar(): ReservasState {
@@ -18,11 +22,22 @@ function cargar(): ReservasState {
 interface Value {
   state: ReservasState
   update: (fn: (s: ReservasState) => ReservasState) => void
+  remoto: boolean
+  datos: Datos | null
+  cargando: boolean
+  error: string | null
+  recargar: () => Promise<void>
 }
 
 const Ctx = createContext<Value | null>(null)
 
 export function ReservasProvider({ children }: { children: ReactNode }) {
+  const { remoto, datos } = useConexion()
+  if (remoto && datos) return <ReservasRemoto datos={datos}>{children}</ReservasRemoto>
+  return <ReservasLocal>{children}</ReservasLocal>
+}
+
+function ReservasLocal({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ReservasState>(() => cargar())
   const ref = useRef(state)
   useEffect(() => {
@@ -34,7 +49,32 @@ export function ReservasProvider({ children }: { children: ReactNode }) {
     ref.current = next
     setState(next)
   }, [])
-  const value = useMemo(() => ({ state, update }), [state, update])
+  const value = useMemo<Value>(() => ({ state, update, remoto: false, datos: null, cargando: false, error: null, recargar: async () => {} }), [state, update])
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
+}
+
+function ReservasRemoto({ children, datos }: { children: ReactNode; datos: Datos }) {
+  const [state, setState] = useState<ReservasState>(estadoInicialReservas)
+  const [cargando, setCargando] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const lectura = useRef(0)
+  const recargar = useCallback(async () => {
+    const n = ++lectura.current
+    try {
+      const s = await cargarReservas(datos)
+      if (n !== lectura.current) return
+      setState(s)
+      setError(null)
+    } catch (e) {
+      if (n === lectura.current) setError(`No se pudieron cargar las reservas: ${(e as Error).message}`)
+    } finally {
+      if (n === lectura.current) setCargando(false)
+    }
+  }, [datos])
+  useRefresco(recargar)
+  const value = useMemo<Value>(() => ({
+    state, update: () => { throw new Error('Con Supabase, las reservas solo cambian con su flujo en el servidor.') }, remoto: true, datos, cargando, error, recargar,
+  }), [state, datos, cargando, error, recargar])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 

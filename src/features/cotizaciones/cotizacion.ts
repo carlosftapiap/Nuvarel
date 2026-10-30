@@ -39,6 +39,9 @@ export interface Cotizacion {
   clienteId?: string
   creadaPor: Actor
   creadaEn: string
+  /** Con Supabase: estado en la base de datos. */
+  estado?: 'emitida' | 'aceptada' | 'reemplazada' | 'anulada'
+  version?: number
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/

@@ -6,12 +6,15 @@ Estado: **probado en la base local** (Postgres real con las migraciones del proy
 
 | Archivo | Qué hace |
 |---|---|
-| `migrations/20261031000000_clientes_crm.sql` | Funciones de servidor para clientes, negociaciones e importación. Agrega `clients.version`, `client_activities.referencia`, `opportunities.tipologia` y la tabla `client_imports`. **Quita la escritura directa** en `clients`, `client_activities`, `opportunities` y `opportunity_events`. No borra ni cambia datos. |
-| `src/features/clientes/remoto.ts` y `store.tsx` | Con Supabase configurado, la app lee y guarda en la base. Sin configuración sigue en el navegador. |
+| `migrations/20261031000000_clientes_crm.sql` | Funciones de servidor para clientes, negociaciones, accesos e importación. Agrega columnas (`version`, `documento`, `corredor_origen_id`, `referencia`, `tipologia`) y las tablas `client_imports`, `client_access` y `client_import_settings`. **Quita la escritura directa** en `clients`, `client_activities`, `opportunities` y `opportunity_events`, y **cambia quién ve a un cliente**: su asesor actual, quien tenga una negociación abierta o una autorización expresa, según su alcance. Quien lo registró ya no lo ve si se reasigna. No borra ni cambia datos. |
+| `migrations/20261031010000_integracion_comercial.sql` | Cotizaciones y reservas se leen y operan según el acceso al cliente, no según quién las creó. Cada contrato guarda asesor, responsable, atribución, corredor de origen y origen al generarse. No crea comisiones. |
+| `src/features/clientes`, `cotizaciones` y `reservas` (`remoto.ts`, `store`) | Con Supabase configurado, la app lee y guarda en la base. Sin configuración sigue en el navegador. |
 
-**Importante:** el código nuevo ya usa estas funciones. Mientras la migración no se aplique, la app conectada muestra los clientes de la base y un aviso, pero **no permite guardar** y los clientes locales siguen en el navegador, sin tocarse.
+**Importante:** el código nuevo ya usa estas funciones. Mientras las migraciones no se apliquen, la app conectada muestra los clientes de la base y un aviso, pero **no permite guardar clientes, cotizaciones ni reservas**, y lo guardado en el navegador no se toca. Las cotizaciones y reservas que estén solo en el navegador no se importan: dejarían de verse en modo conectado, aunque la copia local se conserva.
 
-Esta migración no depende de `20261030000000_plan_responsable_externo.sql`: pueden aplicarse por separado.
+Entornos para probar antes de producción: `ENTORNO_PRUEBAS.md`.
+
+Estas migraciones no dependen de `20261030000000_plan_responsable_externo.sql`: pueden aplicarse por separado.
 
 ## 1. Comprobaciones previas (solo lectura)
 
@@ -34,9 +37,9 @@ select (select count(*) from public.clients) as clientes,
 
 Haz una copia de seguridad del proyecto antes de continuar.
 
-## 2. Aplicar la migración ⚠️
+## 2. Aplicar las migraciones ⚠️
 
-Ejecuta `supabase/migrations/20261031000000_clientes_crm.sql` en el SQL Editor, de preferencia primero en un proyecto de pruebas. Se puede repetir sin efectos.
+Ejecuta en el SQL Editor, primero en un proyecto de pruebas, `20261031000000_clientes_crm.sql` y luego `20261031010000_integracion_comercial.sql`. Se pueden repetir sin efectos.
 
 Vuelve a ejecutar la consulta de conteo: los números deben coincidir.
 
@@ -58,6 +61,10 @@ Crea desde Configuración un administrador, un supervisor con un equipo, y dos c
 | 10 | Intentar elegir Reserva | No se puede |
 | 11 | Abrir dos negociaciones del mismo cliente | Dos oportunidades, una sola ficha |
 | 12 | En un navegador con clientes locales: "Revisar e importar" | Vista previa, importación, comprobación y archivo de la copia local |
+| 13 | Corredor genera una cotización desde la ficha | Queda en `quotes`, ligada a cliente y negociación; los datos del cliente no se reescriben |
+| 14 | Solicitar reserva, registrar comprobante, Finanzas verifica, Gerencia aprueba | La unidad solo se bloquea y el cliente solo pasa a Reserva al aprobar |
+| 15 | Tras la reasignación del punto 6 | A deja de ver cliente, cotización y reserva; B los ve; el origen no cambia |
+| 16 | Administración cierra la importación | El equipo ya no puede importar; administración sí |
 
 Comprobación de seguridad (con la sesión de un corredor, desde la consola del navegador o con su token):
 
@@ -70,9 +77,16 @@ await supabase.from('clients').insert({ nombre: 'Directo', telefono: '0990000000
 
 ## 4. Si hay que volver atrás ⚠️
 
-La migración es aditiva: las columnas y funciones nuevas pueden quedarse. Para devolver la escritura directa:
+Las migraciones son aditivas: las columnas, tablas y funciones nuevas pueden quedarse. Para devolver la visibilidad anterior (quien registró sigue viendo al cliente) y la escritura directa en clientes:
 
 ```sql
+create or replace function public.cliente_en_alcance(p_client uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from clients c where c.id = p_client and (public.en_alcance(c.asesor_id) or public.en_alcance(c.created_by)))
+$$;
+drop policy if exists "ver clientes" on public.clients;
+create policy "ver clientes" on public.clients for select to authenticated
+  using (public.tiene_permiso('clientes.ver') and (public.en_alcance(asesor_id) or public.en_alcance(created_by)));
 drop policy if exists "editar clientes" on public.clients;
 create policy "crear clientes" on public.clients for insert to authenticated
   with check (public.tiene_permiso('clientes.editar') and created_by = auth.uid()
@@ -83,3 +97,5 @@ create policy "editar clientes" on public.clients for update to authenticated
 create policy "registrar actividades" on public.client_activities for insert to authenticated
   with check (user_id = auth.uid() and public.tiene_permiso('clientes.editar') and public.cliente_en_alcance(client_id));
 ```
+
+La versión anterior de la app, conectada a esta base, seguiría guardando clientes en el navegador: esto solo revierte permisos.
