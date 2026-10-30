@@ -8,8 +8,11 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { FieldError } from '@/features/inventario/components/shared'
+import { fmtUsd2 } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import { ETAPAS_OPORTUNIDAD, OPORTUNIDAD_ABIERTA, type Cliente, type Oportunidad } from '../model'
+import { MOTIVOS_DESISTIMIENTO } from '../desistimiento'
+import DesistimientoDialog from './DesistimientoDialog'
 import { abrirOportunidad, cerrarOportunidad, revocarAcceso, transferirOportunidad, vincularUnidad } from '../remoto'
 import { useClientes } from '../store'
 
@@ -17,13 +20,16 @@ type Pedido = { tipo: 'transferir' | 'cerrar'; o: Oportunidad } | { tipo: 'revoc
 
 /** Negociaciones concretas del cliente: una por unidad o tipología. El servidor impide duplicarlas. */
 export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onMessage: (m: string) => void }) {
-  const { datos, oportunidades, asignables, recargar } = useClientes()
+  const { datos, oportunidades, asignables, recargar, desistimientos, hayDesistimientos } = useClientes()
   const { state: inv } = useInventory()
   const { actor, can } = useSession()
   const [destino, setDestino] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pedido, setPedido] = useState<Pedido | null>(null)
+  const [desiste, setDesiste] = useState(false)
   if (!datos) return null
+  const historial = desistimientos.filter((x) => x.clienteId === c.id)
+  const puedeDesistir = hayDesistimientos && can('ventas.desistimiento') && (c.etapa !== 'perdido' || propiasAbiertas(oportunidades, c.id))
 
   const propias = oportunidades.filter((o) => o.clienteId === c.id)
   const nombre = (id: string) => (id === c.asesorId ? c.asesor : asignables.find((p) => p.id === id)?.nombre ?? 'Otro usuario')
@@ -93,6 +99,22 @@ export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onM
           <Button size="sm" variant="outline" disabled={!destino} onClick={abrir}>Abrir negociación</Button>
         </div>
       )}
+      {puedeDesistir && <Button size="sm" variant="outline" className="justify-self-start text-rose-700" onClick={() => setDesiste(true)}>Registrar desistimiento</Button>}
+      {historial.length > 0 && (
+        <div className="grid gap-1.5 border-t border-border pt-2 text-xs">
+          <p className="font-medium">Desistimientos</p>
+          {historial.map((x) => (
+            <div key={x.id} className="rounded-lg bg-muted/50 px-3 py-2">
+              <div><b>{MOTIVOS_DESISTIMIENTO[x.motivo]}</b>{x.codigoUnidad ? ` · ${dptDe(x.codigoUnidad)}` : ''}</div>
+              <div className="text-[11px] text-muted-foreground">{new Date(x.registradoEn).toLocaleDateString('es-EC', { timeZone: 'America/Guayaquil' })} · {x.registradoPor}{x.observaciones ? ` · ${x.observaciones}` : ''}</div>
+              {x.unidadDetalle && <div className="text-[11px] text-muted-foreground">{x.unidadDetalle}</div>}
+              {x.revision === 'pendiente' && <div className="text-[11px] font-medium text-amber-800">Pendiente de revisión de Finanzas{x.montoRecibido ? `: ${fmtUsd2(x.montoRecibido)} recibidos` : ''}</div>}
+              {x.revision === 'revisada' && <div className="text-[11px] text-muted-foreground">Revisado por Finanzas: {x.revisionNota}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {desiste && <DesistimientoDialog clienteId={c.id} onClose={() => setDesiste(false)} onDone={onMessage} />}
       {!!c.accesos?.length && can('clientes.asignar') && (
         <div className="grid gap-1 border-t border-border pt-2 text-xs">
           <p className="font-medium">Acceso autorizado</p>
@@ -115,6 +137,8 @@ export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onM
     </section>
   )
 }
+
+const propiasAbiertas = (oportunidades: Oportunidad[], clienteId: string) => oportunidades.some((o) => o.clienteId === clienteId && o.etapa !== 'perdida')
 
 function PedidoDialog({ pedido, personas, onClose, onConfirm }: {
   pedido: Pedido

@@ -6,6 +6,7 @@ import { useSession } from '@/app/session'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import DesistimientoDialog from '@/features/clientes/components/DesistimientoDialog'
 import ClienteFormDialog from '@/features/clientes/components/ClienteFormDialog'
 import ClienteSheet, { EtapaBadge } from '@/features/clientes/components/ClienteSheet'
 import ImportarLocal from '@/features/clientes/components/ImportarLocalDialog'
@@ -22,9 +23,10 @@ import { cn } from '@/lib/utils'
 const norm = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 export default function ClientesPage() {
-  const { state, guardar, cargando, faltaMigracion } = useClientes()
+  const { state, guardar, cargando, faltaMigracion, hayDesistimientos } = useClientes()
   const { state: inv } = useInventory()
-  const { actor } = useSession()
+  const { actor, can } = useSession()
+  const [desiste, setDesiste] = useState(false)
   const [params, setParams] = useSearchParams()
   const [vista, setVista] = useState<'tablero' | 'lista'>('tablero')
   const [q, setQ] = useState('')
@@ -64,7 +66,10 @@ export default function ClientesPage() {
     <>
       <PageHeader eyebrow="Ventas · Clientes" title="Clientes"
         subtitle="Quién está interesado, qué departamento busca y cuál es el siguiente paso para cerrar la venta."
-        actions={<Button size="sm" onClick={() => setForm({ open: true })}><UserPlus />Nuevo cliente</Button>} />
+        actions={<div className="flex gap-2">
+          {hayDesistimientos && can('ventas.desistimiento') && <Button size="sm" variant="outline" onClick={() => setDesiste(true)}>Registrar desistimiento</Button>}
+          <Button size="sm" onClick={() => setForm({ open: true })}><UserPlus />Nuevo cliente</Button>
+        </div>} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi t="Clientes activos" v={r.activos} d={`${r.total} registrados`} />
@@ -175,6 +180,7 @@ export default function ClientesPage() {
       <ClienteFormDialog open={form.open} onOpenChange={(o) => setForm((f) => ({ ...f, open: o }))}
         cliente={form.id ? state.clientes.find((c) => c.id === form.id) : undefined}
         onSaved={(id, m) => { setAviso(m); if (!form.id) abrir(id) }} />
+      {desiste && <DesistimientoDialog onClose={() => setDesiste(false)} onDone={setAviso} />}
       <MoverEtapaDialog pedido={pedido} onClose={() => setPedido(null)} onDone={setAviso} />
     </>
   )

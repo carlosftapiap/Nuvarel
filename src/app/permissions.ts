@@ -49,6 +49,7 @@ export const CATALOGO = [
     ['ventas.ver', 'Consultar expediente'],
     ['ventas.preparar', 'Preparar documentos'],
     ['ventas.formalizar', 'Revisar y formalizar'],
+    ['ventas.desistimiento', 'Registrar desistimientos de su alcance'],
   ] },
   { modulo: 'Cobranzas', permisos: [
     ['cobranzas.ver', 'Consultar cobranzas'],
@@ -119,7 +120,7 @@ const PLAN_SUPERVISION: Permiso[] = [...BASE_PLAN, 'plan.editar', 'plan.asignar'
 const BASE_VENTA: Permiso[] = [
   'dashboard.ver', 'inventario.ver', 'precios.ver', 'financiamiento.simular',
   'clientes.ver', 'clientes.editar', 'cotizaciones.ver', 'cotizaciones.crear',
-  'reservas.ver', 'reservas.solicitar', 'comisiones.ver_propias', 'recursos.ver',
+  'reservas.ver', 'reservas.solicitar', 'ventas.desistimiento', 'comisiones.ver_propias', 'recursos.ver',
 ]
 
 /** Perfiles iniciales. Son plantillas: el administrador puede editarlas o crear otras. */

@@ -1,4 +1,5 @@
 import type { ConsultaOpciones, Datos } from '@/features/conexion/datos'
+import { aDesistimiento, type Desistimiento } from './desistimiento'
 import type { AccesoCliente, Actividad, Cliente, ClientesState, Etapa, EtapaOportunidad, Oportunidad, ProximaActividad } from './model'
 
 /**
@@ -20,6 +21,9 @@ export interface DatosClientes {
   corredores: Persona[]
   /** Importación ordinaria desde el navegador abierta. Administración conserva la recuperación aunque esté cerrada. */
   importacionAbierta: boolean
+  desistimientos: Desistimiento[]
+  /** La base ya tiene la función de desistimiento (migración 20261031030000). */
+  hayDesistimientos: boolean
   /** La base de datos conectada todavía no tiene la migración de este módulo. */
   faltaMigracion: boolean
 }
@@ -55,6 +59,14 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
   } catch (e) {
     if (!/falta aplicar una migración|client_access|client_import_settings/.test((e as Error).message)) throw e
     faltaMigracion = true
+  }
+  // Va aparte: sin su migración, Clientes sigue funcionando y solo se oculta esta acción.
+  let desistimientos: Fila[] = []
+  let hayDesistimientos = true
+  try {
+    desistimientos = await datos.select<Fila>('desistimientos', { orden: [{ columna: 'registrado_en', asc: false }, { columna: 'id' }] })
+  } catch {
+    hayDesistimientos = false
   }
   const nombre = new Map([...perfiles, ...personas].map((p) => [String(p.id), String(p.nombre)]))
   const quien = (id: unknown) => nombre.get(String(id)) ?? 'Otro usuario'
@@ -110,6 +122,8 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
     asignables: perfiles.map((p) => ({ id: String(p.id), nombre: String(p.nombre) })),
     corredores: corredores.map((p) => ({ id: String(p.id), nombre: String(p.nombre) })),
     importacionAbierta: ajustes[0] ? Boolean(ajustes[0].habilitada) : true,
+    desistimientos: desistimientos.map(aDesistimiento),
+    hayDesistimientos,
   }
 }
 

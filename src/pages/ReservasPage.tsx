@@ -16,6 +16,9 @@ import { useInventory } from '@/features/inventario/store'
 import { ESTADO_RESERVA, type EstadoReserva, type Reserva } from '@/features/reservas/model'
 import { reservasVisibles } from '@/features/reservas/service'
 import { useReservaFlujo } from '@/features/reservas/flujo'
+import DesistimientoDialog from '@/features/clientes/components/DesistimientoDialog'
+import { MOTIVOS_DESISTIMIENTO, marcarRevisado, type Desistimiento } from '@/features/clientes/desistimiento'
+import { useClientes } from '@/features/clientes/store'
 import { cn } from '@/lib/utils'
 
 type Filtro = 'todas' | EstadoReserva
@@ -31,6 +34,11 @@ export default function ReservasPage() {
   const [anular, setAnular] = useState<Reserva | null>(null)
   const [aprobar, setAprobar] = useState<Reserva | null>(null)
   const [comprobante, setComprobante] = useState<Reserva | null>(null)
+  const [desiste, setDesiste] = useState<Reserva | null>(null)
+  const [revisar, setRevisar] = useState<Desistimiento | null>(null)
+  const { desistimientos, hayDesistimientos, datos, state: clientes, recargar: recargarClientes } = useClientes()
+  const porRevisar = desistimientos.filter((d) => d.revision === 'pendiente')
+  const nombreCliente = (id: string) => clientes.clientes.find((c) => c.id === id)?.nombre ?? 'Cliente'
 
   const visibles = useMemo(() => reservasVisibles(flujo.res.reservas, actor), [flujo.res.reservas, actor])
   const lista = visibles.filter((r) => filtro === 'todas' || r.estado === filtro)
@@ -61,6 +69,22 @@ export default function ReservasPage() {
 
       {aviso && <p role="status" className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"><CheckCircle2 className="size-4" />{aviso}</p>}
       <div className="mb-3"><FieldError>{error}</FieldError></div>
+
+      {can('cobranzas.verificar') && porRevisar.length > 0 && (
+        <section aria-labelledby="re-rev" className="dashboard-card mb-4 p-5">
+          <h2 id="re-rev" className="text-sm font-semibold">Desistimientos por revisar</h2>
+          <p className="mt-1 text-[11px] text-muted-foreground">Hubo dinero o un comprobante. La devolución o retención se resuelve según la política comercial; aquí solo queda constancia.</p>
+          <ul className="mt-2 grid gap-1.5">
+            {porRevisar.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
+                <b>{nombreCliente(d.clienteId)}</b><span className="text-muted-foreground">{d.codigoUnidad} · {MOTIVOS_DESISTIMIENTO[d.motivo]}</span>
+                {d.montoRecibido ? <span className="font-medium tabular-nums">{fmtUsd2(d.montoRecibido)}</span> : <span className="text-muted-foreground">Comprobante sin verificar</span>}
+                <Button size="xs" variant="outline" className="ml-auto" onClick={() => setRevisar(d)}>Marcar revisado</Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por estado">
         {(['todas', 'solicitada', 'pago_verificado', 'confirmada', 'anulada'] as Filtro[]).map((f) => (
@@ -111,6 +135,7 @@ export default function ReservasPage() {
                         {flujo.remoto && r.estado === 'solicitada' && !r.comprobante && can('reservas.verificar_pago') && <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Clock className="size-3" />Falta el comprobante</span>}
                         {r.estado === 'solicitada' && can('reservas.verificar_pago') && (!flujo.remoto || !!r.comprobante) && <Button size="sm" onClick={() => setConfirmar(r)}><CheckCircle2 />Verificar pago</Button>}
                         {r.estado === 'pago_verificado' && can('reservas.confirmar') && <Button size="sm" onClick={() => setAprobar(r)}><ShieldCheck />Aprobar</Button>}
+                        {flujo.remoto && hayDesistimientos && r.estado !== 'anulada' && can('ventas.desistimiento') && <Button size="sm" variant="outline" className="text-rose-700" onClick={() => setDesiste(r)}>Desistimiento</Button>}
                         {r.estado !== 'anulada' && can('reservas.anular') && <Button size="sm" variant="outline" onClick={() => setAnular(r)}><XCircle />Anular</Button>}
                         {r.estado === 'solicitada' && !can('reservas.verificar_pago') && <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Clock className="size-3" />Pendiente de verificación</span>}
                         {r.estado === 'confirmada' && <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Lock className="size-3" />Unidad bloqueada</span>}
@@ -126,6 +151,14 @@ export default function ReservasPage() {
 
       <ConfirmarDialog reserva={confirmar} onClose={() => setConfirmar(null)}
         onConfirm={(input) => { void run(() => flujo.verificarPago(confirmar!.id, input), `Ingreso de ${confirmar!.codigo} verificado · pendiente de aprobación de gerencia`); setConfirmar(null) }} />
+      {desiste && (
+        <DesistimientoDialog clienteId={desiste.clienteId} oportunidadId={desiste.oportunidadId ?? undefined} onClose={() => setDesiste(null)}
+          onDone={async (m) => { await flujo.recargar(); setAviso(m) }} />
+      )}
+      {revisar && datos && (
+        <RevisarDialog d={revisar} nombre={nombreCliente(revisar.clienteId)} onClose={() => setRevisar(null)}
+          onConfirm={async (nota) => { await marcarRevisado(datos, revisar.id, nota); await recargarClientes(); setAviso('Desistimiento marcado como revisado') }} />
+      )}
       <ComprobanteDialog reserva={comprobante} onClose={() => setComprobante(null)}
         onConfirm={(referencia, monto) => { void run(() => flujo.registrarComprobante(comprobante!, referencia, monto), `Comprobante de ${comprobante!.codigo} registrado · pendiente de verificación de Finanzas`); setComprobante(null) }} />
       <AprobarDialog reserva={aprobar} onClose={() => setAprobar(null)}
@@ -133,6 +166,30 @@ export default function ReservasPage() {
       <AnularDialog reserva={anular} onClose={() => setAnular(null)}
         onConfirm={(motivo) => { void run(() => flujo.anular(anular!.id, motivo), `Reserva ${anular!.codigo} anulada`); setAnular(null) }} />
     </>
+  )
+}
+
+function RevisarDialog({ d, nombre, onClose, onConfirm }: { d: Desistimiento; nombre: string; onClose: () => void; onConfirm: (nota: string) => Promise<void> }) {
+  const [nota, setNota] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Revisar desistimiento de {nombre}</DialogTitle>
+          <DialogDescription>Deja constancia de lo resuelto{d.montoRecibido ? ` sobre ${fmtUsd2(d.montoRecibido)}` : ''}. No registra pagos ni devoluciones.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-1.5">
+          <Label htmlFor="rd-nota" className="text-xs">Resolución *</Label>
+          <Textarea id="rd-nota" rows={3} value={nota} onChange={(e) => setNota(e.target.value)} />
+          <FieldError>{error}</FieldError>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Volver</Button>
+          <Button disabled={nota.trim().length < 5} onClick={() => { setError(null); onConfirm(nota.trim()).then(onClose).catch((e: Error) => setError(e.message)) }}>Marcar revisado</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

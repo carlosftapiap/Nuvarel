@@ -62,6 +62,7 @@ En el **SQL Editor**, abre cada archivo de `supabase/` y ejecútalo, en este ord
 | 21 | `migrations/20261031000000_clientes_crm.sql` |
 | 22 | `migrations/20261031010000_integracion_comercial.sql` |
 | 23 | `migrations/20261031020000_ventas_contratos.sql` |
+| 24 | `migrations/20261031030000_desistimiento.sql` |
 
 `migrations/20261030000000_plan_responsable_externo.sql` es del Gantt y va aparte, cuando se autorice. Nada de lo anterior la necesita.
 

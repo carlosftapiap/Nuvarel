@@ -23,7 +23,7 @@ export async function cargarReservas(datos: Datos): Promise<ReservasState> {
     reservas: reservas.map((r): Reserva => {
       const c = cliente.get(String(r.client_id))
       return {
-        id: String(r.id), codigo: String(r.codigo), clienteId: String(r.client_id),
+        id: String(r.id), codigo: String(r.codigo), clienteId: String(r.client_id), oportunidadId: s(r.opportunity_id),
         // Un rol de consulta puede ver la reserva sin tener acceso a los datos del cliente.
         clienteNombre: c ? String(c.nombre) : 'Cliente reservado',
         asesorId: c ? String(c.asesor_id) : String(r.created_by), unidad: String(r.codigo_unidad), cotizacionId: String(r.quote_id),

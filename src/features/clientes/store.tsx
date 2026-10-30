@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useConexion } from '@/app/auth'
 import type { Datos } from '@/features/conexion/datos'
+import type { Desistimiento } from './desistimiento'
 import type { Cliente, ClientesState, Oportunidad } from './model'
 import { cargarClientes, persistirCambios, type Persona } from './remoto'
 import { estadoInicialClientes } from './service'
@@ -63,6 +64,8 @@ interface Value {
   asignables: Persona[]
   corredores: Persona[]
   importacionAbierta: boolean
+  desistimientos: Desistimiento[]
+  hayDesistimientos: boolean
   recargar: () => Promise<void>
 }
 
@@ -88,7 +91,7 @@ function ClientesLocal({ children, initialState }: { children: ReactNode; initia
   }, [])
   const value = useMemo<Value>(() => ({
     state, update, guardar: async (fn) => update(fn),
-    remoto: false, datos: null, cargando: false, faltaMigracion: false, error: null, oportunidades: [], asignables: [], corredores: [], importacionAbierta: false, recargar: async () => {},
+    remoto: false, datos: null, cargando: false, faltaMigracion: false, error: null, oportunidades: [], asignables: [], corredores: [], importacionAbierta: false, desistimientos: [], hayDesistimientos: false, recargar: async () => {},
   }), [state, update])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
@@ -99,6 +102,8 @@ function ClientesRemoto({ children, datos }: { children: ReactNode; datos: Datos
   const [asignables, setAsignables] = useState<Persona[]>([])
   const [corredores, setCorredores] = useState<Persona[]>([])
   const [importacionAbierta, setImportacionAbierta] = useState(true)
+  const [desistimientos, setDesistimientos] = useState<Desistimiento[]>([])
+  const [hayDesistimientos, setHayDesistimientos] = useState(false)
   const [cargando, setCargando] = useState(true)
   const [faltaMigracion, setFaltaMigracion] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -118,6 +123,8 @@ function ClientesRemoto({ children, datos }: { children: ReactNode; datos: Datos
       setAsignables(d.asignables)
       setCorredores(d.corredores)
       setImportacionAbierta(d.importacionAbierta)
+      setDesistimientos(d.desistimientos)
+      setHayDesistimientos(d.hayDesistimientos)
       setFaltaMigracion(d.faltaMigracion)
     } catch (e) {
       if (n === lectura.current) setError(`No se pudieron cargar los clientes: ${(e as Error).message}`)
@@ -161,8 +168,8 @@ function ClientesRemoto({ children, datos }: { children: ReactNode; datos: Datos
   }, [guardar])
 
   const value = useMemo<Value>(() => ({
-    state, update, guardar, remoto: true, datos, cargando, faltaMigracion, error, oportunidades, asignables, corredores, importacionAbierta, recargar,
-  }), [state, update, guardar, datos, cargando, faltaMigracion, error, oportunidades, asignables, corredores, importacionAbierta, recargar])
+    state, update, guardar, remoto: true, datos, cargando, faltaMigracion, error, oportunidades, asignables, corredores, importacionAbierta, desistimientos, hayDesistimientos, recargar,
+  }), [state, update, guardar, datos, cargando, faltaMigracion, error, oportunidades, asignables, corredores, importacionAbierta, desistimientos, hayDesistimientos, recargar])
   return (
     <Ctx.Provider value={value}>
       {error && <p role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{error}</p>}

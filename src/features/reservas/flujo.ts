@@ -37,6 +37,7 @@ export function useReservaFlujo() {
     return {
       res,
       remoto: true,
+      recargar: () => Promise.all([recargarRes(), recargarInv(), recargarCli()]),
       solicitar: (cot: Cotizacion) => enServidor(() => remoto.solicitarReserva(datos, cot.id, cot.estado)),
       registrarComprobante: (r: Reserva, referencia: string, monto: number | null) => enServidor(() => remoto.registrarComprobante(datos, r, referencia, monto)),
       verificarPago: (id: string, input: ConfirmarInput) => enServidor(() => remoto.verificarPago(datos, id, input.montoRecibido, input.comprobante)),
@@ -48,6 +49,7 @@ export function useReservaFlujo() {
   return {
     res,
     remoto: false,
+    recargar: async () => {},
     solicitar: async (cot: Cotizacion) => aplicar((e) => solicitarReserva(e, cot, actor)),
     registrarComprobante: async () => {},
     verificarPago: async (id: string, input: ConfirmarInput) => aplicar((e) => verificarPagoReserva(e, id, input, actor)),

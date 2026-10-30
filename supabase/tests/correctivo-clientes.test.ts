@@ -27,7 +27,8 @@ async function instalar(sustituir: Record<string, string>) {
   const db = new PGlite()
   await db.exec(STUB_SUPABASE)
   for (const f of fs.readdirSync(path.join(RAIZ, 'migrations')).filter((x) => x.endsWith('.sql')).sort()) {
-    if (f === GANTT) continue
+    // Producción se reproduce hasta Ventas; el desistimiento se aplica después del correctivo.
+    if (f === GANTT || f > '20261031020000_ventas_contratos.sql') continue
     await db.exec(leer(sustituir[f] ?? `migrations/${f}`))
     if (f.startsWith('20261028120000')) await db.exec(leer('seed.sql'))
     if (f.startsWith('20261028220000')) await db.exec(leer('seed_roles.sql'))
@@ -175,6 +176,18 @@ describe('correctivo', () => {
     const q = await db.query<{ cliente: { documento: string } }>(`select cliente from public.quotes where client_id = $1`, [id])
     expect(q.rows[0].cliente.documento).toBe('1799999999')
   })
+})
+
+describe('orden de despliegue', () => {
+  it('correctivo y después desistimiento funcionan sobre producción', async () => {
+    const db = await instalar(ANTERIORES)
+    await expect(db.exec(leer('migrations/20261031030000_desistimiento.sql'))).rejects.toThrow(/Falta Clientes/)
+    await db.exec(leer(CORRECTIVO))
+    await db.exec(leer('migrations/20261031030000_desistimiento.sql'))
+    await db.exec(leer('migrations/20261031030000_desistimiento.sql'))
+    expect((await db.query(`select to_regprocedure('public.desistimientos_registrar(uuid, uuid, text, text)')::text as r`)).rows[0]).toBeTruthy()
+    expect((await db.query(`select 1 from public.role_permissions where permiso = 'ventas.desistimiento' and role_id = 'corredor'`)).rows).toHaveLength(1)
+  }, 120_000)
 })
 
 describe('seguridad al ejecutarlo', () => {

@@ -15,6 +15,8 @@ export interface Reserva {
   codigo: string
   clienteId: string
   clienteNombre: string
+  /** Con Supabase: negociación de la que salió la reserva. */
+  oportunidadId?: string | null
   /** Responsable del cliente al solicitar (identificador de usuario). */
   asesorId: string
   unidad: string
