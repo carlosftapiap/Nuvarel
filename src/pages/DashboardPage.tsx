@@ -1,9 +1,8 @@
 ﻿import { useMemo, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, ArrowUpRight, ArrowRight, Building2, ChevronRight, Info, Plus, Ruler, Wallet, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, ArrowRight, Building2, ChevronRight, Info, Plus, Ruler, Wallet, type LucideIcon } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
-import { tieneDiscrepancia } from '@/features/inventario/data/data-quality'
 import { ESTADO_ORDEN, ESTADOS } from '@/features/inventario/estados'
 import { fmtNum, fmtUsd } from '@/features/inventario/pricing'
 import { resumenInventario } from '@/features/inventario/service'
@@ -74,7 +73,6 @@ function InventoryRing({ rows, total }: { rows: RingRow[]; total: number }) {
 export default function DashboardPage() {
   const { state } = useInventory()
   const inv = useMemo(() => resumenInventario(state), [state])
-  const bodegasDiscrepantes = useMemo(() => state.units.filter(tieneDiscrepancia).length, [state.units])
   const porConfirmar = inv.porEstado.por_confirmar
 
   const metrics: MetricData[] = [
@@ -91,9 +89,6 @@ export default function DashboardPage() {
   const alerts: AlertData[] = [
     ...(porConfirmar
       ? [{ title: `${porConfirmar} unidades sin disponibilidad confirmada`, detail: 'Estado comercial oficial pendiente', icon: Info, color: '#3563f3', soft: '#edf2ff', to: '/inventario' }]
-      : []),
-    ...(bodegasDiscrepantes
-      ? [{ title: `${bodegasDiscrepantes} bodegas con discrepancia`, detail: 'Segregación de bodegas vs. lista de precios', icon: AlertCircle, color: '#9a691d', soft: '#fff5e3', to: '/inventario' }]
       : []),
   ]
 

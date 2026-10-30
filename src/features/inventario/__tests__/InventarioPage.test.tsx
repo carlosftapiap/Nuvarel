@@ -32,7 +32,6 @@ describe('InventarioPage', () => {
     expect(screen.getByText(/72 departamentos/)).toBeInTheDocument()
     expect(screen.getByText('1–15 de 72 unidades')).toBeInTheDocument()
     expect(screen.getByText(/72 unidades sin disponibilidad oficial/)).toBeInTheDocument()
-    expect(screen.getByText(/5 bodegas con discrepancia/)).toBeInTheDocument()
     // Total de lista 11.197.345 (formato es-EC)
     expect(screen.getByText((t) => /11\.197\.345/.test(t))).toBeInTheDocument()
   })

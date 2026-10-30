@@ -14,7 +14,6 @@ import ParamsPanel from '@/features/inventario/components/ParamsPanel'
 import PriceAdjustDialog from '@/features/inventario/components/PriceAdjustDialog'
 import UnitDetailSheet from '@/features/inventario/components/UnitDetailSheet'
 import UnitsTable, { FILTROS_VACIOS, type Filtros } from '@/features/inventario/components/UnitsTable'
-import { tieneDiscrepancia } from '@/features/inventario/data/data-quality'
 import { descargarLibro } from '@/features/inventario/excel'
 import { fmtNum, fmtUsd } from '@/features/inventario/pricing'
 import { resumenInventario } from '@/features/inventario/service'
@@ -35,7 +34,6 @@ export default function InventarioPage() {
   const cerrar = () => setParams((p) => { p.delete('unidad'); return p })
 
   const r = useMemo(() => resumenInventario(state), [state])
-  const discrepancias = useMemo(() => state.units.filter(tieneDiscrepancia).length, [state.units])
   const seleccionados = Object.keys(seleccion)
   const editaPrecios = can('inventario.editar_precios')
 
@@ -71,7 +69,6 @@ export default function InventarioPage() {
           <p><b>Datos por confirmar.</b> Precios referenciales de la lista base del 28/10/2026, sujetos a aprobación.</p>
           <p>
             {r.porEstado.por_confirmar > 0 && <>{r.porEstado.por_confirmar} unidades sin disponibilidad oficial. </>}
-            {discrepancias > 0 && <>{discrepancias} bodegas con discrepancia entre la segregación de bodegas y la lista de precios. </>}
             Planos individuales e imágenes pendientes de carga.
           </p>
         </div>

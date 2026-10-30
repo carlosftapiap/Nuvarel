@@ -103,6 +103,6 @@ describe('exportación e importación Excel', () => {
     const s = createInitialState()
     const v = validarImportacion(s, leerLibro(libro([H, ['E1-P1-A1', 70.47, '11A', 2.1, 0, 2260, '', '']])).filas)
     expect(v.filas[0].errores).toHaveLength(0)
-    expect(v.filas[0].advertencias.join(' ')).toMatch(/segregación/)
+    expect(v.filas[0].advertencias.join(' ')).toMatch(/verificad/)
   })
 })

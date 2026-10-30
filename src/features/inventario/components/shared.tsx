@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { AlertTriangle, CircleDashed, Info } from 'lucide-react'
+import { CircleDashed, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { NivelDato } from '../data/data-quality'
 import { ESTADOS } from '../estados'
@@ -16,7 +16,6 @@ export function EstadoBadge({ estado, className }: { estado: EstadoComercial; cl
 }
 
 export const NIVEL: Record<NivelDato, { label: string; icon: typeof Info; tone: string }> = {
-  discrepancia: { label: 'Discrepancia', icon: AlertTriangle, tone: 'text-rose-700 bg-rose-50 ring-rose-200' },
   pendiente: { label: 'Pendiente', icon: CircleDashed, tone: 'text-amber-800 bg-amber-50 ring-amber-200' },
   referencial: { label: 'Referencial', icon: Info, tone: 'text-slate-700 bg-slate-50 ring-slate-200' },
 }

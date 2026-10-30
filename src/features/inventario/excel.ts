@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx'
 import { assertCan } from '@/app/permissions'
-import { BODEGA_SEGUN_SEGREGACION, dataFlags } from './data/data-quality'
+import { dataFlags } from './data/data-quality'
 import { ESTADOS, ESTADOS_DE_FLUJO, ESTADOS_PRECIO_BLOQUEADO, parseEstado, puedeTransicionar } from './estados'
 import { calcularPrecio, round2, totalVenta } from './pricing'
 import type { Actor, EstadoComercial, InventoryState, PriceChange, PriceHistoryEntry, StatusHistoryEntry, Unit } from './types'
@@ -194,12 +194,7 @@ export function validarImportacion(state: InventoryState, filas: FilaExcel[]): R
       advertencias.push(`El USD/m² varía más de 10% (${u.usdM2} → ${nuevo.usdM2}).`)
     }
     if ('areaM2' in nuevo) advertencias.push('Modifica un área verificada contra planos y segregación de bodegas.')
-    if ('bodegaM2' in nuevo) {
-      const doc = BODEGA_SEGUN_SEGREGACION[u.dpt]
-      advertencias.push(doc !== undefined && Math.abs(doc - nuevo.bodegaM2!) < 0.001
-        ? 'Coincide con la segregación de bodegas, pero difiere de la lista de precios y del plano.'
-        : 'Modifica una bodega verificada contra la segregación de bodegas.')
-    }
+    if ('bodegaM2' in nuevo) advertencias.push('Modifica una bodega verificada contra los planos.')
     return { hoja: f.hoja, fila: f.fila, codigo, cambios, errores, advertencias, nuevo }
   })
   const importados = new Set(resultado.map((r) => r.codigo))

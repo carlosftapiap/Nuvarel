@@ -3,13 +3,12 @@ import {
   flexRender, getCoreRowModel, getPaginationRowModel, getSortedRowModel, useReactTable,
   type ColumnDef, type RowSelectionState, type SortingState,
 } from '@tanstack/react-table'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { tieneDiscrepancia } from '../data/data-quality'
 import { ESTADO_ORDEN, ESTADOS } from '../estados'
 import { calcularPrecio, fmtM2, fmtNum, fmtUsd, type PriceBreakdown } from '../pricing'
 import type { EstadoComercial, PricingParams, Unit } from '../types'
@@ -24,7 +23,7 @@ export interface Filtros {
 }
 export const FILTROS_VACIOS: Filtros = { q: '', edificio: 'todos', piso: 'todos', tipologia: 'todos', estado: 'todos' }
 
-type Row = Unit & { precio: PriceBreakdown; discrepancia: boolean }
+type Row = Unit & { precio: PriceBreakdown }
 
 const norm = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
@@ -65,7 +64,7 @@ export default function UnitsTable({
 }) {
   const [sorting, setSorting] = useState<SortingState>([])
   const data = useMemo<Row[]>(
-    () => filtrarUnidades(units, filtros).map((u) => ({ ...u, precio: calcularPrecio(u, params), discrepancia: tieneDiscrepancia(u) })),
+    () => filtrarUnidades(units, filtros).map((u) => ({ ...u, precio: calcularPrecio(u, params) })),
     [units, params, filtros],
   )
 
@@ -80,7 +79,6 @@ export default function UnitsTable({
               <div className="font-semibold text-foreground">{row.original.dpt}</div>
               <div className="text-[11px] text-muted-foreground">{row.original.codigo}</div>
             </div>
-            {row.original.discrepancia && <AlertTriangle className="size-3.5 text-rose-600" aria-label="Dato con discrepancia" />}
           </div>
         ),
       },
