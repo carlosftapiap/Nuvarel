@@ -23,9 +23,9 @@ async function reservaAprobada(u: string, cliente: string, unidad: string) {
   const q = (await rpc<{ id: string }>(u, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(u, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [q])
   const r = (await rpc<{ id: string }>(u, `select public.reservas_solicitar($1) as id`, [q])).id
-  await rpc(u, `select public.reservas_adjuntar_comprobante($1, $2, null)`, [r, `TRF-${r.slice(0, 8)}`])
+  await rpc(u, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', $2, jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r, `TRF-${r.slice(0, 8)}`])
   const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [r])
-  await rpc(finanzas, `select public.reservas_verificar_pago($1, $2, $3::date, $4, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
+  await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
   return { op, q, r }
 }
@@ -69,7 +69,7 @@ describe('reasignación de un cliente', () => {
     for (const [tabla, col, id] of [['clients', 'id', c], ['client_activities', 'client_id', c], ['opportunities', 'id', op], ['quotes', 'id', q]]) {
       expect(await cuenta(cora, tabla, col, id)).toBe(0)
     }
-    await expect(rpc(cora, `select public.clientes_registrar_actividad(null, $1, 'nota', current_date, 'Sigo aquí', null)`, [c])).rejects.toThrow(/fuera de tu alcance/)
+    await expect(rpc(cora, `select public.clientes_registrar_actividad(null, $1, 'nota', (now() at time zone 'America/Guayaquil')::date, 'Sigo aquí', null)`, [c])).rejects.toThrow(/fuera de tu alcance/)
     await expect(rpc(cora, `select public.cotizaciones_emitir($1, 0, 30, '')`, [op])).rejects.toThrow(/fuera de tu alcance/)
     await expect(rpc(cora, `select public.cotizaciones_aceptar($1, 'Intento')`, [q])).rejects.toThrow(/fuera de tu alcance/)
     await expect(rpc(cora, `select public.reservas_solicitar($1)`, [q])).rejects.toThrow(/fuera de tu alcance/)
@@ -81,7 +81,7 @@ describe('reasignación de un cliente', () => {
 
   it('quien tiene una negociación transferida conserva acceso mientras siga abierta', async () => {
     expect(await cuenta(vera, 'clients', 'id', c)).toBe(1)
-    await rpc(vera, `select public.clientes_registrar_actividad(null, $1, 'llamada', current_date, 'Llamada de la especialista', null)`, [c])
+    await rpc(vera, `select public.clientes_registrar_actividad(null, $1, 'llamada', (now() at time zone 'America/Guayaquil')::date, 'Llamada de la especialista', null)`, [c])
     await rpc(vera, `select public.oportunidades_cerrar($1, 'Prefiere otro edificio')`, [tercero])
     expect(await cuenta(vera, 'clients', 'id', c)).toBe(0)
   })
@@ -147,7 +147,7 @@ describe('origen y atribución para comisiones', () => {
     const c = await nuevoCliente(cora, 'Origen fijo', { origen: 'instagram' })
     const datos = JSON.stringify({ nombre: 'Origen fijo', telefono: `0${++n}`, origen: 'corredor', origen_detalle: 'Cora' })
     await expect(rpc(cora, `select public.clientes_editar($1, null, $2::jsonb)`, [c, datos])).rejects.toThrow(/no se cambia/)
-    await expect(rpc(gerente, `select public.clientes_corregir_origen($1, null, 'corredor', 'Cora', null, 'Sin permiso')`, [c])).rejects.toThrow(/Sin permiso/)
+    await expect(rpc(vera, `select public.clientes_corregir_origen($1, null, 'corredor', 'Cora', null, 'Sin permiso')`, [c])).rejects.toThrow(/Sin permiso/)
     await rpc(admin, `select public.clientes_corregir_origen($1, null, 'corredor', 'Cora Corredora', $2, 'Disputa resuelta por gerencia')`, [c, cora])
     expect(await uno(`select origen, corredor_origen_id from public.clients where id = $1`, [c])).toEqual({ origen: 'corredor', corredor_origen_id: cora })
     const a = await uno<{ antes: { origen: string }; motivo: string }>(`select * from public.audit_log where entidad_id = $1 and accion = 'Corregir origen de cliente'`, [c])
@@ -200,10 +200,11 @@ describe('cliente → oportunidad → cotización → reserva → contrato → c
     for (const [t, col, id] of [['clients', 'id', c], ['quotes', 'id', f.q], ['reservations', 'id', f.r], ['contracts', 'id', contrato]]) {
       expect(await cuenta(cora, t, col, id)).toBe(0)
     }
-    // El corredor ve su reserva, pero no el contrato ni los pagos: no tiene esos permisos.
+    // El corredor consulta su reserva, su contrato y sus pagos; otro corredor no (arriba).
     expect(await cuenta(carlos, 'reservations', 'id', f.r)).toBe(1)
-    expect(await cuenta(carlos, 'contracts', 'id', contrato)).toBe(0)
-    expect(await cuenta(carlos, 'payments', 'contract_id', contrato)).toBe(0)
+    expect(await cuenta(carlos, 'contracts', 'id', contrato)).toBe(1)
+    expect(await cuenta(carlos, 'payments', 'contract_id', contrato)).toBe(1)
+    expect(await cuenta(cora, 'payments', 'contract_id', contrato)).toBe(0)
     // Finanzas ve dinero y contrato; JARVAL consulta la reserva, sin los datos del cliente.
     expect(await cuenta(finanzas, 'payments', 'contract_id', contrato)).toBe(1)
     expect(await cuenta(jarval, 'reservations', 'id', f.r)).toBe(1)
@@ -217,10 +218,10 @@ describe('cliente → oportunidad → cotización → reserva → contrato → c
     await rpc(gerente, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [q])
     const r = (await rpc<{ id: string }>(gerente, `select public.reservas_solicitar($1) as id`, [q])).id
     await expect(rpc(gerente, `select public.reservas_aprobar($1, 'Aprobar sin pago')`, [r])).rejects.toThrow(/verificado por Finanzas/)
-    await expect(rpc(finanzas, `select public.reservas_verificar_pago($1, 1, $2::date, 'REF', 'Sin comprobante')`, [r, hoyGuayaquil()])).rejects.toThrow(/comprobante/)
-    await rpc(gerente, `select public.reservas_adjuntar_comprobante($1, 'TRF', null)`, [r])
-    await expect(rpc(gerente, `select public.reservas_verificar_pago($1, 1, $2::date, 'REF', 'Sin permiso')`, [r, hoyGuayaquil()])).rejects.toThrow(/Sin permiso/)
-    await rpc(gerente, `select public.reservas_anular($1, 'Prueba terminada')`, [r])
+    await expect(rpc(finanzas, `select public.reservas_confirmar_pago($1, 1, $2::date, 'REF', true, 'Sin comprobante')`, [r, hoyGuayaquil()])).rejects.toThrow(/comprobante/)
+    await rpc(gerente, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r])
+    await expect(rpc(gerente, `select public.reservas_confirmar_pago($1, 1, $2::date, 'REF', true, 'Sin permiso')`, [r, hoyGuayaquil()])).rejects.toThrow(/Sin permiso/)
+    await expect(rpc(gerente, `select public.reservas_anular($1, 'Prueba terminada')`, [r])).rejects.toThrow(/requiere autorización/)
   })
 
   it('la venta conserva quién intervino aunque el cliente se reasigne después, y no crea ninguna comisión', async () => {
@@ -229,7 +230,7 @@ describe('cliente → oportunidad → cotización → reserva → contrato → c
     await rpc(admin, `select public.clientes_asignar($1, null, $2, 'Salida del corredor')`, [c, vera])
     expect(await uno(`select asesor_id, responsable_id, atribucion_usuario_id, corredor_origen_id, origen, precio, codigo_unidad, client_id from public.contracts where id = $1`, [contrato])).toEqual(antes)
     expect((await uno<{ asesor_id: string; atribucion_usuario_id: string; corredor_origen_id: string }>(`select * from public.clients where id = $1`, [c]))).toMatchObject({ asesor_id: vera, atribucion_usuario_id: carlos, corredor_origen_id: carlos })
-    const t = await uno<{ n: number }>(`select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name like '%comision%'`)
+    const t = await uno<{ n: number }>(`select count(*)::int as n from public.comision_movimientos where tipo = 'pago'`)
     expect(t.n).toBe(0)
   })
 })

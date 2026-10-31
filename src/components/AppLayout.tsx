@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { ChevronRight, CloudOff, Lock, LogOut, Search, Settings, X } from 'lucide-react'
+import { ChevronRight, Lock, LogOut, Search, Settings, X } from 'lucide-react'
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu,
@@ -17,8 +17,6 @@ import { useDirectorio } from '@/features/config/store'
 import { useConexion } from '@/app/auth'
 
 /** Módulos que ya trabajan con datos compartidos en Supabase. Los demás todavía guardan en este navegador. */
-const CONECTADOS = ['/plan', '/configuracion', '/inventario', '/precios', '/cobranzas', '/financiamiento', '/clientes', '/comercial', '/cotizaciones', '/reservas', '/ventas']
-
 function CuentaMenu() {
   const { cuenta, salir } = useConexion()
   return (
@@ -150,9 +148,9 @@ export default function AppLayout() {
   const currentModule = item?.label ?? 'Inicio'
   const permitido = usePermitido()
   // Las rutas directas también verifican permisos (además del menú).
-  const bloqueado = item ? !permitido(item) : false
+  // En / decide Inicio, que lleva a quien no tiene Dashboard a su primer módulo.
+  const bloqueado = item && pathname !== '/' ? !permitido(item) : false
   const { remoto } = useConexion()
-  const local = remoto && !CONECTADOS.some((r) => pathname.startsWith(r))
   return (
     <SidebarProvider className="app-sidebar" style={{ '--sidebar-width': '236px' } as React.CSSProperties}>
       <AppSidebar />
@@ -173,12 +171,6 @@ export default function AppLayout() {
           </div>
         </header>
         <div className="app-content">
-          {local && !bloqueado && (
-            <p role="note" className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-              <CloudOff className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              Este módulo todavía guarda sus datos en este navegador: otros usuarios no los ven. Su conexión con Supabase está pendiente.
-            </p>
-          )}
           {bloqueado ? (
             <div className="module-empty">
               <span className="module-empty-icon"><Lock className="size-7" aria-hidden="true" /></span>

@@ -1,5 +1,5 @@
 import type { Datos } from '@/features/conexion/datos'
-import { sumarMeses, type PagoCronograma, type PlanFinanciamiento } from '@/features/financiamiento/plan'
+import { armarCronograma, type CuotaExtraordinaria, type PlanFinanciamiento } from '@/features/financiamiento/plan'
 import type { Unit } from '@/features/inventario/types'
 import type { Cotizacion, DatosPersona } from './cotizacion'
 
@@ -11,19 +11,7 @@ type Fila = Record<string, unknown>
 const diasEntre = (a: string, b: string) => Math.round((Date.UTC(+b.slice(0, 4), +b.slice(5, 7) - 1, +b.slice(8, 10)) - Date.UTC(+a.slice(0, 4), +a.slice(5, 7) - 1, +a.slice(8, 10))) / 86_400_000)
 
 /** El servidor guarda las condiciones; el cronograma del PDF se arma con ellas, sin recalcular precios. */
-function planDesdeServidor(p: Omit<PlanFinanciamiento, 'cronograma'>, fecha: string): PlanFinanciamiento {
-  const round2 = (v: number) => Math.round(v * 100) / 100
-  const cronograma: PagoCronograma[] = []
-  let saldo = round2(p.precioFinal - p.reserva)
-  cronograma.push({ n: 0, tipo: 'reserva', concepto: `Reserva ${p.reservaPct}%`, fecha, monto: p.reserva, saldo })
-  for (let i = 1; i <= p.meses; i++) {
-    const monto = i === p.meses ? p.ultimaCuota : p.cuotaMensual
-    saldo = round2(saldo - monto)
-    cronograma.push({ n: i, tipo: 'cuota', concepto: `Cuota ${i} de ${p.meses}`, fecha: sumarMeses(fecha, i), monto, saldo })
-  }
-  cronograma.push({ n: p.meses + 1, tipo: 'entrega', concepto: `Saldo contra entrega ${p.entregaPct}%`, fecha: null, monto: p.contraEntrega, saldo: round2(saldo - p.contraEntrega) })
-  return { ...p, cronograma }
-}
+const planDesdeServidor = (p: Omit<PlanFinanciamiento, 'cronograma'>, fecha: string): PlanFinanciamiento => ({ ...p, cronograma: armarCronograma(p, fecha) })
 
 export function aCotizacion(q: Fila, units: Unit[]): Cotizacion | null {
   const u = units.find((x) => x.codigo === q.codigo)
@@ -52,12 +40,16 @@ export interface EmitirInput {
   descuentoPct: number
   vigenciaDias: number
   observaciones: string
+  extraordinarias?: CuotaExtraordinaria[]
 }
 
 /** Usa la negociación abierta del cliente por esa unidad, o la abre: nunca la duplica. */
 export async function emitirCotizacion(datos: Datos, input: EmitirInput, units: Unit[]): Promise<Cotizacion> {
   const oportunidad = await datos.rpc<string>('oportunidades_crear', { p_client: input.clienteId, p_unidad: input.codigo, p_tipologia: null })
-  const id = await datos.rpc<string>('cotizaciones_emitir', { p_opportunity: oportunidad, p_descuento_pct: input.descuentoPct, p_vigencia_dias: input.vigenciaDias, p_observaciones: input.observaciones })
+  const condiciones = { p_opportunity: oportunidad, p_descuento_pct: input.descuentoPct, p_vigencia_dias: input.vigenciaDias, p_observaciones: input.observaciones }
+  const id = input.extraordinarias?.length
+    ? await datos.rpc<string>('cotizaciones_emitir_extraordinarias', { ...condiciones, p_extraordinarias: input.extraordinarias })
+    : await datos.rpc<string>('cotizaciones_emitir', condiciones)
   const [fila] = await datos.select<Fila>('quotes', { filtros: { id } })
   const c = fila ? aCotizacion(fila, units) : null
   if (!c) throw new Error('La cotización se emitió, pero no se pudo leer. Recarga la página.')

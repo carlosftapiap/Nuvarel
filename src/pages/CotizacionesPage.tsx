@@ -12,11 +12,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { crearCotizacion, ESTADOS_COTIZABLES, validarCotizacion, type DatosPersona } from '@/features/cotizaciones/cotizacion'
 import { descargarCotizacionPdf } from '@/features/cotizaciones/pdf'
+import CuotasExtraordinarias, { filasDeParam, leerFilas, type FilaExtra } from '@/features/financiamiento/components/CuotasExtraordinarias'
 import { guardarAsesor, leerAsesor, useCotizaciones } from '@/features/cotizaciones/store'
 import { fmtFechaCorta, generarPlan, hoyGuayaquil } from '@/features/financiamiento/plan'
 import UnitPicker from '@/features/inventario/components/UnitPicker'
 import { FieldError } from '@/features/inventario/components/shared'
-import { fmtUsd, fmtUsd2 } from '@/features/inventario/pricing'
+import { fmtUsd, fmtUsd2, etiquetaPagoFirma, NOTA_RESERVA, RESERVA_PREDETERMINADA } from '@/features/inventario/pricing'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ETAPAS } from '@/features/clientes/model'
 import { clientesVisibles, vincularCotizacion } from '@/features/clientes/service'
@@ -62,6 +63,7 @@ export default function CotizacionesPage() {
   // Con Supabase la fecha la pone el servidor: no se puede emitir con otra.
   const fecha = conectado ? hoyGuayaquil() : fechaElegida
   const [observaciones, setObservaciones] = useState('')
+  const [extras, setExtras] = useState<FilaExtra[]>(() => filasDeParam(params.get('extras')))
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
   const [generando, setGenerando] = useState(false)
@@ -73,20 +75,21 @@ export default function CotizacionesPage() {
   const input = {
     codigo, cliente, asesor: asesorDatos, fecha, observaciones, clienteId: clienteId || undefined,
     descuentoPct: puedeDescontar ? Number(descuento.replace(',', '.')) || 0 : 0,
-    vigenciaDias: Number(vigencia),
+    vigenciaDias: Number(vigencia), extraordinarias: leerFilas(extras),
   }
   const errores = validarCotizacion(input, unit, actor)
   if (conectado && !clienteId) errores.unshift('Elige un cliente registrado.')
-  const plan = useMemo(() => {
-    if (!unit) return null
-    try { return generarPlan(unit, state.params, { descuentoPct: input.descuentoPct, fechaReserva: fecha }) } catch { return null }
-  }, [unit, state.params, input.descuentoPct, fecha])
+  const { plan, errorPlan } = useMemo(() => {
+    if (!unit) return { plan: null, errorPlan: null }
+    try { return { plan: generarPlan(unit, state.params, { descuentoPct: input.descuentoPct, fechaReserva: fecha, extraordinarias: leerFilas(extras) }), errorPlan: null } } catch (e) { return { plan: null, errorPlan: (e as Error).message } }
+  }, [unit, state.params, input.descuentoPct, fecha, extras])
+  if (errorPlan) errores.push(errorPlan)
 
   async function generar() {
     setError(null); setOk(null); setGenerando(true)
     try {
       if (conectado) {
-        const c = await emitir({ clienteId, codigo, descuentoPct: input.descuentoPct, vigenciaDias: input.vigenciaDias, observaciones })
+        const c = await emitir({ clienteId, codigo, descuentoPct: input.descuentoPct, vigenciaDias: input.vigenciaDias, observaciones, extraordinarias: input.extraordinarias })
         await recargarClientes()
         await descargarCotizacionPdf(c)
         setOk(`Cotización ${c.numero} generada para ${c.cliente.nombre}.`)
@@ -158,6 +161,7 @@ export default function CotizacionesPage() {
                 ? <Campo id="cot-desc" label="Descuento autorizado (%)" value={descuento} onChange={setDescuento} inputMode="decimal" />
                 : <p className="self-end rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">Los descuentos los autoriza gerencia.</p>}
             </div>
+            {unit && <CuotasExtraordinarias filas={extras} onChange={setExtras} meses={state.params.meses[unit.edificio]} fechaBase={fecha} />}
             <div className="grid gap-1.5">
               <Label htmlFor="cot-obs" className="text-xs">Observaciones para el cliente</Label>
               <Textarea id="cot-obs" rows={2} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
@@ -176,9 +180,11 @@ export default function CotizacionesPage() {
                 <Fila t="Precio de lista" v={fmtUsd(plan.precioLista)} />
                 {plan.descuentoPct > 0 && <Fila t={`Descuento ${plan.descuentoPct}%`} v={`− ${fmtUsd2(plan.descuentoMonto)}`} />}
                 <Fila t="Precio final" v={fmtUsd(plan.precioFinal)} fuerte />
-                <Fila t={`Reserva ${plan.reservaPct}%`} v={fmtUsd2(plan.reserva)} />
+                <Fila t={etiquetaPagoFirma(plan.reservaPct)} v={fmtUsd2(plan.reserva)} />
                 <Fila t={`${plan.meses} cuotas`} v={fmtUsd2(plan.cuotaMensual)} />
+                {!!plan.extraordinarias?.length && <Fila t={`${plan.extraordinarias.length} extraordinarias`} v={fmtUsd2(plan.cuotasTotal - plan.cuotaMensual * (plan.meses - 1) - plan.ultimaCuota)} />}
                 <Fila t={`Contra entrega ${plan.entregaPct}%`} v={fmtUsd2(plan.contraEntrega)} />
+                <p className="text-[11px] text-muted-foreground">{NOTA_RESERVA}</p>
                 {unit.estado === 'por_confirmar' && <p className="mt-1 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">El PDF indicará que la disponibilidad está sujeta a confirmación.</p>}
               </dl>
             ) : <p className="mt-2 text-xs text-muted-foreground">Selecciona un departamento.</p>}
@@ -198,8 +204,8 @@ export default function CotizacionesPage() {
                       <div className="truncate text-[11px] text-muted-foreground">{c.cliente.nombre} · {fmtUsd(c.plan.precioFinal)} · vence {fmtFechaCorta(c.validaHasta)}</div>
                     </div>
                     <Button size="icon-sm" variant="ghost" aria-label={`Descargar ${c.numero}`} onClick={() => descargarCotizacionPdf(c)}><Download /></Button>
-                    {c.clienteId && can('reservas.solicitar') && (!c.estado || c.estado === 'emitida' || c.estado === 'aceptada') && !reservas.res.reservas.some((r) => r.cotizacionId === c.id && r.estado !== 'anulada') && (
-                      <Button size="xs" variant="outline" className="basis-full" onClick={() => { setAvisoReserva(null); void reservas.solicitar(c).then(() => setAvisoReserva(`Solicitud de reserva creada para ${c.numero}. Pendiente de verificación de pago.`)).catch((e: Error) => setAvisoReserva(e.message)) }}>{c.estado === 'emitida' ? 'Cliente acepta: solicitar reserva' : 'Solicitar reserva'}</Button>
+                    {c.clienteId && can('reservas.solicitar') && (!c.estado || c.estado === 'emitida' || c.estado === 'aceptada') && !reservas.res.reservas.some((r) => r.cotizacionId === c.id && r.estado !== 'anulada') && !state.units.find((u) => u.codigo === c.unidad.codigo)?.solicitud && (
+                      <Button size="xs" variant="outline" className="basis-full" onClick={() => { setAvisoReserva(null); void reservas.solicitar(c, Math.min(state.params.reservaPredeterminada ?? RESERVA_PREDETERMINADA, c.plan.reserva)).then(() => setAvisoReserva(`Solicitud de reserva creada para ${c.numero}. Pendiente de verificación de pago.`)).catch((e: Error) => setAvisoReserva(e.message)) }}>{c.estado === 'emitida' ? 'Cliente acepta: solicitar reserva' : 'Solicitar reserva'}</Button>
                     )}
                   </li>
                 ))}

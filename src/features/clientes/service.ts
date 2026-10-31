@@ -1,7 +1,7 @@
 import { assertCan, can, puedeVerDe } from '@/app/permissions'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import type { Actor, InventoryState } from '@/features/inventario/types'
-import { ETAPAS, ETAPAS_EMBUDO, TIPOS_ACTIVIDAD, type Actividad, type Cliente, type ClientesState, type Etapa, type FormaPago, type Origen, type ProximaActividad, type Proposito, type TipoActividad } from './model'
+import { ETAPAS, ETAPAS_EMBUDO, nombreCompleto, TIPOS_ACTIVIDAD, type NombresCliente, type Actividad, type Cliente, type ClientesState, type Etapa, type FormaPago, type Origen, type ProximaActividad, type Proposito, type TipoActividad } from './model'
 
 export class ClienteError extends Error {
   constructor(m: string) { super(m); this.name = 'ClienteError' }
@@ -49,8 +49,10 @@ const automatica = (tipo: TipoActividad, descripcion: string, actor: Actor, extr
 
 /* ------------------------------------------------------------------- datos */
 
-export interface ClienteInput {
+export interface ClienteInput extends NombresCliente {
   nombre: string
+  /** Cliente antiguo: puede guardarse con su nombre anterior hasta que se completen los cuatro campos. */
+  conservaNombreAnterior?: boolean
   telefono: string
   email: string
   origen: Origen
@@ -72,7 +74,12 @@ export interface ClienteInput {
 
 export function validarCliente(input: ClienteInput, inventario?: InventoryState): string[] {
   const e: string[] = []
-  if (input.nombre.trim().length < 3) e.push('Ingresa el nombre del cliente.')
+  if (input.primerNombre === undefined) {
+    if (input.nombre.trim().length < 3) e.push('Ingresa el nombre del cliente.')
+  } else if (nombreCompleto(input) || !input.conservaNombreAnterior) {
+    if (!input.primerNombre.trim()) e.push('Ingresa el primer nombre del cliente.')
+    if (!(input.primerApellido ?? '').trim()) e.push('Ingresa el primer apellido del cliente.')
+  }
   if (!input.telefono.trim() && !input.email.trim()) e.push('Ingresa al menos un teléfono o un correo.')
   if (input.telefono.trim() && !/^[+\d][\d\s-]{6,19}$/.test(input.telefono.trim())) e.push('El teléfono no es válido.')
   if (input.email.trim() && !EMAIL.test(input.email.trim())) e.push('El correo no es válido.')
@@ -113,9 +120,15 @@ function avisarDuplicado(state: ClientesState, input: Pick<ClienteInput, 'telefo
   throw new ClienteError('Ese teléfono o correo ya está registrado por otro equipo. Solicita a tu supervisor o a gerencia que revise el caso.')
 }
 
+const limpio = (v?: string) => (v ?? '').trim().replace(/\s+/g, ' ')
+
 function limpiar(input: ClienteInput) {
+  const nombres: NombresCliente = input.primerNombre === undefined ? {} : {
+    primerNombre: limpio(input.primerNombre), segundoNombre: limpio(input.segundoNombre), primerApellido: limpio(input.primerApellido), segundoApellido: limpio(input.segundoApellido),
+  }
   return {
-    nombre: input.nombre.trim(), documento: input.documento?.trim() ?? '', corredorOrigenId: input.corredorOrigenId ?? null, telefono: input.telefono.trim(), email: input.email.trim().toLowerCase(),
+    ...nombres,
+    nombre: nombreCompleto(nombres) || input.nombre.trim(), documento: input.documento?.trim() ?? '', corredorOrigenId: input.corredorOrigenId ?? null, telefono: input.telefono.trim(), email: input.email.trim().toLowerCase(),
     origen: input.origen, origenDetalle: input.origenDetalle.trim(), unidadesInteres: [...new Set(input.unidadesInteres)],
     presupuesto: input.presupuesto, proposito: input.proposito, formaPago: input.formaPago, asesorId: input.asesorId, asesor: input.asesor.trim(),
   }
@@ -145,7 +158,8 @@ export function actualizarCliente(state: ClientesState, id: string, input: Clien
     verificarAsignacion(input.asesorId, actor)
     if ((input.motivoAsignacion ?? '').trim().length < 5) throw new ClienteError('Indica el motivo de la reasignación.')
   }
-  const errores = validarCliente(input, inventario)
+  // Un cliente antiguo se puede editar sin dividir su nombre; se completa cuando se conozcan los datos.
+  const errores = validarCliente({ ...input, conservaNombreAnterior: !c.primerNombre }, inventario)
   if (errores.length) throw new ClienteError(errores.join(' '))
   avisarDuplicado(state, input, actor, id)
   const cambios: Actividad[] = []
@@ -266,7 +280,8 @@ export function urgencia(c: Cliente, hoy = hoyGuayaquil()): Urgencia {
 export function resumenClientes(clientes: Cliente[], hoy = hoyGuayaquil()) {
   const porEtapa = Object.fromEntries(Object.keys(ETAPAS).map((k) => [k, 0])) as Record<Etapa, number>
   clientes.forEach((c) => porEtapa[c.etapa]++)
-  const activos = clientes.filter((c) => c.etapa !== 'perdido' && c.etapa !== 'seguimiento')
+  // Activos son los que no están perdidos, incluido «Seguimiento futuro»: así Total = Activos + Perdidos.
+  const activos = clientes.filter((c) => c.etapa !== 'perdido')
   return {
     total: clientes.length,
     activos: activos.length,

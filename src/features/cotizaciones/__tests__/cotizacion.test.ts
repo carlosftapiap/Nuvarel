@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { PermissionError } from '@/app/permissions'
-import { cambiarEstado, createInitialState, marcarReservada } from '@/features/inventario/service'
+import { marcarReservada } from '@/features/inventario/service'
 import type { Actor } from '@/features/inventario/types'
 import { crearCotizacion, siguienteNumero, type CotizacionInput } from '../cotizacion'
 import { construirPdfCotizacion } from '../pdf'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 
 const asesor: Actor = { id: 'u-asesor', nombre: 'Asesor', rol: 'asesor' }
 const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
@@ -41,7 +42,7 @@ describe('cotizaciones', () => {
   })
 
   it('no cotiza unidades comprometidas con otro cliente', () => {
-    let s = cambiarEstado(createInitialState(), 'E1-PB-A2', 'disponible', 'Confirmada por gerencia', gerencia)
+    let s = createInitialState()
     s = marcarReservada(s, 'E1-PB-A2', 'RES-1', gerencia)
     expect(() => crearCotizacion(s, base, asesor, [])).toThrow(/reservado/)
   })

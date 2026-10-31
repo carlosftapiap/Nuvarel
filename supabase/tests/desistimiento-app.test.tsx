@@ -46,9 +46,9 @@ async function aprobada(u: string, c: string, codigo: string) {
   const cot = (await rpc<{ id: string }>(u, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(u, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [cot])
   const r = (await rpc<{ id: string }>(u, `select public.reservas_solicitar($1) as id`, [cot])).id
-  await rpc(u, `select public.reservas_adjuntar_comprobante($1, $2, null)`, [r, `TRF-${r.slice(0, 8)}`])
+  await rpc(u, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', $2, jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r, `TRF-${r.slice(0, 8)}`])
   const m = await q<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [r])
-  await rpc(finanzas, `select public.reservas_verificar_pago($1, $2, $3::date, $4, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
+  await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
   return { op, r }
 }
@@ -58,7 +58,7 @@ async function elegir(user: ReturnType<typeof userEvent.setup>, etiqueta: string
 }
 
 beforeEach(() => {
-  localStorage.clear()
+  localStorage.clear(); localStorage.setItem('amura.clientes.vista', 'tablero')
   globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver
   Element.prototype.scrollIntoView ??= () => {}
   Element.prototype.hasPointerCapture ??= () => false
@@ -78,7 +78,7 @@ beforeAll(async () => {
 }, 60_000)
 
 describe('Registrar desistimiento desde la app', () => {
-  it('el corredor lo hace desde la ficha: ve qué ocurrirá, confirma, y la unidad queda libre', async () => {
+  it('el corredor solicita desde la ficha: ve las reglas y qué ocurrirá, y nada cambia hasta autorizarla', async () => {
     const user = userEvent.setup()
     const codigo = await unidadLibre()
     const c = await nuevoCliente(carlos, 'Lucía Desiste')
@@ -87,24 +87,25 @@ describe('Registrar desistimiento desde la app', () => {
     const ficha = await screen.findByRole('dialog', { name: /Lucía Desiste/ })
     await user.click(await within(ficha).findByRole('button', { name: 'Registrar desistimiento' }))
     const d = await screen.findByRole('dialog', { name: 'Registrar desistimiento' })
-    expect(within(d).getByRole('button', { name: 'Confirmar desistimiento' })).toBeDisabled()
-    await within(d).findByText(/se anula/)
+    expect(within(d).getByRole('button', { name: /Confirmar desistimiento|Enviar solicitud/ })).toBeDisabled()
+    await within(d).findByText(/La reserva .* se anula/)
     expect(within(d).getByText(/pasa a disponible/)).toBeInTheDocument()
-    expect(within(d).getByText(/queda pendiente de revisión de Finanzas/)).toBeInTheDocument()
+    expect(within(d).getByText(/Requiere la autorización de Gerencia y la revisión de Finanzas/)).toBeInTheDocument()
+    // La regla que aplica queda resaltada.
+    expect(within(d).getByRole('row', { name: /Con dinero recibido o comprobante/ })).toHaveAttribute('aria-current', 'true')
     await elegir(user, 'Motivo *', 'No obtuvo financiamiento')
     await user.type(within(d).getByLabelText(/Observaciones/), 'El banco negó el crédito')
-    await user.click(within(d).getByRole('button', { name: 'Confirmar desistimiento' }))
-    expect(await screen.findByText('Desistimiento registrado')).toBeInTheDocument()
+    await user.click(within(d).getByRole('button', { name: 'Enviar solicitud' }))
+    expect(await screen.findByText(/Solicitud enviada/)).toBeInTheDocument()
 
-    expect(await q(`select estado from public.inventory_units where codigo = $1`, [codigo])).toEqual({ estado: 'disponible' })
-    expect(await q(`select estado from public.reservations where id = $1`, [r])).toEqual({ estado: 'anulada' })
-    expect(await q(`select etapa from public.opportunities where id = $1`, [op])).toEqual({ etapa: 'perdida' })
-    // El historial queda en la ficha.
+    expect(await q(`select estado from public.inventory_units where codigo = $1`, [codigo])).toEqual({ estado: 'reservado' })
+    expect(await q(`select estado from public.reservations where id = $1`, [r])).toEqual({ estado: 'confirmada' })
+    expect(await q(`select etapa from public.opportunities where id = $1`, [op])).not.toEqual({ etapa: 'perdida' })
+    // El historial queda en la ficha, con lo que falta.
     const ficha2 = await screen.findByRole('dialog', { name: /Lucía Desiste/ })
     expect(await within(ficha2).findByText('No obtuvo financiamiento')).toBeInTheDocument()
-    expect(within(ficha2).getByText(/El banco negó el crédito · /, { exact: false, selector: 'div' })).toBeTruthy()
-    expect(within(ficha2).getByText(/Pendiente de revisión de Finanzas/)).toBeInTheDocument()
-    expect(within(ficha2).queryByRole('button', { name: 'Registrar desistimiento' })).not.toBeInTheDocument()
+    expect(within(ficha2).getByText('Pendiente de autorización')).toBeInTheDocument()
+    expect(within(ficha2).getByText(/Falta la autorización de Gerencia y la revisión de Finanzas/)).toBeInTheDocument()
   })
 
   it('desde Clientes se elige cliente y operación; un contrato vigente impide confirmar', async () => {
@@ -120,11 +121,11 @@ describe('Registrar desistimiento desde la app', () => {
     await elegir(user, 'Cliente *', 'Con Contrato Vigente')
     expect(await within(d).findByRole('alert')).toHaveTextContent(/contrato vigente/)
     await elegir(user, 'Motivo *', 'Precio o condiciones')
-    expect(within(d).getByRole('button', { name: 'Confirmar desistimiento' })).toBeDisabled()
+    expect(within(d).getByRole('button', { name: 'Enviar solicitud' })).toBeDisabled()
     expect(await q(`select estado from public.reservations where id = $1`, [r])).toEqual({ estado: 'confirmada' })
   })
 
-  it('desde Reservas, y Finanzas ve el caso por revisar', async () => {
+  it('desde Reservas: solicita el corredor, autoriza Gerencia, revisa Finanzas y entonces se libera', async () => {
     const user = userEvent.setup()
     const codigo = await unidadLibre()
     const c = await nuevoCliente(carlos, 'Desde Reservas')
@@ -134,24 +135,59 @@ describe('Registrar desistimiento desde la app', () => {
     expect(within(fila).queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument()
     await user.click(within(fila).getByRole('button', { name: 'Desistimiento' }))
     const d = await screen.findByRole('dialog', { name: 'Registrar desistimiento' })
-    await within(d).findByText(/se anula/)
+    await within(d).findByText(/La reserva .* se anula/)
     await elegir(user, 'Motivo *', 'Cambió de decisión')
-    await user.click(within(d).getByRole('button', { name: 'Confirmar desistimiento' }))
-    expect(await screen.findByText('Desistimiento registrado')).toBeInTheDocument()
-    await waitFor(() => expect(within(screen.getByRole('cell', { name: 'Desde Reservas' }).closest('tr')!).getByText('Anulada')).toBeInTheDocument())
-    expect(await q(`select estado from public.reservations where id = $1`, [r])).toEqual({ estado: 'anulada' })
+    await user.click(within(d).getByRole('button', { name: 'Enviar solicitud' }))
+    expect(await screen.findByText(/Solicitud enviada/)).toBeInTheDocument()
+    // Quien solicita no puede decidir, y las reglas están a la vista.
+    const propia = await screen.findByRole('region', { name: 'Solicitudes de anulación pendientes' })
+    const item0 = within(propia).getByText('Desde Reservas').closest('li')!
+    expect(within(item0).queryByRole('button', { name: 'Autorizar' })).not.toBeInTheDocument()
+    expect(within(item0).getByText(/Es tu solicitud/)).toBeInTheDocument()
+    expect(screen.getByText(/Quién aprueba la anulación/)).toBeInTheDocument()
     s.unmount()
 
+    const g = await abrirComo(gerente, '/reservas')
+    const secG = await screen.findByRole('region', { name: 'Solicitudes de anulación pendientes' })
+    await user.click(within(within(secG).getByText('Desde Reservas').closest('li')!).getByRole('button', { name: 'Autorizar' }))
+    const dg = await screen.findByRole('dialog', { name: 'Autorizar la anulación' })
+    await user.type(within(dg).getByLabelText(/Motivo de la autorización/), 'Cliente confirmó por escrito')
+    await user.click(within(dg).getByRole('button', { name: 'Autorizar' }))
+    expect(await screen.findByText(/falta la otra aprobación/)).toBeInTheDocument()
+    expect(await q(`select estado from public.inventory_units where codigo = $1`, [codigo])).toEqual({ estado: 'reservado' })
+    g.unmount()
+
     const f = await abrirComo(finanzas, '/reservas')
-    const seccion = await screen.findByRole('region', { name: 'Desistimientos por revisar' })
-    const item = within(seccion).getByText('Desde Reservas').closest('li')!
-    await user.click(within(item).getByRole('button', { name: 'Marcar revisado' }))
-    const dr = await screen.findByRole('dialog', { name: /Revisar desistimiento/ })
-    await user.type(within(dr).getByLabelText('Resolución *'), 'Retención según política comercial')
-    await user.click(within(dr).getByRole('button', { name: 'Marcar revisado' }))
-    expect(await screen.findByText('Desistimiento marcado como revisado')).toBeInTheDocument()
-    await waitFor(() => expect(within(screen.queryByRole('region', { name: 'Desistimientos por revisar' }) ?? document.createElement('div')).queryByText('Desde Reservas')).not.toBeInTheDocument())
+    const secF = await screen.findByRole('region', { name: 'Solicitudes de anulación pendientes' })
+    const itemF = within(secF).getByText('Desde Reservas').closest('li')!
+    expect(within(itemF).queryByRole('button', { name: 'Autorizar' })).not.toBeInTheDocument()
+    await user.click(within(itemF).getByRole('button', { name: 'Registrar revisión' }))
+    const df = await screen.findByRole('dialog', { name: 'Revisión de Finanzas' })
+    await user.type(within(df).getByLabelText(/Cómo se resuelve el dinero/), 'Retención según política comercial')
+    await user.click(within(df).getByRole('button', { name: 'Registrar revisión' }))
+    expect(await screen.findByText('Anulación aplicada')).toBeInTheDocument()
+    expect(await q(`select estado from public.inventory_units where codigo = $1`, [codigo])).toEqual({ estado: 'disponible' })
+    expect(await q(`select estado from public.reservations where id = $1`, [r])).toEqual({ estado: 'anulada' })
+    await waitFor(() => expect(within(screen.getByRole('cell', { name: 'Desde Reservas' }).closest('tr')!).getByText('Anulada')).toBeInTheDocument())
     f.unmount()
+  })
+
+  it('rechazada desde Reservas: el departamento y la reserva siguen igual', async () => {
+    const user = userEvent.setup()
+    const codigo = await unidadLibre()
+    const c = await nuevoCliente(carlos, 'Rechazo Ui')
+    const { r, op } = await aprobada(carlos, c, codigo)
+    await rpc(carlos, `select public.desistimientos_registrar($1, $2, 'precio', '')`, [c, op])
+    const g = await abrirComo(gerente, '/reservas')
+    const sec = await screen.findByRole('region', { name: 'Solicitudes de anulación pendientes' })
+    await user.click(within(within(sec).getByText('Rechazo Ui').closest('li')!).getByRole('button', { name: 'Rechazar' }))
+    const dr = await screen.findByRole('dialog', { name: 'Rechazar la solicitud' })
+    await user.type(within(dr).getByLabelText(/Motivo del rechazo/), 'El cliente sigue interesado')
+    await user.click(within(dr).getByRole('button', { name: 'Rechazar' }))
+    expect(await screen.findByText(/Solicitud rechazada/)).toBeInTheDocument()
+    expect(await q(`select estado from public.inventory_units where codigo = $1`, [codigo])).toEqual({ estado: 'reservado' })
+    expect(await q(`select estado from public.reservations where id = $1`, [r])).toEqual({ estado: 'confirmada' })
+    g.unmount()
   })
 
   it('un error del servidor se muestra sin perder lo escrito ni cambiar datos', async () => {
@@ -163,12 +199,12 @@ describe('Registrar desistimiento desde la app', () => {
     const ficha = await screen.findByRole('dialog', { name: /Falla Servidor/ })
     await user.click(await within(ficha).findByRole('button', { name: 'Registrar desistimiento' }))
     const d = await screen.findByRole('dialog', { name: 'Registrar desistimiento' })
-    await within(d).findByText(/se anula/)
+    await within(d).findByText(/La reserva .* se anula/)
     await elegir(user, 'Motivo *', 'Motivos personales')
     await user.type(within(d).getByLabelText(/Observaciones/), 'Texto que no se debe perder')
     await db.exec(`create function pg_temp.falla2() returns trigger language plpgsql as $$ begin if new.accion = 'Registrar desistimiento' then raise exception 'Fallo simulado del servidor'; end if; return new; end $$;
       create trigger falla_app before insert on public.audit_log for each row execute function pg_temp.falla2();`)
-    await user.click(within(d).getByRole('button', { name: 'Confirmar desistimiento' }))
+    await user.click(within(d).getByRole('button', { name: 'Enviar solicitud' }))
     expect(await within(d).findByText(/Fallo simulado del servidor/)).toBeInTheDocument()
     await db.exec(`drop trigger falla_app on public.audit_log`)
     expect(within(d).getByLabelText(/Observaciones/)).toHaveValue('Texto que no se debe perder')

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { PermissionError } from '@/app/permissions'
 import { calcularPrecio } from '@/features/inventario/pricing'
-import { aplicarCambioPrecio, aprobarPropuesta, createInitialState, crearPropuesta, rechazarPropuesta } from '@/features/inventario/service'
+import { aplicarCambioPrecio, aprobarPropuesta, crearPropuesta, rechazarPropuesta } from '@/features/inventario/service'
 import type { Actor } from '@/features/inventario/types'
-import { comparacionPorPiso, conteoPosiciones, RANGO_FRATELLI_TOTAL, RANGOS_FRATELLI } from '../competencia'
-import { FRATELLI } from '../data/fratelli'
+import { comparacionPorPiso, conteoPosiciones, rangoTotalFratelli, rangosFratelli } from '../competencia'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
+import { FRATELLI } from '@/features/precios/__tests__/datos/fratelli'
+const RANGOS_FRATELLI = rangosFratelli(FRATELLI)
+const RANGO_FRATELLI_TOTAL = rangoTotalFratelli(FRATELLI)
 
 const admin: Actor = { id: 'u-admin', nombre: 'Admin', rol: 'administrador' }
 const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
@@ -24,12 +27,12 @@ describe('competencia FRATELLI', () => {
 
   it('posición de AMURA frente a FRATELLI: 0 bajo · 58 dentro · 14 sobre (lista PDF)', () => {
     const s = createInitialState()
-    expect(conteoPosiciones(s.units, s.params)).toEqual({ bajo: 0, dentro: 58, sobre: 14 })
+    expect(conteoPosiciones(s.units, s.params, RANGOS_FRATELLI)).toEqual({ bajo: 0, dentro: 58, sobre: 14 })
   })
 
   it('promedio por piso coincide con la lista PDF', () => {
     const s = createInitialState()
-    const filas = comparacionPorPiso(s.units, s.params)
+    const filas = comparacionPorPiso(s.units, s.params, RANGOS_FRATELLI)
     const v = (ed: number, piso: string) => Math.round(filas.find((f) => f.edificio === ed && f.piso === piso)!.amuraM2)
     expect(v(1, 'PB')).toBe(2230)
     expect(v(1, '4')).toBe(2262)

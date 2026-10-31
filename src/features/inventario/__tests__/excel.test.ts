@@ -3,8 +3,8 @@ import * as XLSX from 'xlsx'
 import { PermissionError } from '@/app/permissions'
 import { aplicarImportacion, construirLibro, leerLibro, validarImportacion } from '../excel'
 import { calcularPrecio } from '../pricing'
-import { createInitialState } from '../service'
 import type { Actor } from '../types'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 
 const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
 const asesor: Actor = { id: 'u-asesor', nombre: 'Asesor', rol: 'asesor' }
@@ -65,7 +65,7 @@ describe('exportación e importación Excel', () => {
     const s = createInitialState()
     const buf = libro([
       H,
-      ['E1-PB-A1', '70,47', 'BOD 10A', '2,10', '-', '2.300,00', 'Disponible', 'Confirmada por gerencia'],
+      ['E1-PB-A1', '70,47', 'BOD 10A', '2,10', '-', '2.300,00', 'Bloqueado', 'Bloqueo por gerencia'],
       ['E2-P1-A3', 53.69, '21E', 1.07, 0, 2361.7, 'No disponible', 'Unidad modelo'],
     ])
     const v = validarImportacion(s, leerLibro(buf).filas)
@@ -76,7 +76,7 @@ describe('exportación e importación Excel', () => {
     expect(() => aplicarImportacion(s, v, 'Carga de prueba', asesor, 'x.xlsx')).toThrow(PermissionError)
     const s2 = aplicarImportacion(s, v, 'Carga de prueba', gerencia, 'x.xlsx')
     const u = s2.units.find((x) => x.codigo === 'E1-PB-A1')!
-    expect(u).toMatchObject({ usdM2: 2300, estado: 'disponible', notas: 'Confirmada por gerencia' })
+    expect(u).toMatchObject({ usdM2: 2300, estado: 'bloqueado', notas: 'Bloqueo por gerencia' })
     expect(calcularPrecio(u, s2.params).precioVenta).toBe(Math.round(2300 * 72.57))
     expect(s2.priceHistory[0]).toMatchObject({ tipo: 'importacion' })
     expect(s2.priceHistory[0].cambios).toHaveLength(1)

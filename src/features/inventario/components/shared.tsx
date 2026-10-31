@@ -2,11 +2,11 @@ import type { ReactNode } from 'react'
 import { CircleDashed, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { NivelDato } from '../data/data-quality'
-import { ESTADOS } from '../estados'
-import type { EstadoComercial, Unit } from '../types'
+import { ESTADOS_EFECTIVOS, type EstadoEfectivo } from '../estados'
+import type { Unit } from '../types'
 
-export function EstadoBadge({ estado, className }: { estado: EstadoComercial; className?: string }) {
-  const e = ESTADOS[estado]
+export function EstadoBadge({ estado, className }: { estado: EstadoEfectivo; className?: string }) {
+  const e = ESTADOS_EFECTIVOS[estado]
   return (
     <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset whitespace-nowrap', e.tone, className)} title={e.descripcion}>
       <span className="size-1.5 rounded-full" style={{ background: e.color }} aria-hidden="true" />
@@ -29,6 +29,16 @@ export function Dato({ label, children, hint }: { label: string; children: React
     </div>
   )
 }
+
+/** La misma explicación en Inventario y Precios. */
+export function ReglaPrecios() {
+  return <p className="rounded-md bg-muted px-3 py-2 text-[11px] text-muted-foreground"><b>Quién propone y quién aprueba:</b> Gerencia envía propuestas y el precio oficial no cambia hasta que se aprueben. Administración, que aprueba precios, aplica el cambio directamente. Todo queda en el historial.</p>
+}
+
+export const ETIQUETA_PRECIO = {
+  aprobado: { label: 'Aprobado', tono: 'text-emerald-700' },
+  referencial: { label: 'Referencial', tono: 'text-amber-800' },
+} as const
 
 export const pisoLabel = (p: Unit['piso']) => (p === 'PB' ? 'Planta baja' : `Piso ${p}`)
 export const pisoCorto = (p: Unit['piso']) => (p === 'PB' ? 'PB' : `P${p}`)

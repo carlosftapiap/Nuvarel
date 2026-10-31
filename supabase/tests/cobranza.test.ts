@@ -30,7 +30,7 @@ beforeAll(async () => {
     `insert into public.opportunities (client_id, codigo_unidad, responsable_id, created_by) values ($1, 'E1-PB-A2', $2, $2) returning id`, [clienteId, vera])).rows[0].id
   const q = (await db.query<{ id: string }>(
     `insert into public.quotes (numero, fecha, valida_hasta, codigo, cliente, asesor, descuento_pct, precio_lista, precio_final, plan, created_by, client_id, opportunity_id)
-     values ('COT-C-1', current_date, current_date + 60, 'E1-PB-A2', '{}', '{}', 0, 172147.2, 172147.2,
+     values ('COT-C-1', (now() at time zone 'America/Guayaquil')::date, (now() at time zone 'America/Guayaquil')::date + 60, 'E1-PB-A2', '{}', '{}', 0, 172147.2, 172147.2,
        '{"reserva": 10328.83, "reservaPct": 6, "meses": 30, "cuotaMensual": 803.35, "ultimaCuota": 803.46, "contraEntrega": 137717.76, "cuotasTotal": 24100.61}', $1, $2, $3)
      returning id`, [vera, clienteId, op])).rows[0].id
   await db.query(`update public.quotes set estado = 'aceptada' where id = $1`, [q])
@@ -45,9 +45,9 @@ describe('reserva configurable y cronograma al firmar', () => {
   })
 
   it('verificación y aprobación de la reserva con su comprobante', async () => {
-    await como(db, vera, () => db.query(`select public.reservas_adjuntar_comprobante($1, 'TRF-RES-1', 'comprobantes/res-1.pdf')`, [reservaId]))
+    await como(db, vera, () => db.query(`select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-RES-1', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reservaId]))
     await como(db, admin, () => db.query(`select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`))
-    await como(db, finanzas, () => db.query(`select public.reservas_verificar_pago($1, 1000, $2::date, 'TRF-RES-1', 'Ingreso confirmado en banco')`, [reservaId, hoy]))
+    await como(db, finanzas, () => db.query(`select public.reservas_confirmar_pago($1, 1000, $2::date, 'TRF-RES-1', true, 'Ingreso confirmado en banco')`, [reservaId, hoy]))
     await como(db, gerente, () => db.query(`select public.reservas_aprobar($1, 'Aprobada en comité de prueba')`, [reservaId]))
     expect((await uno<{ estado: string }>(`select estado from public.reservations where id = $1`, [reservaId])).estado).toBe('confirmada')
   })
@@ -81,8 +81,8 @@ describe('reserva configurable y cronograma al firmar', () => {
 
 describe('pagos parciales, sobreaplicación, duplicados y anulaciones', () => {
   const registrar = (monto: number, ref: string) => como(db, finanzas, () => db.query<{ id: string }>(
-    `select public.cobranzas_registrar_pago($1, $2, $3::date, $4, null) as id`, [contrato, monto, hoy, ref]))
-  const verificar = (id: string) => como(db, admin, () => db.query(`select public.cobranzas_verificar_pago($1, true, 'Verificado en banco')`, [id]))
+    `select public.cobranzas_reportar_pago($1::uuid, $2, $3::date, 'Banco de prueba', $4, jsonb_build_object('ruta', 'contratos/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10)) as id`, [contrato, monto, hoy, ref]))
+  const verificar = (id: string) => como(db, admin, () => db.query(`select public.cobranzas_confirmar_pago($1, true, 'Verificado en banco')`, [id]))
 
   it('la firma se paga completa y su situación queda pagada', async () => {
     const p = await registrar(9328.83, 'TRF-FIRMA-1')
@@ -141,10 +141,12 @@ describe('reprogramación, gestiones y compromisos', () => {
 })
 
 describe('permisos y visibilidad', () => {
-  it('una vendedora no ve el cronograma ni registra gestiones o pagos', async () => {
-    expect((await como(db, vera, async () => (await db.query(`select id from public.installments`)).rows.length))).toBe(0)
+  it('una vendedora consulta el cronograma de su venta, pero no registra gestiones ni pagos; otra no lo ve', async () => {
+    expect((await como(db, vera, async () => (await db.query(`select id from public.installments where contract_id = $1`, [contrato])).rows.length))).toBeGreaterThan(0)
+    const otra = await crearUsuario(db, 'Otra Vendedora', 'asesor')
+    expect((await como(db, otra, async () => (await db.query(`select id from public.installments`)).rows.length))).toBe(0)
     await expect(como(db, vera, () => db.query(`select public.cobranza_registrar_gestion($1, 2, 'llamada', 'Intento no autorizado')`, [contrato]))).rejects.toThrow(/Sin permiso/)
-    await expect(como(db, vera, () => db.query(`select public.cobranzas_registrar_pago($1, 10, $2::date, 'TRF-VEN', null)`, [contrato, hoy]))).rejects.toThrow(/Sin permiso/)
+    await expect(como(db, vera, () => db.query(`select public.cobranzas_reportar_pago($1::uuid, 10, $2::date, 'Banco de prueba', 'TRF-VEN', jsonb_build_object('ruta', 'contratos/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [contrato, hoy]))).rejects.toThrow(/Sin permiso/)
   })
 
   it('las alertas solo las escribe el servidor: un usuario no puede insertarlas', async () => {

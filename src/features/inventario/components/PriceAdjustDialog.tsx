@@ -9,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { fmtNum, fmtPct, fmtUsd } from '../pricing'
-import { aplicarCambioPrecio, crearPropuesta, describirAlcance, previsualizarCambioPrecio, type Alcance, type ModoPrecio } from '../service'
+import { describirAlcance, guardarCambioPrecio, previsualizarCambioPrecio, unidadesTxt, type Alcance, type ModoPrecio } from '../service'
 import { useInventory } from '../store'
 import type { Edificio, Piso, Tipologia } from '../types'
-import { FieldError } from './shared'
+import { FieldError, ReglaPrecios } from './shared'
 
 type TipoAlcance = 'seleccion' | 'filtro'
 
@@ -28,7 +28,8 @@ export default function PriceAdjustDialog({
   const { state, update } = useInventory()
   const { actor, can } = useSession()
   const [tipo, setTipo] = useState<TipoAlcance>('filtro')
-  const [edificio, setEdificio] = useState('todos')
+  // Sin valor inicial: el alcance de un cambio masivo se elige, no se asume.
+  const [edificio, setEdificio] = useState('')
   const [piso, setPiso] = useState('todos')
   const [tipologia, setTipologia] = useState('todos')
   const [modo, setModo] = useState<ModoPrecio>('porcentaje')
@@ -39,7 +40,8 @@ export default function PriceAdjustDialog({
   useEffect(() => {
     if (!open) return
     setTipo(codigos.length ? 'seleccion' : 'filtro')
-    setValor(codigos.length === 1 ? String(state.units.find((u) => u.codigo === codigos[0])?.usdM2 ?? '') : '')
+    setEdificio(''); setPiso('todos'); setTipologia('todos')
+    setValor('')
     setModo(codigos.length === 1 ? 'fijar' : 'porcentaje')
     setMotivo('')
     setError(null)
@@ -53,9 +55,11 @@ export default function PriceAdjustDialog({
         piso: piso === 'todos' ? undefined : (piso as Piso),
         tipologia: tipologia === 'todos' ? undefined : (tipologia as Tipologia),
       }
+  const alcanceElegido = tipo === 'seleccion' || edificio !== ''
   const numero = Number(valor.replace(',', '.'))
+  const dpt = (codigo: string) => state.units.find((u) => u.codigo === codigo)?.dpt ?? codigo
   const preview = useMemo(() => {
-    if (!valor.trim()) return { error: null, data: null }
+    if (!valor.trim() || !alcanceElegido) return { error: null, data: null }
     try {
       return { error: null, data: previsualizarCambioPrecio(state, { alcance, modo, valor: numero, motivo }) }
     } catch (e) {
@@ -71,14 +75,11 @@ export default function PriceAdjustDialog({
   function aplicar() {
     setError(null)
     try {
-      const input = { alcance, modo, valor: numero, motivo }
-      if (aprueba) {
-        update((s) => aplicarCambioPrecio(s, input, actor))
-        onDone?.(`Precio actualizado en ${preview.data?.cambios.length ?? 0} unidades · ${describirAlcance(alcance)}`)
-      } else {
-        update((s) => crearPropuesta(s, input, actor))
-        onDone?.(`Propuesta enviada a aprobación: ${preview.data?.cambios.length ?? 0} unidades · ${describirAlcance(alcance)}. Los precios oficiales no cambian hasta que se apruebe.`)
-      }
+      update((s) => guardarCambioPrecio(s, { alcance, modo, valor: numero, motivo }, actor))
+      const n = unidadesTxt(preview.data?.cambios.length ?? 0)
+      onDone?.(aprueba
+        ? `Precio actualizado en ${n} · ${describirAlcance(alcance)}`
+        : `Propuesta enviada a aprobación: ${n} · ${describirAlcance(alcance)}. Los precios oficiales no cambian hasta que se apruebe.`)
       onOpenChange(false)
     } catch (e) {
       setError((e as Error).message)
@@ -90,7 +91,7 @@ export default function PriceAdjustDialog({
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Modificar precio por m²</DialogTitle>
-          <DialogDescription>El precio de venta se recalcula como USD/m² × (área + bodega) + patio. Las unidades reservadas, prometidas o vendidas no se modifican. {aprueba ? 'Como administrador, el cambio queda oficial al aplicarlo.' : 'Tu cambio se enviará como propuesta; los precios oficiales no cambian hasta que administración lo apruebe.'}</DialogDescription>
+          <DialogDescription>El precio de venta se recalcula como USD/m² × (área + bodega) + patio. Las unidades reservadas, prometidas o vendidas se excluyen.</DialogDescription>
         </DialogHeader>
 
         {!permitido ? (
@@ -109,7 +110,7 @@ export default function PriceAdjustDialog({
               </div>
               {tipo === 'filtro' && (
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <Sel id="adj-ed" label="Edificio" value={edificio} onChange={setEdificio} items={[['todos', 'Ambos edificios'], ['1', 'Edificio 1'], ['2', 'Edificio 2']]} />
+                  <Sel id="adj-ed" label="Edificio" value={edificio} onChange={setEdificio} placeholder="Elige el edificio" items={[['todos', 'Ambos edificios'], ['1', 'Edificio 1'], ['2', 'Edificio 2']]} />
                   <Sel id="adj-piso" label="Piso" value={piso} onChange={setPiso} items={[['todos', 'Todos los pisos'], ['PB', 'Planta baja'], ['1', 'Piso 1'], ['2', 'Piso 2'], ['3', 'Piso 3'], ['4', 'Piso 4'], ['5', 'Piso 5']]} />
                   <Sel id="adj-tip" label="Tipología" value={tipologia} onChange={setTipologia} items={[['todos', 'Todas'], ['1 hab', '1 hab'], ['2 hab', '2 hab'], ['2 hab + estudio', '2 hab + estudio']]} />
                 </div>
@@ -128,15 +129,21 @@ export default function PriceAdjustDialog({
               </div>
             </fieldset>
 
+            {tipo === 'filtro' && !alcanceElegido && <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">Elige el edificio para ver qué unidades se afectan.</p>}
             {preview.error && <FieldError>{preview.error}</FieldError>}
             {preview.data && (
               <section aria-live="polite" className="rounded-lg border border-border bg-muted/40 p-3 text-xs">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <span><b>{preview.data.cambios.length}</b> unidades cambian</span>
-                  {preview.data.omitidas.length > 0 && <span className="text-amber-700">{preview.data.omitidas.length} omitidas (precio congelado)</span>}
+                  <span><b>{unidadesTxt(preview.data.cambios.length)}</b> {preview.data.cambios.length === 1 ? 'cambia' : 'cambian'}</span>
+                  {preview.data.omitidas.length > 0 && <span className="text-amber-700">{preview.data.omitidas.length === 1 ? '1 excluida' : `${preview.data.omitidas.length} excluidas`}</span>}
                   <span className="ml-auto flex items-center gap-1.5 tabular-nums">{fmtUsd(preview.data.totalAntes)}<ArrowRight className="size-3" /><b>{fmtUsd(preview.data.totalDespues)}</b>
                     <span className={delta >= 0 ? 'text-emerald-700' : 'text-rose-700'}>({delta >= 0 ? '+' : ''}{fmtUsd(delta)})</span></span>
                 </div>
+                {preview.data.omitidas.length > 0 && (
+                  <ul className="mt-2 grid gap-0.5 text-[11px] text-amber-800" aria-label="Unidades excluidas">
+                    {preview.data.omitidas.map((o) => <li key={o.codigo}>Departamento {dpt(o.codigo)}: {o.razon}</li>)}
+                  </ul>
+                )}
                 {preview.data.cambios.length > 0 && (
                   <div className="mt-2 max-h-44 overflow-y-auto rounded-md border border-border bg-card">
                     <table className="w-full text-[11px]">
@@ -144,7 +151,7 @@ export default function PriceAdjustDialog({
                       <tbody>
                         {preview.data.cambios.map((c) => (
                           <tr key={c.codigo} className="border-t border-border">
-                            <td className="p-1.5">{c.codigo}</td>
+                            <td className="p-1.5">{dpt(c.codigo)} <span className="text-muted-foreground">{c.codigo}</span></td>
                             <td className="p-1.5 text-right tabular-nums">{fmtNum(c.antesUsdM2)} → <b>{fmtNum(c.despuesUsdM2)}</b></td>
                             <td className="p-1.5 text-right tabular-nums">{fmtUsd(c.antesPrecio)} → <b>{fmtUsd(c.despuesPrecio)}</b></td>
                             <td className="p-1.5 text-right tabular-nums">{fmtPct(Math.round((c.despuesPrecio / c.antesPrecio - 1) * 10000) / 100)}</td>
@@ -161,6 +168,7 @@ export default function PriceAdjustDialog({
               <Label htmlFor="adj-motivo" className="text-xs">Motivo del cambio (queda en el historial)</Label>
               <Textarea id="adj-motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Ajuste aprobado por gerencia en comité del 28/10/2026" rows={2} />
             </div>
+            <ReglaPrecios />
             <FieldError>{error}</FieldError>
           </div>
         )}
@@ -183,12 +191,12 @@ function Opcion({ activo, onClick, children }: { activo: boolean; onClick: () =>
   )
 }
 
-function Sel({ id, label, value, onChange, items }: { id: string; label: string; value: string; onChange: (v: string) => void; items: [string, string][] }) {
+function Sel({ id, label, value, onChange, items, placeholder }: { id: string; label: string; value: string; onChange: (v: string) => void; items: [string, string][]; placeholder?: string }) {
   return (
     <div className="grid gap-1">
       <Label htmlFor={id} className="text-[11px] text-muted-foreground">{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
+        <SelectTrigger id={id} className="h-8 w-full text-xs"><SelectValue placeholder={placeholder} /></SelectTrigger>
         <SelectContent>{items.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
       </Select>
     </div>

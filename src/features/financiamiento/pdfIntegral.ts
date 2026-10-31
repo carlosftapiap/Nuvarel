@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { cargarLogo, type LogoPdf } from '@/features/cotizaciones/pdf'
 import type { EntradaCalculada } from '@/features/cobranza/entrada'
-import { fmtFechaCorta } from './plan'
+import { fmtFechaCorta, sumarMeses } from './plan'
 import type { Simulacion } from './hipoteca'
 
 // Paleta del manual de marca AMURA (la misma de la cotización).
@@ -81,6 +81,7 @@ export function construirPdfIntegral(c: CotizacionIntegral, logo?: LogoPdf) {
     [`Pago adicional a la firma (completa el 6%) · ${fmtFechaCorta(c.fechaFirma)}`, usd(e.pagoFirma)],
     [`Saldo de entrada en ${e.partidas.filter((p) => p.tipo === 'cuota').length} cuotas mensuales`, usd(e.saldoCuotas)],
     ['Cuota mensual de entrada', e.cuotaMensual === e.ultimaCuota ? usd(e.cuotaMensual) : `${usd(e.cuotaMensual)} (última ${usd(e.ultimaCuota)})`],
+    ...e.extraordinarias.map((x) => [`Cuota extraordinaria programada · mes ${x.mes} · ${fmtFechaCorta(sumarMeses(c.fechaFirma, x.mes))}`, usd(x.monto)]),
     ['Saldo contra entrega (80%)', usd(e.saldoEntrega)],
   ])
 

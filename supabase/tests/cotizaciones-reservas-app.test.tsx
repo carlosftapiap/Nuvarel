@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { configure, render, screen, waitFor, within } from '@testing-library/react'
+import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PGlite } from '@electric-sql/pglite'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -13,7 +13,7 @@ import { ReservasProvider } from '@/features/reservas/store'
 import ClientesPage from '@/pages/ClientesPage'
 import CotizacionesPage from '@/pages/CotizacionesPage'
 import ReservasPage from '@/pages/ReservasPage'
-import { datosPglite } from './datos-pglite'
+import { almacenPrueba, archivoPrueba, datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario } from './db'
 
 // Cada pantalla lee varias tablas de Postgres real; con toda la suite en paralelo tarda más que la espera por defecto.
@@ -30,7 +30,7 @@ async function actorDe(id: string): Promise<Actor> {
 async function abrirComo(id: string, url: string) {
   const actor = await actorDe(id)
   return render(
-    <ConexionProvider value={{ remoto: true, datos: datosPglite(db, id), cuenta: null, salir: async () => {} }}>
+    <ConexionProvider value={{ remoto: true, datos: datosPglite(db, id), cuenta: null, salir: async () => {}, almacen: almacenPrueba }}>
       <SessionProvider actorRemoto={actor}>
         <InventoryProvider>
           <ClientesProvider>
@@ -136,11 +136,13 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
     f.unmount()
 
     const s = await abrirComo(cora, '/reservas')
-    await user.click(await screen.findByRole('button', { name: /Registrar comprobante/ }))
-    const dlg = await screen.findByRole('dialog', { name: /Registrar comprobante/ })
+    await user.click(await screen.findByRole('button', { name: /Registrar pago/ }))
+    const dlg = await screen.findByRole('dialog', { name: /Registrar pago/ })
+    await user.type(within(dlg).getByLabelText('Banco *'), 'Banco Pichincha')
+    fireEvent.change(within(dlg).getByLabelText(/Foto o PDF/), { target: { files: [archivoPrueba()] } })
     await user.type(within(dlg).getByLabelText(/Número de transferencia/), 'TRF-778899')
     await user.click(within(dlg).getByRole('button', { name: 'Registrar' }))
-    expect(await screen.findByText(/Comprobante de RES-.* registrado/)).toBeInTheDocument()
+    expect(await screen.findByText(/Pago de RES-.* registrado/)).toBeInTheDocument()
     expect((await estado()).reserva).toBe('solicitada')
     // El corredor no ve botones de verificar ni aprobar.
     expect(screen.queryByRole('button', { name: /Verificar pago/ })).not.toBeInTheDocument()
@@ -156,6 +158,7 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
     expect(within(dlg).getByLabelText(/Comprobante/)).toHaveValue('TRF-778899')
     const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where client_id = $1`, [cliente])
     await user.type(within(dlg).getByLabelText(/Monto recibido/), String(m.monto_reserva).replace('.', ','))
+    await user.click(within(dlg).getByLabelText(/Verifiqué el ingreso/))
     await user.click(within(dlg).getByRole('button', { name: 'Verificar ingreso' }))
     expect(await screen.findByText(/verificado · pendiente de aprobación/)).toBeInTheDocument()
     expect(await estado()).toEqual({ reserva: 'pago_verificado', unidad: 'disponible', etapa: 'cotizacion' })

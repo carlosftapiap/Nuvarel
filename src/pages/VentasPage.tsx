@@ -19,12 +19,17 @@ import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd, fmtUsd2 } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import * as api from '@/features/ventas/remoto'
+import { almacenContratosSupabase, type AlmacenContratos } from '@/features/contratos/almacen'
+import AccionesDocumento from '@/features/contratos/components/AccionesDocumento'
+import Plantillas from '@/features/contratos/components/Plantillas'
+import type { VersionDocumento } from '@/features/contratos/model'
+import * as contratos from '@/features/contratos/remoto'
 import type { DatosVentas, EstadoContrato, EventoHistorial, Hito, ReservaPorContratar, TipoDocumento, TipoHito, Venta } from '@/features/ventas/remoto'
 import { cn } from '@/lib/utils'
 
 type Filtro = 'todos' | EstadoContrato
 
-export default function VentasPage() {
+export default function VentasPage({ almacen = almacenContratosSupabase }: { almacen?: AlmacenContratos }) {
   const { remoto, datos } = useConexion()
   if (!remoto || !datos) {
     return (
@@ -34,22 +39,25 @@ export default function VentasPage() {
       </>
     )
   }
-  return <Ventas datos={datos} />
+  return <Ventas datos={datos} almacen={almacen} />
 }
 
-function Ventas({ datos }: { datos: Datos }) {
+function Ventas({ datos, almacen }: { datos: Datos; almacen: AlmacenContratos }) {
   const { can } = useSession()
   const { state: inv, recargar: recargarInventario } = useInventory()
   const [d, setD] = useState<DatosVentas | null>(null)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [abierta, setAbierta] = useState<string | null>(null)
+  const [vista, setVista] = useState<'contratos' | 'plantillas'>('contratos')
+  const [versiones, setVersiones] = useState<VersionDocumento[]>([])
   const [crear, setCrear] = useState<ReservaPorContratar | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
 
   const recargar = useCallback(async () => {
     try {
       setD(await api.cargarVentas(datos))
+      try { setVersiones(await contratos.cargarTodasVersiones(datos)) } catch { setVersiones([]) }
       setErrorCarga(null)
     } catch (e) {
       setErrorCarga((e as Error).message)
@@ -85,6 +93,17 @@ function Ventas({ datos }: { datos: Datos }) {
     <>
       <PageHeader eyebrow="Seguimiento · Ventas y contratos" title="Ventas y contratos" subtitle="Formaliza las reservas aprobadas y sigue cada venta. Los datos vienen de Clientes, Cotizaciones y Reservas, sin volver a escribirlos." />
 
+      {(can('ventas.plantillas_ver') || can('ventas.plantillas')) && (
+        <div className="mb-4 flex gap-1.5" role="group" aria-label="Sección de Ventas y contratos">
+          {(['contratos', 'plantillas'] as const).map((s) => (
+            <button key={s} type="button" aria-pressed={vista === s} onClick={() => setVista(s)}
+              className={cn('rounded-full border px-4 py-1.5 text-xs font-medium transition-colors', vista === s ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-white hover:bg-muted')}>{s === 'contratos' ? 'Contratos' : 'Plantillas y formatos'}</button>
+          ))}
+        </div>
+      )}
+      {vista === 'plantillas' ? (
+        <Plantillas datos={datos} almacen={almacen} can={can} ventas={ventas.map((v) => ({ id: v.id, codigo: v.codigo, cliente: v.cliente?.nombre ?? null }))} />
+      ) : (<>
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi t="Reservas por contratar" v={porContratar.length} d="Aprobadas, sin contrato vigente" tono={porContratar.length ? 'text-amber-700' : undefined} />
         <Kpi t="Pendientes de firma" v={ventas.filter((v) => v.estado === 'borrador').length} d="Contratos en borrador" tono={ventas.some((v) => v.estado === 'borrador') ? 'text-amber-700' : undefined} />
@@ -124,7 +143,7 @@ function Ventas({ datos }: { datos: Datos }) {
         <div className="dashboard-card !p-0 overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-muted text-[11px] text-muted-foreground">
-              <tr><th className="px-4 py-2 text-left font-medium">Contrato</th><th className="px-2 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Unidad</th><th className="px-2 py-2 text-right font-medium">Precio final</th><th className="px-2 py-2 text-left font-medium">Origen</th><th className="px-2 py-2 text-left font-medium">Firma</th><th className="px-4 py-2 text-left font-medium">Estado</th></tr>
+              <tr><th className="px-4 py-2 text-left font-medium">Contrato</th><th className="px-2 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Unidad</th><th className="px-2 py-2 text-right font-medium">Precio final</th><th className="px-2 py-2 text-left font-medium">Origen</th><th className="px-2 py-2 text-left font-medium">Firma</th><th className="px-4 py-2 text-left font-medium">Estado</th><th className="px-4 py-2 text-left font-medium">Documentos</th></tr>
             </thead>
             <tbody>
               {lista.map((v) => {
@@ -138,6 +157,7 @@ function Ventas({ datos }: { datos: Datos }) {
                     <td className="px-2 py-2">{v.corredorOrigen ?? v.origenDetalle ?? (v.origen ? api.ORIGENES_VENTA[v.origen] ?? v.origen : '—')}</td>
                     <td className="px-2 py-2">{v.fechaFirma ? fmtFechaCorta(v.fechaFirma) : '—'}</td>
                     <td className="px-4 py-2"><Estado e={v.estado} /></td>
+                    <td className="px-4 py-2"><AccionesDocumento compacto venta={v} versiones={versiones.filter((x) => x.contratoId === v.id)} datos={datos} almacen={almacen} can={can} onCambio={recargar} /></td>
                   </tr>
                 )
               })}
@@ -146,7 +166,9 @@ function Ventas({ datos }: { datos: Datos }) {
         </div>
       )}
 
-      {venta && <Ficha v={venta} datos={datos} ejecutar={ejecutar} onClose={() => setAbierta(null)} />}
+      </>)}
+
+      {venta && <Ficha v={venta} datos={datos} almacen={almacen} versiones={versiones.filter((x) => x.contratoId === venta.id)} recargarDocumentos={recargar} ejecutar={ejecutar} onClose={() => setAbierta(null)} />}
       {crear && (
         <FormDialog titulo={`Generar contrato de ${crear.codigo}`} descripcion={`${crear.clienteNombre} · ${dpt(crear.unidad)?.dpt ?? crear.unidad} · ${fmtUsd(crear.precio)}. El precio y el cronograma salen de la cotización aceptada; no se pueden cambiar aquí.`}
           campos={[{ k: 'fecha', etiqueta: 'Fecha del contrato *', tipo: 'date', inicial: hoyGuayaquil() }, { k: 'motivo', etiqueta: 'Motivo *', tipo: 'area', min: 5 }]} accion="Generar contrato"
@@ -162,7 +184,7 @@ type Pedido =
   | { tipo: 'firmar' } | { tipo: 'documento' } | { tipo: 'hito' } | { tipo: 'anular' }
   | { tipo: 'retirar'; id: string; nombre: string } | { tipo: 'revertir'; hito: Hito }
 
-function Ficha({ v, datos, ejecutar, onClose }: { v: Venta; datos: Datos; ejecutar: (fn: () => Promise<unknown>, ok: string) => Promise<void>; onClose: () => void }) {
+function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onClose }: { v: Venta; datos: Datos; almacen: AlmacenContratos; versiones: VersionDocumento[]; recargarDocumentos: () => Promise<void>; ejecutar: (fn: () => Promise<unknown>, ok: string) => Promise<void>; onClose: () => void }) {
   const { can } = useSession()
   const { state: inv } = useInventory()
   const [pedido, setPedido] = useState<Pedido | null>(null)
@@ -207,6 +229,10 @@ function Ficha({ v, datos, ejecutar, onClose }: { v: Venta; datos: Datos; ejecut
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">Anulado el {v.anuladoEn ? fmtFechaCorta(v.anuladoEn) : '—'} por {v.anuladoPor ?? '—'}: {v.motivoAnulacion}. Se conserva como historia y ya no es exigible.{verPagos && v.pagadoVerificado > 0 ? ` Se recibieron ${fmtUsd2(v.pagadoVerificado)}: la devolución o el traslado lo resuelve Finanzas.` : ''}</p>
           )}
 
+          <Bloque id="ve-documentos" titulo="Documentos contractuales">
+            <AccionesDocumento venta={v} versiones={versiones} datos={datos} almacen={almacen} can={can} onCambio={recargarDocumentos} />
+          </Bloque>
+
           <div className="grid gap-5 sm:grid-cols-2">
             <Bloque id="ve-venta" titulo="Venta">
               <Dato t="Cliente" v={v.cliente?.nombre ?? 'Sin acceso al cliente'} />
@@ -233,8 +259,10 @@ function Ficha({ v, datos, ejecutar, onClose }: { v: Venta; datos: Datos; ejecut
             <Bloque id="ve-cond" titulo="Condiciones de entrada y financiamiento">
               <Dato t="Precio de lista" v={fmtUsd2(c.precioLista)} />
               {c.descuentoPct > 0 && <Dato t="Descuento" v={`${c.descuentoPct}%`} />}
-              <Dato t={`Reserva acordada (${c.reservaPct}% en la cotización)`} v={fmtUsd2(v.montoReserva)} />
+              <Dato t={`Pago a la firma (${c.reservaPct} %)`} v={fmtUsd2(c.reserva)} />
+              <Dato t="Reserva acordada (se acredita al pago a la firma)" v={fmtUsd2(v.montoReserva)} />
               <Dato t={`${c.meses} cuotas`} v={fmtUsd2(c.cuotaMensual)} />
+              {!!c.extraordinarias?.length && <Dato t={`${c.extraordinarias.length} cuotas extraordinarias (programadas)`} v={fmtUsd2(c.extraordinarias.reduce((t, e) => t + e.monto, 0))} />}
               <Dato t={`Contra entrega (${c.entregaPct}%)`} v={fmtUsd2(c.contraEntrega)} />
               <Dato t="Forma de pago" v={v.cliente?.formaPago ? FORMAS_PAGO[v.cliente.formaPago as FormaPago] ?? v.cliente.formaPago : 'Sin definir'} />
               {v.simulaciones.length > 0 && <Dato t="Simulaciones de crédito" v={v.simulaciones.join(', ')} />}

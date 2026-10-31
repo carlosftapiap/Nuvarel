@@ -1,6 +1,6 @@
 import { assertCan, can } from '@/app/permissions'
-import { generarPlan, type PlanFinanciamiento } from '@/features/financiamiento/plan'
-import { ESTADOS } from '@/features/inventario/estados'
+import { generarPlan, type CuotaExtraordinaria, type PlanFinanciamiento } from '@/features/financiamiento/plan'
+import { ESTADOS, estadoEfectivo } from '@/features/inventario/estados'
 import type { Actor, EstadoComercial, InventoryState, Unit } from '@/features/inventario/types'
 
 /** Solo se cotizan unidades sin compromiso con otro cliente. */
@@ -23,6 +23,7 @@ export interface CotizacionInput {
   observaciones: string
   /** Cliente registrado al que se vincula la cotización. */
   clienteId?: string
+  extraordinarias?: CuotaExtraordinaria[]
 }
 
 export interface Cotizacion {
@@ -50,6 +51,7 @@ export function validarCotizacion(input: CotizacionInput, unit: Unit | undefined
   const e: string[] = []
   if (!unit) return ['Selecciona un departamento.']
   if (!ESTADOS_COTIZABLES.includes(unit.estado)) e.push(`La unidad ${unit.codigo} está ${ESTADOS[unit.estado].label.toLowerCase()} y no puede cotizarse.`)
+  if (unit.solicitud && estadoEfectivo(unit) === 'en_proceso_reserva') e.push(`La unidad ${unit.codigo} está en proceso de reserva (${unit.solicitud.codigo}).`)
   if (input.cliente.nombre.trim().length < 3) e.push('Ingresa el nombre del cliente.')
   if (input.cliente.email.trim() && !EMAIL.test(input.cliente.email.trim())) e.push('El correo del cliente no es válido.')
   if (input.asesor.nombre.trim().length < 3) e.push('Ingresa el nombre del asesor.')
@@ -77,7 +79,7 @@ export function crearCotizacion(state: InventoryState, input: CotizacionInput, a
   const errores = validarCotizacion(input, unit, actor)
   if (errores.length) throw new Error(errores.join(' '))
   const u = unit!
-  const plan = generarPlan(u, state.params, { descuentoPct: input.descuentoPct, fechaReserva: input.fecha })
+  const plan = generarPlan(u, state.params, { descuentoPct: input.descuentoPct, fechaReserva: input.fecha, extraordinarias: input.extraordinarias })
   const limpio = (p: DatosPersona): DatosPersona => ({ nombre: p.nombre.trim(), documento: p.documento?.trim() || undefined, email: p.email.trim(), telefono: p.telefono.trim() })
   return {
     id: `cot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,

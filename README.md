@@ -70,7 +70,7 @@ See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rule
 - **Ventas** (`/ventas`): reservas aprobadas por contratar, contratos pendientes de firma, firmados y anulados, con cliente, unidad, edificio, precio final, cotización y reserva de origen, condiciones y cronograma.
 - **Solo por el flujo del servidor**: `contratos_crear` exige reserva aprobada; firma, documentos, hitos (escritura, desembolso, entrega) y anulación son funciones con permiso, alcance, motivo y auditoría. Nada se borra.
 - **Comisiones (futuro)**: la vista `ventas_historicas` entrega contrato, cliente, unidad, precio, origen, corredor, asesor, responsable, atribución, fecha, estado, hitos y dinero conciliado. No crea comisiones.
-- **Supabase**: `supabase/migrations/20261031020000_ventas_contratos.sql`. Pruebas: `supabase/instalacion/ENTORNO_PRUEBAS.md`.
+- **Supabase**: `supabase/migrations/20261031020000_ventas_contratos.sql`. Despliegue: `supabase/instalacion/DESPLIEGUE_PRODUCCION.md`.
 
 ## Reservas
 

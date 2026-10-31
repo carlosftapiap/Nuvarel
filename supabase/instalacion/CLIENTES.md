@@ -12,7 +12,7 @@ Estado: **probado en la base local** (Postgres real con las migraciones del proy
 
 **Importante:** el código nuevo ya usa estas funciones. Mientras las migraciones no se apliquen, la app conectada muestra los clientes de la base y un aviso, pero **no permite guardar clientes, cotizaciones ni reservas**, y lo guardado en el navegador no se toca. Las cotizaciones y reservas que estén solo en el navegador no se importan: dejarían de verse en modo conectado, aunque la copia local se conserva.
 
-Entornos para probar antes de producción: `ENTORNO_PRUEBAS.md`.
+Despliegue en producción: `DESPLIEGUE_PRODUCCION.md`.
 
 Estas migraciones no dependen de `20261030000000_plan_responsable_externo.sql`: pueden aplicarse por separado.
 
@@ -39,7 +39,7 @@ Haz una copia de seguridad del proyecto antes de continuar.
 
 ## 2. Aplicar las migraciones ⚠️
 
-Ejecuta en el SQL Editor, primero en un proyecto de pruebas, `20261031000000_clientes_crm.sql`, luego `20261031010000_integracion_comercial.sql` y luego `20261031020000_ventas_contratos.sql`. Se pueden repetir sin efectos.
+Ejecuta en el SQL Editor, previo respaldo, `20261031000000_clientes_crm.sql`, luego `20261031010000_integracion_comercial.sql` y luego `20261031020000_ventas_contratos.sql`. Se pueden repetir sin efectos.
 
 Vuelve a ejecutar la consulta de conteo: los números deben coincidir.
 

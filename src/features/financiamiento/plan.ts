@@ -1,14 +1,20 @@
-import { calcularPrecio, round2 } from '@/features/inventario/pricing'
+import { calcularPrecio, etiquetaPagoFirma, round2 } from '@/features/inventario/pricing'
 import type { PricingParams, Unit } from '@/features/inventario/types'
 
 export interface PagoCronograma {
   n: number
-  tipo: 'reserva' | 'cuota' | 'entrega'
+  tipo: 'reserva' | 'cuota' | 'extraordinaria' | 'entrega'
   concepto: string
   /** ISO yyyy-mm-dd; null cuando la fecha depende de la entrega (aún no definida). */
   fecha: string | null
   monto: number
   saldo: number
+}
+
+/** Pago programado dentro del 14 %, en un mes del plan. No es un pago recibido. */
+export interface CuotaExtraordinaria {
+  mes: number
+  monto: number
 }
 
 export interface PlanFinanciamiento {
@@ -27,6 +33,8 @@ export interface PlanFinanciamiento {
   cuotaMensual: number
   ultimaCuota: number
   contraEntrega: number
+  /** Solo si el plan las tiene, ordenadas por mes. */
+  extraordinarias?: CuotaExtraordinaria[]
   cronograma: PagoCronograma[]
 }
 
@@ -63,10 +71,58 @@ export function fmtFechaCorta(iso: string | null) {
 }
 
 /**
+ * Reparte el total de cuotas entre extraordinarias y mensuales para que sumen exactamente lo pactado.
+ * La última mensual absorbe los centavos. Misma regla que cuotas_con_extraordinarias en la base de datos.
+ */
+export function repartirCuotas(total: number, meses: number, extras: CuotaExtraordinaria[] = []) {
+  for (const e of extras) {
+    if (!Number.isInteger(e.mes) || e.mes < 1 || e.mes > meses) throw new Error(`El mes de cada cuota extraordinaria debe estar entre 1 y ${meses}.`)
+    if (!Number.isFinite(e.monto) || e.monto <= 0 || round2(e.monto) !== e.monto) throw new Error('El monto de cada cuota extraordinaria debe ser mayor a cero, con hasta dos decimales.')
+  }
+  const resto = round2(total - extras.reduce((t, e) => t + e.monto, 0))
+  const cuotaMensual = meses > 0 ? round2(resto / meses) : 0
+  const ultimaCuota = meses > 0 ? round2(resto - cuotaMensual * (meses - 1)) : 0
+  if (extras.length && (resto <= 0 || cuotaMensual <= 0 || ultimaCuota <= 0)) throw new Error(`Las cuotas extraordinarias deben dejar saldo para las cuotas mensuales: el 14 % es USD ${total}.`)
+  return { cuotaMensual, ultimaCuota, extraordinarias: [...extras].sort((a, b) => a.mes - b.mes) }
+}
+
+/** Cronograma a partir de las condiciones: lo usan el simulador y las cotizaciones guardadas, sin recalcular precios. */
+export function armarCronograma(p: Omit<PlanFinanciamiento, 'cronograma'>, fecha: string): PagoCronograma[] {
+  const cronograma: PagoCronograma[] = []
+  let saldo = round2(p.precioFinal - p.reserva)
+  let n = 1
+  const extras = p.extraordinarias ?? []
+  cronograma.push({ n: 0, tipo: 'reserva', concepto: etiquetaPagoFirma(p.reservaPct), fecha, monto: p.reserva, saldo })
+  for (let i = 1; i <= p.meses; i++) {
+    const monto = i === p.meses ? p.ultimaCuota : p.cuotaMensual
+    saldo = round2(saldo - monto)
+    cronograma.push({ n: n++, tipo: 'cuota', concepto: `Cuota ${i} de ${p.meses}`, fecha: sumarMeses(fecha, i), monto, saldo })
+    for (const e of extras.filter((x) => x.mes === i)) {
+      saldo = round2(saldo - e.monto)
+      cronograma.push({ n: n++, tipo: 'extraordinaria', concepto: 'Cuota extraordinaria', fecha: sumarMeses(fecha, i), monto: e.monto, saldo })
+    }
+  }
+  cronograma.push({ n, tipo: 'entrega', concepto: `Saldo contra entrega ${p.entregaPct}%`, fecha: null, monto: p.contraEntrega, saldo: round2(saldo - p.contraEntrega) })
+  return cronograma
+}
+
+export interface CronogramaMes { mes: number; fecha: string; cuota: number; extraordinaria: number; total: number }
+
+/** Una fila por mes: cuota mensual, extraordinaria y total. */
+export function cronogramaPorMes(p: Pick<PlanFinanciamiento, 'meses' | 'cuotaMensual' | 'ultimaCuota' | 'extraordinarias'>, fecha: string): CronogramaMes[] {
+  return Array.from({ length: p.meses }, (_, k) => {
+    const mes = k + 1
+    const cuota = mes === p.meses ? p.ultimaCuota : p.cuotaMensual
+    const extraordinaria = round2((p.extraordinarias ?? []).filter((e) => e.mes === mes).reduce((t, e) => t + e.monto, 0))
+    return { mes, fecha: sumarMeses(fecha, mes), cuota, extraordinaria, total: round2(cuota + extraordinaria) }
+  })
+}
+
+/**
  * Plan de pagos de AMURA: reserva (6%), cuotas mensuales (14% en 30 meses E1 / 42 meses E2) y saldo contra entrega (80%).
  * Los porcentajes y plazos vienen de los parámetros vigentes del inventario.
  */
-export function generarPlan(unit: Unit, params: PricingParams, opts: { descuentoPct?: number; fechaReserva: string }): PlanFinanciamiento {
+export function generarPlan(unit: Unit, params: PricingParams, opts: { descuentoPct?: number; fechaReserva: string; extraordinarias?: CuotaExtraordinaria[] }): PlanFinanciamiento {
   const descuentoPct = opts.descuentoPct ?? 0
   if (!Number.isFinite(descuentoPct) || descuentoPct < 0 || descuentoPct > DESCUENTO_MAX) {
     throw new Error(`El descuento debe estar entre 0% y ${DESCUENTO_MAX}%.`)
@@ -79,26 +135,16 @@ export function generarPlan(unit: Unit, params: PricingParams, opts: { descuento
   const reserva = round2((precioFinal * params.reservaPct) / 100)
   const cuotasTotal = round2((precioFinal * params.cuotasPct) / 100)
   const meses = params.meses[unit.edificio]
-  const cuotaMensual = meses > 0 ? round2(cuotasTotal / meses) : 0
-  // La última cuota absorbe los centavos para que el total sea exacto.
-  const ultimaCuota = meses > 0 ? round2(cuotasTotal - cuotaMensual * (meses - 1)) : 0
+  const { cuotaMensual, ultimaCuota, extraordinarias } = repartirCuotas(cuotasTotal, meses, opts.extraordinarias)
   const contraEntrega = round2(precioFinal - reserva - cuotasTotal)
 
-  const cronograma: PagoCronograma[] = []
-  let saldo = round2(precioFinal - reserva)
-  cronograma.push({ n: 0, tipo: 'reserva', concepto: `Reserva ${params.reservaPct}%`, fecha: opts.fechaReserva, monto: reserva, saldo })
-  for (let i = 1; i <= meses; i++) {
-    const monto = i === meses ? ultimaCuota : cuotaMensual
-    saldo = round2(saldo - monto)
-    cronograma.push({ n: i, tipo: 'cuota', concepto: `Cuota ${i} de ${meses}`, fecha: sumarMeses(opts.fechaReserva, i), monto, saldo })
-  }
-  cronograma.push({ n: meses + 1, tipo: 'entrega', concepto: `Saldo contra entrega ${round2(100 - params.reservaPct - params.cuotasPct)}%`, fecha: null, monto: contraEntrega, saldo: round2(saldo - contraEntrega) })
-
-  return {
+  const plan = {
     precioLista, descuentoPct, descuentoMonto, precioFinal,
     areaVendibleM2: base.areaVendibleM2,
     usdM2Final: base.areaVendibleM2 ? round2((precioFinal - base.valorPatio) / base.areaVendibleM2) : 0,
     reservaPct: params.reservaPct, cuotasPct: params.cuotasPct, entregaPct: round2(100 - params.reservaPct - params.cuotasPct),
-    reserva, cuotasTotal, meses, cuotaMensual, ultimaCuota, contraEntrega, cronograma,
+    reserva, cuotasTotal, meses, cuotaMensual, ultimaCuota, contraEntrega,
+    ...(extraordinarias.length ? { extraordinarias } : {}),
   }
+  return { ...plan, cronograma: armarCronograma(plan, opts.fechaReserva) }
 }

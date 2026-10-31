@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx'
 import { assertCan } from '@/app/permissions'
 import { dataFlags } from './data/data-quality'
-import { ESTADOS, ESTADOS_DE_FLUJO, ESTADOS_PRECIO_BLOQUEADO, parseEstado, puedeTransicionar } from './estados'
+import { ESTADOS, ESTADOS_PRECIO_BLOQUEADO, MOTIVO_SIN_CAMBIO, parseEstado, puedeCambiarManual } from './estados'
 import { calcularPrecio, round2, totalVenta } from './pricing'
 import type { Actor, EstadoComercial, InventoryState, PriceChange, PriceHistoryEntry, StatusHistoryEntry, Unit } from './types'
 
@@ -164,11 +164,11 @@ export function validarImportacion(state: InventoryState, filas: FilaExcel[]): R
       const e = parseEstado(f.valores.estado)
       if (!e) errores.push(`Estado "${String(f.valores.estado)}" no reconocido. Usa: ${Object.values(ESTADOS).map((x) => x.label).join(', ')}.`)
       else if (e !== u.estado) {
-        if (!puedeTransicionar(u.estado, e)) errores.push(`No se permite pasar de "${ESTADOS[u.estado].label}" a "${ESTADOS[e].label}".`)
+        // Un Excel no cambia estados protegidos: reservas y contratos solo se mueven desde su módulo.
+        if (!puedeCambiarManual(u.estado, e)) errores.push(MOTIVO_SIN_CAMBIO[u.estado] ?? `No se permite pasar de "${ESTADOS[u.estado].label}" a "${ESTADOS[e].label}".`)
         else {
           nuevo.estado = e
           cambios.push({ campo: 'estado', etiqueta: ETIQUETAS.estado, antes: ESTADOS[u.estado].label, despues: ESTADOS[e].label })
-          if (ESTADOS_DE_FLUJO.includes(e)) advertencias.push(`"${ESTADOS[e].label}" normalmente lo registra el módulo de Reservas/Ventas.`)
         }
       }
     }
@@ -253,7 +253,7 @@ export function filasExportacion(state: InventoryState) {
       Codigo: u.codigo, DPT: u.dpt, Edificio: u.edificio, Piso: u.piso === 'PB' ? 'PB' : `P${u.piso}`, Ubicacion: u.ubicacion, Tipologia: u.tipologia,
       'Area m2': u.areaM2, Bodega: u.bodegaCodigo ?? 'sin bodega', 'Bodega m2': u.bodegaM2, 'Area + bodega m2': p.areaVendibleM2,
       'Patio m2': u.patioM2, Parqueo: u.parqueo ?? 'sin asignar', 'USD/m2': u.usdM2, 'Precio area + bodega': p.precioAreaBodega, 'Valor patio': p.valorPatio,
-      'Precio de venta': p.precioVenta, [`Reserva ${state.params.reservaPct}%`]: p.reserva, 'Cuota mensual': p.cuotaMensual, Meses: p.meses,
+      'Precio de venta': p.precioVenta, [`Pago a la firma ${state.params.reservaPct}%`]: p.reserva, 'Cuota mensual': p.cuotaMensual, Meses: p.meses,
       'Contra entrega': p.contraEntrega, Estado: ESTADOS[u.estado].label, Observaciones: u.notas,
       'Datos por confirmar': dataFlags(u).filter((x) => x.nivel !== 'referencial').map((x) => `${x.campo}: ${x.mensaje}`).join(' | '),
     }
@@ -272,7 +272,7 @@ export function construirLibro(state: InventoryState, opts: { plantilla?: boolea
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['AMURA · Inventario', opts.plantilla ? 'Plantilla de importación' : 'Exportación'],
     ['Generado', new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' })],
-    ['Valor m2 patio (USD)', p.patioUsdM2], ['Reserva %', p.reservaPct], ['Cuotas %', p.cuotasPct],
+    ['Valor m2 patio (USD)', p.patioUsdM2], ['Pago a la firma %', p.reservaPct], ['Cuotas %', p.cuotasPct],
     ['Meses Edificio 1', p.meses[1]], ['Meses Edificio 2', p.meses[2]],
     ['Regla', 'Precio = redondeo(USD/m2 x (area + bodega)) + patio x valor m2 patio'],
     ['Estados válidos', Object.values(ESTADOS).map((e) => e.label).join(', ')],

@@ -64,9 +64,9 @@ beforeAll(async () => {
   const cot = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [cot])
   reserva = (await rpc<{ id: string }>(carlos, `select public.reservas_solicitar($1) as id`, [cot])).id
-  await rpc(carlos, `select public.reservas_adjuntar_comprobante($1, 'TRF-1', null)`, [reserva])
+  await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-1', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reserva])
   const m = await q<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [reserva])
-  await rpc(finanzas, `select public.reservas_verificar_pago($1, $2, $3::date, 'BAN-1', 'Ingreso confirmado')`, [reserva, m.monto_reserva, hoyGuayaquil()])
+  await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-1', true, 'Ingreso confirmado')`, [reserva, m.monto_reserva, hoyGuayaquil()])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [reserva])
 }, 60_000)
 
@@ -185,8 +185,12 @@ describe('Ventas y contratos conectado a la base de datos', () => {
     s.unmount()
   })
 
-  it('un corredor no ve ventas, ni con el enlace directo', async () => {
-    await abrirComo(carlos)
+  it('el corredor consulta sus ventas sin acciones; otro corredor no las ve', async () => {
+    const r = await abrirComo(carlos)
+    expect((await screen.findAllByText('Andrea Mora')).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /Generar contrato/ })).not.toBeInTheDocument()
+    r.unmount()
+    await abrirComo(await crearUsuario(db, 'Otro Corredor', 'corredor'))
     expect(await screen.findByText('Sin contratos')).toBeInTheDocument()
     expect(screen.queryByText('Andrea Mora')).not.toBeInTheDocument()
   })

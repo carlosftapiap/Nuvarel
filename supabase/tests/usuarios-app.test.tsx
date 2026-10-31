@@ -17,7 +17,7 @@ beforeAll(async () => {
   await db.query(`insert into auth.users (id, email) values (gen_random_uuid(), 'pendiente@empresa.test')`)
 }, 60_000)
 
-async function pantalla(acciones = { enviarRecuperacion: vi.fn(async () => {}), invitar: vi.fn(async () => {}) }) {
+async function pantalla(acciones = { enviarRecuperacion: vi.fn(async () => {}), crearUsuario: vi.fn(async () => {}), cambiarClave: vi.fn(async () => {}) }) {
   const s = await como(db, admin, async () => (await db.query<{ s: { permisos: string[]; usuariosAlcance: string[] } }>(`select public.mi_sesion() as s`)).rows[0].s)
   render(
     <SessionProvider actorRemoto={{ id: admin, nombre: 'Carlos Tapia', rol: 'administrador', permisos: s.permisos, alcance: { tipo: 'empresa', usuarios: s.usuariosAlcance } }}>
@@ -36,16 +36,16 @@ describe('Configuración · usuarios reales (Postgres con RLS)', () => {
     await pantalla()
     expect(within(fila('pendiente@empresa.test')).getByText('Sin perfil (sin acceso)')).toBeInTheDocument()
     expect(within(fila('Vera')).getByText('Activo')).toBeInTheDocument()
-    expect(within(fila('Carlos Tapia')).queryByRole('button', { name: 'Cambiar rol' })).toBeNull()
+    expect(within(fila('Carlos Tapia')).queryByRole('button', { name: 'Modificar acceso' })).toBeNull()
   })
 
   it('cambia el rol con motivo y queda en la base de datos', async () => {
     await pantalla()
-    fireEvent.click(within(fila('Vera')).getByRole('button', { name: 'Cambiar rol' }))
+    fireEvent.click(within(fila('Vera')).getByRole('button', { name: 'Modificar acceso' }))
     fireEvent.change(screen.getByLabelText('Rol'), { target: { value: 'supervisor' } })
     fireEvent.change(screen.getByLabelText('Motivo *'), { target: { value: 'Ascenso aprobado' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
-    expect(await screen.findByText('Rol de Vera actualizado')).toBeInTheDocument()
+    expect(await screen.findByText('Acceso de Vera actualizado')).toBeInTheDocument()
     expect((await db.query(`select rol_id from public.profiles where id = $1`, [vera])).rows[0]).toEqual({ rol_id: 'supervisor' })
   })
 

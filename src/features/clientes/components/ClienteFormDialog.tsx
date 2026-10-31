@@ -11,14 +11,14 @@ import { puedeVerDe } from '@/app/permissions'
 import UnitPicker from '@/features/inventario/components/UnitPicker'
 import { FieldError } from '@/features/inventario/components/shared'
 import { useInventory } from '@/features/inventario/store'
-import { FORMAS_PAGO, ORIGENES, PROPOSITOS, type Cliente, type FormaPago, type Origen, type Proposito } from '../model'
+import { FORMAS_PAGO, nombreCompleto, ORIGENES, PROPOSITOS, type Cliente, type FormaPago, type Origen, type Proposito } from '../model'
 import { actualizarCliente, crearCliente, type ClienteInput } from '../service'
 import { useClientes } from '../store'
 import { DirectorioContext } from '@/features/config/store'
 import { asignables } from '@/features/config/service'
 
 const vacio = (asesorId: string, asesor: string): ClienteInput => ({
-  nombre: '', telefono: '', email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [],
+  nombre: '', primerNombre: '', segundoNombre: '', primerApellido: '', segundoApellido: '', telefono: '', email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [],
   presupuesto: null, proposito: null, formaPago: null, asesorId, asesor,
 })
 
@@ -46,7 +46,8 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
     if (!open) return
     const base = cliente ? { ...cliente } : vacio(actor.id, actor.nombre)
     setF({
-      nombre: base.nombre, documento: base.documento ?? '', corredorOrigenId: base.corredorOrigenId ?? null, telefono: base.telefono, email: base.email, origen: base.origen, origenDetalle: base.origenDetalle,
+      nombre: base.nombre, primerNombre: base.primerNombre ?? '', segundoNombre: base.segundoNombre ?? '', primerApellido: base.primerApellido ?? '', segundoApellido: base.segundoApellido ?? '',
+      documento: base.documento ?? '', corredorOrigenId: base.corredorOrigenId ?? null, telefono: base.telefono, email: base.email, origen: base.origen, origenDetalle: base.origenDetalle,
       unidadesInteres: [...base.unidadesInteres], presupuesto: base.presupuesto, proposito: base.proposito, formaPago: base.formaPago,
       asesorId: base.asesorId, asesor: base.asesor, motivoAsignacion: '', mantenerAcceso: false,
     })
@@ -64,11 +65,11 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
     try {
       if (cliente) {
         await guardarCliente((s) => actualizarCliente(s, cliente.id, input, actor, inv))
-        onSaved(cliente.id, `Datos de ${input.nombre} actualizados`)
+        onSaved(cliente.id, `Datos de ${nombreCompleto(input) || input.nombre} actualizados`)
       } else {
         let id = ''
         await guardarCliente((s) => { const r = crearCliente(s, input, actor, inv); id = r.cliente.id; return r.state })
-        onSaved(id, `Cliente ${input.nombre.trim()} registrado`)
+        onSaved(id, `Cliente ${nombreCompleto(input)} registrado`)
       }
       onOpenChange(false)
     } catch (e) {
@@ -86,8 +87,15 @@ export default function ClienteFormDialog({ open, onOpenChange, cliente, onSaved
           <DialogDescription>Los datos del cliente son confidenciales y solo los ve el equipo comercial autorizado.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
+          {cliente && !cliente.primerNombre && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800">Nombre registrado: <b>{cliente.nombre}</b>. Separa aquí nombres y apellidos para los documentos legales. Hasta completarlos, se conserva tal como está.</p>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
-            <Campo id="cf-nombre" label="Nombre *" value={f.nombre} onChange={(v) => set('nombre', v)} />
+            <Campo id="cf-primer-nombre" label="Primer nombre *" value={f.primerNombre ?? ''} onChange={(v) => set('primerNombre', v)} />
+            <Campo id="cf-segundo-nombre" label="Segundo nombre" value={f.segundoNombre ?? ''} onChange={(v) => set('segundoNombre', v)} />
+            <Campo id="cf-primer-apellido" label="Primer apellido *" value={f.primerApellido ?? ''} onChange={(v) => set('primerApellido', v)} />
+            <Campo id="cf-segundo-apellido" label="Segundo apellido" value={f.segundoApellido ?? ''} onChange={(v) => set('segundoApellido', v)} />
+            {nombreCompleto(f) && <p className="text-[11px] text-muted-foreground sm:col-span-2">Nombre completo: <b className="text-foreground">{nombreCompleto(f)}</b></p>}
             <Campo id="cf-doc" label="Cédula o RUC" value={f.documento ?? ''} onChange={(v) => set('documento', v)} />
             <Campo id="cf-tel" label="Teléfono" value={f.telefono} onChange={(v) => set('telefono', v)} />
             <Campo id="cf-email" label="Correo" type="email" value={f.email} onChange={(v) => set('email', v)} />

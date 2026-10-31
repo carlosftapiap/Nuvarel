@@ -1,3 +1,4 @@
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -24,7 +25,7 @@ beforeEach(() => {
 function renderAt(ui: React.ReactNode, rol: Rol, url: string) {
   return render(
     <SessionProvider initialRol={rol}>
-      <InventoryProvider>
+      <InventoryProvider initialState={createInitialState()}>
         <ClientesProvider>
           <ReservasProvider>
             <MemoryRouter initialEntries={[url]}>{ui}</MemoryRouter>
@@ -41,7 +42,7 @@ describe('Financiamiento', () => {
     expect(screen.getByText('Cronograma de pagos')).toBeInTheDocument()
     expect(screen.getByText('Cuota 42 de 42')).toBeInTheDocument()
     expect(screen.getAllByText((t) => /136.444/.test(t)).length).toBeGreaterThan(0) // precio final
-    expect(screen.getByText((t) => /^42 ×/.test(t))).toBeInTheDocument()
+    expect(screen.getByText((t) => /^42 cuotas: 41 de /.test(t))).toBeInTheDocument()
     expect(screen.getByText('Los descuentos los autoriza gerencia.')).toBeInTheDocument()
   })
 
@@ -73,9 +74,14 @@ describe('Precios', () => {
     const user = userEvent.setup()
     renderAt(<PreciosPage />, 'gerencia', '/precios')
     await user.type(screen.getByLabelText(/Porcentaje/), '2')
+    // Sin elegir el edificio no hay simulación ni se puede preparar el cambio.
+    expect(screen.getByText(/Elige el edificio para simular/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enviar a aprobación' })).toBeDisabled()
+    await user.click(screen.getByLabelText('Edificio'))
+    await user.click(await screen.findByRole('option', { name: 'Ambos edificios' }))
     expect(screen.getByText('Impacto por departamento')).toBeInTheDocument()
     expect(screen.getAllByRole('row').length).toBeGreaterThan(70) // 72 unidades + encabezado
-    await user.type(screen.getByLabelText('Motivo de la propuesta'), 'Subida general de prueba')
+    await user.type(screen.getByLabelText('Motivo del cambio'), 'Subida general de prueba')
     await user.click(screen.getByRole('button', { name: 'Enviar a aprobación' }))
     expect(await screen.findByText(/Propuesta enviada a aprobación/)).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Propuestas \(1\)/ })).toBeInTheDocument()

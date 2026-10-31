@@ -1,6 +1,9 @@
+import { useConexion } from '@/app/auth'
 import { useSession } from '@/app/session'
+import { almacenPagos, completarRecibo, rechazarPagoReserva, reportarPagoReserva, type DatosPago } from '@/features/cobranza/comprobantes'
 import type { Cotizacion } from '@/features/cotizaciones/cotizacion'
 import { useClientes } from '@/features/clientes/store'
+import { RESERVA_PREDETERMINADA } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import type { Reserva } from './model'
 import * as remoto from './remoto'
@@ -17,6 +20,7 @@ export function useReservaFlujo() {
   const { state: clientes, update: updCli, recargar: recargarCli } = useClientes()
   const { state: res, update: updRes, recargar: recargarRes, remoto: conectado, datos } = useReservas()
   const { actor } = useSession()
+  const conexion = useConexion()
 
   const aplicar = (fn: (e: Estado) => Estado) => {
     const n = fn({ inv, res, clientes })
@@ -38,9 +42,14 @@ export function useReservaFlujo() {
       res,
       remoto: true,
       recargar: () => Promise.all([recargarRes(), recargarInv(), recargarCli()]),
-      solicitar: (cot: Cotizacion) => enServidor(() => remoto.solicitarReserva(datos, cot.id, cot.estado)),
-      registrarComprobante: (r: Reserva, referencia: string, monto: number | null) => enServidor(() => remoto.registrarComprobante(datos, r, referencia, monto)),
-      verificarPago: (id: string, input: ConfirmarInput) => enServidor(() => remoto.verificarPago(datos, id, input.montoRecibido, input.comprobante)),
+      solicitar: (cot: Cotizacion, monto?: number) => enServidor(() => remoto.solicitarReserva(datos, cot.id, monto ?? Math.min(RESERVA_PREDETERMINADA, cot.plan.reserva))),
+      fijarMonto: (id: string, monto: number) => enServidor(() => remoto.fijarMonto(datos, id, monto)),
+      rechazarPago: (id: string, motivo: string) => enServidor(() => rechazarPagoReserva(datos, id, motivo)),
+      registrarPago: (r: Reserva, pago: DatosPago) => enServidor(() => reportarPagoReserva(datos, almacenPagos(conexion), r.id, pago)),
+      verificarPago: (id: string, input: ConfirmarInput & { verificadoBanco?: boolean }) => enServidor(async () => {
+        const recibo = await remoto.confirmarPago(datos, id, input.montoRecibido, input.comprobante, !!input.verificadoBanco)
+        await completarRecibo(datos, almacenPagos(conexion), recibo)
+      }),
       aprobar: (id: string, motivo: string) => enServidor(() => remoto.aprobar(datos, id, motivo)),
       anular: (id: string, motivo: string) => enServidor(() => remoto.anular(datos, id, motivo)),
     }
@@ -50,8 +59,10 @@ export function useReservaFlujo() {
     res,
     remoto: false,
     recargar: async () => {},
-    solicitar: async (cot: Cotizacion) => aplicar((e) => solicitarReserva(e, cot, actor)),
-    registrarComprobante: async () => {},
+    solicitar: async (cot: Cotizacion, monto?: number) => aplicar((e) => solicitarReserva(e, cot, actor, monto)),
+    fijarMonto: async () => {},
+    registrarPago: async () => {},
+    rechazarPago: async () => {},
     verificarPago: async (id: string, input: ConfirmarInput) => aplicar((e) => verificarPagoReserva(e, id, input, actor)),
     aprobar: async (id: string, motivo: string) => aplicar((e) => aprobarReserva(e, id, motivo, actor)),
     anular: async (id: string, motivo: string) => aplicar((e) => anularReserva(e, id, motivo, actor)),

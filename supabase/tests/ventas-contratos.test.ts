@@ -28,9 +28,9 @@ async function reservaAprobada(extra: Record<string, unknown> = {}) {
   const q = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [q])
   const r = (await rpc<{ id: string }>(carlos, `select public.reservas_solicitar($1) as id`, [q])).id
-  await rpc(carlos, `select public.reservas_adjuntar_comprobante($1, $2, null)`, [r, `TRF-${r.slice(0, 8)}`])
+  await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', $2, jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r, `TRF-${r.slice(0, 8)}`])
   const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [r])
-  await rpc(finanzas, `select public.reservas_verificar_pago($1, $2, $3::date, $4, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
+  await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
   return { cliente, op, q, r, codigo }
 }
@@ -54,9 +54,9 @@ beforeAll(async () => {
 describe('crear el contrato', () => {
   it('solo desde una reserva aprobada, por el servidor, y con permiso', async () => {
     const f = await reservaAprobada()
-    await expect(rpc(carlos, `select public.contratos_crear($1, current_date, 'Sin permiso')`, [f.r])).rejects.toThrow(/Sin permiso/)
-    await expect(rpc(finanzas, `select public.contratos_crear($1, current_date, 'Sin permiso')`, [f.r])).rejects.toThrow(/Sin permiso/)
-    await expect(como(db, legal, () => db.query(`insert into public.contracts (codigo, reservation_id, client_id, codigo_unidad, precio, fecha_contrato) values ('CON-X', $1, $2, $3, 1, current_date)`, [f.r, f.cliente, f.codigo]))).rejects.toThrow(/row-level security/)
+    await expect(rpc(carlos, `select public.contratos_crear($1, (now() at time zone 'America/Guayaquil')::date, 'Sin permiso')`, [f.r])).rejects.toThrow(/Sin permiso/)
+    await expect(rpc(finanzas, `select public.contratos_crear($1, (now() at time zone 'America/Guayaquil')::date, 'Sin permiso')`, [f.r])).rejects.toThrow(/Sin permiso/)
+    await expect(como(db, legal, () => db.query(`insert into public.contracts (codigo, reservation_id, client_id, codigo_unidad, precio, fecha_contrato) values ('CON-X', $1, $2, $3, 1, (now() at time zone 'America/Guayaquil')::date)`, [f.r, f.cliente, f.codigo]))).rejects.toThrow(/row-level security/)
     const id = await crearContrato(f.r)
     expect(await contrato(id)).toMatchObject({ estado: 'borrador', reservation_id: f.r, client_id: f.cliente, codigo_unidad: f.codigo, fecha_firma: null })
     await expect(crearContrato(f.r)).rejects.toThrow(/ya tiene contrato/)
@@ -82,10 +82,10 @@ describe('firma, documentos e hitos', () => {
   })
 
   it('firmar exige permiso, evidencia y una fecha no futura', async () => {
-    await expect(rpc(gerente, `select public.contratos_formalizar($1, current_date, 'Sin permiso', 'x.pdf')`, [id])).rejects.toThrow(/Sin permiso/)
+    await expect(rpc(gerente, `select public.contratos_formalizar($1, (now() at time zone 'America/Guayaquil')::date, 'Sin permiso', 'x.pdf')`, [id])).rejects.toThrow(/Sin permiso/)
     await expect(rpc(legal, `select public.contratos_formalizar($1, '2099-01-01', 'Fecha futura', 'x.pdf')`, [id])).rejects.toThrow(/no puede ser futura/)
-    await expect(rpc(legal, `select public.contratos_formalizar($1, current_date, 'Sin evidencia', '')`, [id])).rejects.toThrow(/evidencia/)
-    await expect(rpc(legal, `select public.contratos_formalizar($1, current_date, 'no', 'x.pdf')`, [id])).rejects.toThrow(/motivo/)
+    await expect(rpc(legal, `select public.contratos_formalizar($1, (now() at time zone 'America/Guayaquil')::date, 'Sin evidencia', '')`, [id])).rejects.toThrow(/evidencia/)
+    await expect(rpc(legal, `select public.contratos_formalizar($1, (now() at time zone 'America/Guayaquil')::date, 'no', 'x.pdf')`, [id])).rejects.toThrow(/motivo/)
     expect((await contrato(id)).estado).toBe('borrador')
     expect(await unidad(f.codigo)).toBe('reservado')
   })
@@ -121,11 +121,11 @@ describe('firma, documentos e hitos', () => {
   })
 
   it('escritura vende la unidad y se puede revertir sin perder historia', async () => {
-    await expect(rpc(gerente, `select public.contratos_registrar_hito($1, 'escritura', current_date, 'N-1', 'Sin permiso')`, [id])).rejects.toThrow(/Sin permiso/)
-    await expect(rpc(legal, `select public.contratos_registrar_hito($1, 'inventado', current_date, '', 'Hito falso')`, [id])).rejects.toThrow(/Hito no válido/)
-    const h = (await rpc<{ id: string }>(legal, `select public.contratos_registrar_hito($1, 'escritura', current_date, 'Notaría 1', 'Escritura firmada') as id`, [id])).id
+    await expect(rpc(gerente, `select public.contratos_registrar_hito($1, 'escritura', (now() at time zone 'America/Guayaquil')::date, 'N-1', 'Sin permiso')`, [id])).rejects.toThrow(/Sin permiso/)
+    await expect(rpc(legal, `select public.contratos_registrar_hito($1, 'inventado', (now() at time zone 'America/Guayaquil')::date, '', 'Hito falso')`, [id])).rejects.toThrow(/Hito no válido/)
+    const h = (await rpc<{ id: string }>(legal, `select public.contratos_registrar_hito($1, 'escritura', (now() at time zone 'America/Guayaquil')::date, 'Notaría 1', 'Escritura firmada') as id`, [id])).id
     expect(await unidad(f.codigo)).toBe('vendido')
-    await expect(rpc(legal, `select public.contratos_registrar_hito($1, 'escritura', current_date, '', 'Dos veces')`, [id])).rejects.toThrow(/ya está registrado/)
+    await expect(rpc(legal, `select public.contratos_registrar_hito($1, 'escritura', (now() at time zone 'America/Guayaquil')::date, '', 'Dos veces')`, [id])).rejects.toThrow(/ya está registrado/)
     await expect(rpc(legal, `select public.contratos_anular($1, 'Con escritura', 'x.pdf')`, [id])).rejects.toThrow(/revierte primero/)
     await rpc(legal, `select public.contratos_revertir_hito($1, 'Error de notaría')`, [h])
     expect(await unidad(f.codigo)).toBe('promesa')
@@ -137,16 +137,16 @@ describe('firma, documentos e hitos', () => {
   })
 
   it('entrega avanza la negociación y desembolso solo deja constancia', async () => {
-    await rpc(legal, `select public.contratos_registrar_hito($1, 'desembolso', current_date, 'Banco', 'Crédito desembolsado')`, [id])
+    await rpc(legal, `select public.contratos_registrar_hito($1, 'desembolso', (now() at time zone 'America/Guayaquil')::date, 'Banco', 'Crédito desembolsado')`, [id])
     expect(await unidad(f.codigo)).toBe('promesa')
-    const e = (await rpc<{ id: string }>(legal, `select public.contratos_registrar_hito($1, 'entrega', current_date, 'Acta', 'Unidad entregada') as id`, [id])).id
+    const e = (await rpc<{ id: string }>(legal, `select public.contratos_registrar_hito($1, 'entrega', (now() at time zone 'America/Guayaquil')::date, 'Acta', 'Unidad entregada') as id`, [id])).id
     expect((await uno<{ etapa: string }>(`select etapa from public.opportunities where id = $1`, [f.op])).etapa).toBe('entrega')
     await rpc(legal, `select public.contratos_revertir_hito($1, 'Entrega reprogramada')`, [e])
     expect((await uno<{ etapa: string }>(`select etapa from public.opportunities where id = $1`, [f.op])).etapa).toBe('cobranza')
   })
 
   it('nadie escribe directo en hitos, documentos ni contratos', async () => {
-    await expect(como(db, admin, () => db.query(`insert into public.contract_milestones (contract_id, hito, fecha, motivo) values ($1, 'escritura', current_date, 'Directo')`, [id]))).rejects.toThrow(/row-level security/)
+    await expect(como(db, admin, () => db.query(`insert into public.contract_milestones (contract_id, hito, fecha, motivo) values ($1, 'escritura', (now() at time zone 'America/Guayaquil')::date, 'Directo')`, [id]))).rejects.toThrow(/row-level security/)
     await expect(como(db, admin, () => db.query(`insert into public.contract_documents (contract_id, tipo, referencia) values ($1, 'otro', 'directo')`, [id]))).rejects.toThrow(/row-level security/)
     const r = await como(db, admin, () => db.query(`update public.contracts set precio = 1 where id = $1`, [id]))
     expect(r.affectedRows ?? 0).toBe(0)
@@ -186,7 +186,7 @@ describe('datos históricos de la venta', () => {
     expect(Object.keys(v.hitos as object)).toEqual(['contrato_firmado'])
     expect(Number(v.pct_pagado)).toBeGreaterThan(0)
     expect(Number(v.pct_pagado)).toBeLessThan(10)
-    const t = await uno<{ n: number }>(`select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name like '%comision%'`)
+    const t = await uno<{ n: number }>(`select count(*)::int as n from public.comision_movimientos where tipo = 'pago'`)
     expect(t.n).toBe(0)
   })
 
@@ -205,7 +205,7 @@ describe('anulación y reverso', () => {
     const id = await crearContrato(f.r)
     await firmar(id)
     const cuotas = (await uno<{ n: number }>(`select count(*)::int as n from public.installments where contract_id = $1`, [id])).n
-    await rpc(finanzas, `select public.cobranza_registrar_compromiso($1, null, 100, current_date + 5, 'Promete pagar')`, [id])
+    await rpc(finanzas, `select public.cobranza_registrar_compromiso($1, null, 100, (now() at time zone 'America/Guayaquil')::date + 5, 'Promete pagar')`, [id])
 
     await expect(rpc(gerente, `select public.contratos_anular($1, 'Sin permiso', 'x.pdf')`, [id])).rejects.toThrow(/Sin permiso/)
     await expect(rpc(legal, `select public.contratos_anular($1, 'no', 'x.pdf')`, [id])).rejects.toThrow(/motivo/)
@@ -244,18 +244,21 @@ describe('anulación y reverso', () => {
   it('con pagos por verificar no se anula', async () => {
     const f = await reservaAprobada()
     const id = await crearContrato(f.r)
-    await rpc(finanzas, `select public.cobranzas_registrar_pago($1, 100, $2::date, 'TRF-PEND', null)`, [id, hoyGuayaquil()])
+    await rpc(finanzas, `select public.cobranzas_reportar_pago($1::uuid, 100, $2::date, 'Banco de prueba', 'TRF-PEND', jsonb_build_object('ruta', 'contratos/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [id, hoyGuayaquil()])
     await expect(rpc(legal, `select public.contratos_anular($1, 'Con pago pendiente', '')`, [id])).rejects.toThrow(/pagos por verificar/)
   })
 
-  it('después de anular el contrato, la reserva se anula con su flujo y libera la unidad y al cliente', async () => {
+  it('después de anular el contrato, el desistimiento libera la unidad y lleva al cliente a Perdido', async () => {
     const f = await reservaAprobada()
     const id = await crearContrato(f.r)
-    await expect(rpc(gerente, `select public.reservas_anular($1, 'Con contrato vigente')`, [f.r])).rejects.toThrow(/ya tiene contrato/)
+    await expect(rpc(gerente, `select public.reservas_anular($1, 'Con contrato vigente')`, [f.r])).rejects.toThrow(/ya tiene contrato|requiere autorización/)
     await rpc(legal, `select public.contratos_anular($1, 'Borrador descartado', '')`, [id])
-    await rpc(gerente, `select public.reservas_anular($1, 'Cliente desiste de la compra')`, [f.r])
+    const op = (await uno<{ opportunity_id: string }>(`select opportunity_id from public.reservations where id = $1`, [f.r])).opportunity_id
+    const d = (await rpc<{ id: string }>(admin, `select public.desistimientos_registrar($1, $2, 'cambio_decision', 'Cliente desiste de la compra') as id`, [f.cliente, op])).id
+    await rpc(gerente, `select public.desistimientos_autorizar($1, 'Autorizado en prueba')`, [d])
+    await rpc(finanzas, `select public.desistimientos_revisar_finanzas($1, 'Retención según política comercial')`, [d])
     expect(await unidad(f.codigo)).toBe('disponible')
-    expect((await uno<{ etapa: string }>(`select etapa from public.clients where id = $1`, [f.cliente])).etapa).toBe('negociacion')
+    expect((await uno<{ etapa: string }>(`select etapa from public.clients where id = $1`, [f.cliente])).etapa).toBe('perdido')
   })
 })
 
@@ -268,8 +271,8 @@ describe('permisos en Ventas', () => {
   })
   const ve = (u: string) => como(db, u, async () => (await db.query(`select 1 from public.contracts where id = $1`, [id])).rows.length)
 
-  it('corredor: no ve contratos; Finanzas, Legal, Gerencia y supervisor del equipo sí', async () => {
-    expect(await ve(carlos)).toBe(0)
+  it('el corredor ve solo sus contratos; Finanzas, Legal, Gerencia y supervisor del equipo también', async () => {
+    expect(await ve(carlos)).toBe(1)
     expect(await ve(cora)).toBe(0)
     expect(await ve(legal)).toBe(1)
     expect(await ve(finanzas)).toBe(1)
@@ -280,7 +283,8 @@ describe('permisos en Ventas', () => {
   it('hitos y documentos siguen el acceso al contrato', async () => {
     await rpc(legal, `select public.contratos_registrar_documento($1, 'borrador', 'borrador.pdf', '')`, [id])
     const contar = (u: string) => como(db, u, async () => (await db.query(`select 1 from public.contract_documents where contract_id = $1`, [id])).rows.length)
-    expect(await contar(carlos)).toBe(0)
+    expect(await contar(carlos)).toBe(1)
+    expect(await contar(cora)).toBe(0)
     expect(await contar(legal)).toBe(1)
   })
 

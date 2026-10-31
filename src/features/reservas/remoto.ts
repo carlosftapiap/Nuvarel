@@ -39,19 +39,16 @@ export async function cargarReservas(datos: Datos): Promise<ReservasState> {
   }
 }
 
-/** El cliente acepta la cotización y se solicita la reserva. Si la solicitud falla, la aceptación queda registrada y se puede reintentar. */
-export async function solicitarReserva(d: Datos, cotizacionId: string, estadoCotizacion: string | undefined) {
-  if (estadoCotizacion === 'emitida') await d.rpc('cotizaciones_aceptar', { p_quote: cotizacionId, p_motivo: 'Aceptada por el cliente' })
-  await d.rpc('reservas_solicitar', { p_quote_id: cotizacionId })
-}
+/** El cliente acepta la cotización y se crea la solicitud con el monto acordado: una sola transacción en el servidor. Reintentarla no la duplica. No registra pagos. */
+export const solicitarReserva = (d: Datos, cotizacionId: string, monto: number) =>
+  d.rpc<string>('reservas_solicitar_acordada', { p_quote_id: cotizacionId, p_monto: monto })
 
-/** El vendedor registra el comprobante, y el monto si difiere del 6% (nunca mayor). Es evidencia: no confirma el pago. */
-export async function registrarComprobante(d: Datos, r: Reserva, referencia: string, monto: number | null) {
-  if (monto !== null && monto !== r.montoReserva) await d.rpc('reservas_fijar_monto', { p_id: r.id, p_monto: monto, p_motivo: 'Monto de reserva acordado con el cliente' })
-  await d.rpc('reservas_adjuntar_comprobante', { p_id: r.id, p_referencia: referencia, p_path: null })
-}
+/** Monto acordado con el cliente, mientras la reserva está solicitada. El servidor exige que no supere el 6 %. No es un pago. */
+export const fijarMonto = (d: Datos, id: string, monto: number) =>
+  d.rpc('reservas_fijar_monto', { p_id: id, p_monto: monto, p_motivo: 'Monto de reserva acordado con el cliente' })
 
-export const verificarPago = (d: Datos, id: string, monto: number, referencia: string) =>
-  d.rpc('reservas_verificar_pago', { p_id: id, p_monto: monto, p_fecha: hoyGuayaquil(), p_referencia: referencia, p_motivo: 'Ingreso verificado en banco' })
+/** Finanzas confirma tras verificar el ingreso en el banco. El servidor emite el recibo en la misma operación. */
+export const confirmarPago = (d: Datos, id: string, monto: number, referencia: string, verificadoBanco: boolean) =>
+  d.rpc<string | null>('reservas_confirmar_pago', { p_id: id, p_monto: monto, p_fecha: hoyGuayaquil(), p_referencia: referencia, p_verificado_banco: verificadoBanco, p_motivo: 'Ingreso verificado en banco' })
 export const aprobar = (d: Datos, id: string, motivo: string) => d.rpc('reservas_aprobar', { p_id: id, p_motivo: motivo })
 export const anular = (d: Datos, id: string, motivo: string) => d.rpc('reservas_anular', { p_id: id, p_motivo: motivo })

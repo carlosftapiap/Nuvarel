@@ -176,7 +176,7 @@ describe('permisos y RLS con usuarios de prueba', () => {
   it('no se puede escribir directo en las tablas, ni siquiera en un cliente propio', async () => {
     await expect(como(db, cora, () => db.query(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by) values ('Directo', '0990009999', 'whatsapp', $1, $1)`, [cora]))).rejects.toThrow(/row-level security/)
     await expect(como(db, cora, () => db.query(`update public.clients set nombre = 'Cambiado' where id = $1`, [deCora]))).rejects.toThrow(/row-level security/)
-    await expect(como(db, cora, () => db.query(`insert into public.client_activities (client_id, tipo, fecha, descripcion, user_id) values ($1, 'nota', current_date, 'Directa', $2)`, [deCora, cora]))).rejects.toThrow(/row-level security/)
+    await expect(como(db, cora, () => db.query(`insert into public.client_activities (client_id, tipo, fecha, descripcion, user_id) values ($1, 'nota', (now() at time zone 'America/Guayaquil')::date, 'Directa', $2)`, [deCora, cora]))).rejects.toThrow(/row-level security/)
     await expect(como(db, cora, () => db.query(`insert into public.opportunities (client_id, responsable_id, created_by) values ($1, $2, $2)`, [deCora, cora]))).rejects.toThrow(/row-level security/)
     const op = await uno<{ id: string }>(`select id from public.opportunities where client_id = $1`, [deCora])
     await expect(como(db, cora, () => db.query(`update public.opportunities set responsable_id = $1 where id = $2`, [carlos, op.id]))).rejects.toThrow(/permiso|row-level security/)
@@ -201,7 +201,7 @@ describe('permisos y RLS con usuarios de prueba', () => {
 
   it('un corredor no modifica clientes ajenos aunque conozca el identificador', async () => {
     await expect(rpc(carlos, `select public.clientes_mover_etapa($1, null, 'contactado', null, null)`, [deCora])).rejects.toThrow(/fuera de tu alcance/)
-    await expect(rpc(carlos, `select public.clientes_registrar_actividad(gen_random_uuid(), $1, 'nota', current_date, 'Ajena', null)`, [deCora])).rejects.toThrow(/fuera de tu alcance/)
+    await expect(rpc(carlos, `select public.clientes_registrar_actividad(gen_random_uuid(), $1, 'nota', (now() at time zone 'America/Guayaquil')::date, 'Ajena', null)`, [deCora])).rejects.toThrow(/fuera de tu alcance/)
     await expect(rpc(carlos, `select public.clientes_editar($1, null, '{"nombre": "Robado", "telefono": "0990007777", "origen": "whatsapp"}'::jsonb)`, [deCora])).rejects.toThrow(/fuera de tu alcance/)
     await expect(rpc(carlos, `select public.oportunidades_crear($1, 'E1-PB-A2', null)`, [deCora])).rejects.toThrow(/fuera de tu alcance/)
   })
@@ -270,9 +270,9 @@ describe('etapas', () => {
   it('perdido exige motivo y seguimiento una fecha futura', async () => {
     const id = await crear(cora, { nombre: 'Reglas de etapa' })
     await expect(rpc(cora, `select public.clientes_mover_etapa($1, null, 'perdido', 'no', null)`, [id])).rejects.toThrow(/motivo/)
-    await expect(rpc(cora, `select public.clientes_mover_etapa($1, null, 'seguimiento', null, current_date)`, [id])).rejects.toThrow(/fecha futura/)
+    await expect(rpc(cora, `select public.clientes_mover_etapa($1, null, 'seguimiento', null, (now() at time zone 'America/Guayaquil')::date)`, [id])).rejects.toThrow(/fecha futura/)
     await expect(rpc(cora, `select public.clientes_mover_etapa($1, null, 'inventada', null, null)`, [id])).rejects.toThrow(/Etapa no válida/)
-    await rpc(cora, `select public.clientes_mover_etapa($1, null, 'seguimiento', null, current_date + 30)`, [id])
+    await rpc(cora, `select public.clientes_mover_etapa($1, null, 'seguimiento', null, (now() at time zone 'America/Guayaquil')::date + 30)`, [id])
     expect(await cliente(id)).toMatchObject({ etapa: 'seguimiento', proxima_tipo: 'llamada' })
   })
 
@@ -375,12 +375,19 @@ describe('compatibilidad con cotizaciones, reservas y cobranzas', () => {
     const q = (await rpc<{ id: string }>(vera, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [oportunidad])).id
     await rpc(vera, `select public.cotizaciones_aceptar($1, 'Cliente acepta la cotización')`, [q])
     const r = (await rpc<{ id: string }>(vera, `select public.reservas_solicitar($1) as id`, [q])).id
-    await rpc(vera, `select public.reservas_adjuntar_comprobante($1, $2, 'comprobantes/x.pdf')`, [r, `TRF-${r.slice(0, 8)}`])
+    await rpc(vera, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', $2, jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r, `TRF-${r.slice(0, 8)}`])
     return { q, r }
   }
+  /** Desistimiento de una reserva aprobada con dinero: lo registra un asesor, lo autoriza Gerencia y lo revisa Finanzas. */
+  async function desistirAprobada(opp: string, cliente: string) {
+    const d = (await rpc<{ id: string }>(vera, `select public.desistimientos_registrar($1, $2, 'cambio_decision', 'Cambio de decisión en prueba') as id`, [cliente, opp])).id
+    await rpc(gerente, `select public.desistimientos_autorizar($1, 'Autorizado en prueba')`, [d])
+    await rpc(finanzas, `select public.desistimientos_revisar_finanzas($1, 'Retención según política comercial')`, [d])
+  }
+
   async function aprobar(r: string) {
     const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [r])
-    await rpc(finanzas, `select public.reservas_verificar_pago($1, $2, $3::date, $4, 'Ingreso confirmado en banco')`, [r, m.monto_reserva, hoy(), `BAN-${r.slice(0, 8)}`])
+    await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado en banco')`, [r, m.monto_reserva, hoy(), `BAN-${r.slice(0, 8)}`])
     await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité de prueba')`, [r])
   }
 
@@ -425,22 +432,23 @@ describe('compatibilidad con cotizaciones, reservas y cobranzas', () => {
     await expect(rpc(admin, `select public.clientes_mover_etapa($1, null, 'perdido', 'Intento de administración', null)`, [id])).rejects.toThrow(/solo cambia al aprobar/)
   })
 
-  it('anular una de dos reservas confirmadas no retrocede al cliente', async () => {
+  it('desistir de una de dos reservas confirmadas no retrocede al cliente', async () => {
     await aprobar(reservaB)
-    await rpc(gerente, `select public.reservas_anular($1, 'Cliente desiste de esta unidad')`, [reservaB])
+    await desistirAprobada(opB, id)
     expect((await cliente(id)).etapa).toBe('reserva')
     const oB = await uno<{ etapa: string }>(`select etapa from public.opportunities where id = $1`, [opB])
-    expect(oB.etapa).toBe('cotizacion')
+    expect(oB.etapa).toBe('perdida')
   })
 
-  it('anular la única reserva confirmada devuelve al cliente a Negociación', async () => {
+  it('desistir de la única reserva confirmada lleva al cliente a Perdido, y no se puede anular directo', async () => {
     const otro = await crear(vera, { nombre: 'Una sola reserva', email: 'una@correo.com' })
     const op = (await rpc<{ id: string }>(vera, `select public.oportunidades_crear($1, 'E1-P2-A2', null) as id`, [otro])).id
     const { r } = await cotizarYReservar(op)
     await aprobar(r)
     expect((await cliente(otro)).etapa).toBe('reserva')
-    await rpc(gerente, `select public.reservas_anular($1, 'Cliente desiste de la compra')`, [r])
-    expect((await cliente(otro)).etapa).toBe('negociacion')
+    await expect(rpc(gerente, `select public.reservas_anular($1, 'Cliente desiste de la compra')`, [r])).rejects.toThrow(/requiere autorización/)
+    await desistirAprobada(op, otro)
+    expect((await cliente(otro)).etapa).toBe('perdido')
   })
 
   it('el contrato y la cobranza siguen funcionando y leen el cliente de la base', async () => {
@@ -553,7 +561,7 @@ describe('instalación de la migración', () => {
     const base = await crearDb({ hasta: '20261029060000_financiamiento_catalogo.sql' })
     const u = await crearUsuario(base, 'Vera', 'asesor')
     const c = (await base.query<{ id: string }>(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id, etapa, unidades_interes) values ('Existente', '0998880001', 'whatsapp', $1, $1, $1, 'visita', '{E1-PB-A2}') returning id`, [u])).rows[0].id
-    await base.query(`insert into public.client_activities (client_id, tipo, fecha, descripcion, user_id) values ($1, 'llamada', current_date, 'Antes de migrar', $2)`, [c, u])
+    await base.query(`insert into public.client_activities (client_id, tipo, fecha, descripcion, user_id) values ($1, 'llamada', (now() at time zone 'America/Guayaquil')::date, 'Antes de migrar', $2)`, [c, u])
     await base.exec(sql)
     await base.exec(sql)
     const f = (await base.query<{ nombre: string; etapa: string; version: number; atribucion_usuario_id: string; unidades_interes: string[] }>(`select nombre, etapa, version, atribucion_usuario_id, unidades_interes from public.clients where id = $1`, [c])).rows[0]
@@ -576,5 +584,5 @@ describe('lectura por páginas', () => {
     expect(todas).toBeGreaterThan(4)
     expect((await cargarClientes(limitado)).state.clientes).toHaveLength(todas)
     expect(await version((await cargarClientes(limitado)).state.clientes[0].id)).toBeGreaterThan(0)
-  })
+  }, 60_000)
 })

@@ -1,17 +1,24 @@
 import type { Edificio, PricingParams, Unit, UnitSeed } from './types'
 
-/**
- * Parámetros de la lista base del 28/10/2026 (simulador AMURA, hoja "Parametros").
- * Forma de pago: 6% reserva + 14% en cuotas (30 meses E1 / 42 meses E2) + 80% contra entrega.
- */
-export const DEFAULT_PARAMS: PricingParams = {
-  patioUsdM2: 230,
-  reservaPct: 6,
-  cuotasPct: 14,
-  meses: { 1: 30, 2: 42 },
-}
+/** El 6 % acumulado a la firma forma parte de la entrada del 20 %. La reserva es otro concepto: un monto configurable que se acredita a él. */
+export const etiquetaPagoFirma = (pct: number) => `Pago a la firma ${pct} %`
+export const RESERVA_PREDETERMINADA = 500
+export const NOTA_RESERVA = 'La reserva es un monto aparte, acordado con el cliente, y se descuenta del pago a la firma: no se cobra dos veces.'
 
 export const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100
+
+/** Lee un monto escrito a mano: 600 · 600,50 · 600.50 · 1.500 · 1,500 · 1.500,50. Vacío: null; ilegible: NaN. */
+export function leerMonto(txt: string): number | null {
+  const t = txt.replace(/[\s$]/g, '')
+  if (!t) return null
+  const coma = t.lastIndexOf(','), punto = t.lastIndexOf('.')
+  const decimal = coma >= 0 && punto >= 0 ? (coma > punto ? ',' : '.') : null
+  let limpio: string
+  if (decimal) limpio = t.split(decimal === ',' ? '.' : ',').join('').replace(',', '.')
+  else if (/^\d{1,3}([.,]\d{3})+$/.test(t)) limpio = t.replace(/[.,]/g, '')
+  else limpio = t.replace(',', '.')
+  return /^\d*\.?\d+$/.test(limpio) ? Number(limpio) : NaN
+}
 
 export interface PriceBreakdown {
   areaVendibleM2: number
@@ -24,6 +31,8 @@ export interface PriceBreakdown {
   cuotasTotal: number
   meses: number
   cuotaMensual: number
+  /** Absorbe los centavos: (meses − 1) × cuota + última = total de cuotas. */
+  ultimaCuota: number
   contraEntrega: number
   contraEntregaPct: number
 }
@@ -42,6 +51,7 @@ export function calcularPrecio(u: PricedUnit, p: PricingParams): PriceBreakdown 
   const reserva = round2((precioVenta * p.reservaPct) / 100)
   const cuotasTotal = round2((precioVenta * p.cuotasPct) / 100)
   const meses = p.meses[u.edificio as Edificio]
+  const cuotaMensual = meses > 0 ? round2(cuotasTotal / meses) : 0
   return {
     areaVendibleM2,
     usdM2: u.usdM2,
@@ -52,7 +62,8 @@ export function calcularPrecio(u: PricedUnit, p: PricingParams): PriceBreakdown 
     reserva,
     cuotasTotal,
     meses,
-    cuotaMensual: meses > 0 ? round2(cuotasTotal / meses) : 0,
+    cuotaMensual,
+    ultimaCuota: meses > 0 ? round2(cuotasTotal - cuotaMensual * (meses - 1)) : 0,
     contraEntrega: round2(precioVenta - reserva - cuotasTotal),
     contraEntregaPct: round2(100 - p.reservaPct - p.cuotasPct),
   }
@@ -72,6 +83,11 @@ const m2Fmt = new Intl.NumberFormat('es-EC', { minimumFractionDigits: 2, maximum
 
 export const fmtUsd = (v: number) => usdFmt.format(Math.round(v))
 export const fmtUsd2 = (v: number) => usd2Fmt.format(v)
+/** "30 cuotas de entrada de $754,87", con la última aparte si absorbe centavos. */
+export const fmtCuotas = (p: Pick<PriceBreakdown, 'meses' | 'cuotaMensual' | 'ultimaCuota'>) =>
+  p.cuotaMensual === p.ultimaCuota
+    ? `${p.meses} cuotas de entrada de ${fmtUsd2(p.cuotaMensual)}`
+    : `${p.meses - 1} cuotas de entrada de ${fmtUsd2(p.cuotaMensual)} y una última de ${fmtUsd2(p.ultimaCuota)}`
 export const fmtM2 = (v: number) => `${m2Fmt.format(v)} m²`
 export const fmtNum = (v: number) => m2Fmt.format(v)
 export const fmtPct = (v: number) => `${v > 0 ? '+' : ''}${v.toLocaleString('es-EC', { maximumFractionDigits: 2 })}%`

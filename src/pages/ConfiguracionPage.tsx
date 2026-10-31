@@ -22,19 +22,31 @@ import { useInventory } from '@/features/inventario/store'
 import { useReservas } from '@/features/reservas/store'
 import { cn } from '@/lib/utils'
 import { useConexion } from '@/app/auth'
+import EquiposRemoto from '@/features/config/remoto/EquiposRemoto'
+import ArchivosSinVincular from '@/features/config/remoto/ArchivosSinVincular'
+import MultimediaProyecto from '@/features/config/remoto/MultimediaProyecto'
+import ReceptorPagos from '@/features/config/remoto/ReceptorPagos'
+import ReservaPredeterminada from '@/features/config/remoto/ReservaPredeterminada'
+import RolesRemoto from '@/features/config/remoto/RolesRemoto'
 import UsuariosRemoto, { AuditoriaRemota, type AccionesCuenta } from '@/features/config/remoto/UsuariosRemoto'
 import { supabase } from '@/lib/supabase'
 
-/** Acciones de Supabase Auth: recuperación (cualquier correo, respuesta neutra) e invitación (función del servidor con permisos verificados). */
+/** Crea cuentas y cambia contraseñas en el servidor: la clave de servicio no puede estar en el navegador. */
+async function llamarCuentas(body: Record<string, unknown>) {
+  const { error } = await supabase.functions.invoke('crear-usuario', { body })
+  if (!error) return
+  const detalle = await (error as { context?: Response }).context?.json?.().catch(() => null) as { error?: string } | null | undefined
+  throw new Error(detalle?.error ?? `No se pudo completar: ${error.message}. Verifica que la función crear-usuario esté desplegada.`)
+}
+
+/** Acciones de Supabase Auth: recuperación por correo, alta con contraseña y cambio de contraseña. */
 const accionesSupabase: AccionesCuenta = {
   enviarRecuperacion: async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` })
     if (error) throw new Error(error.message)
   },
-  invitar: async ({ nombre, email, rolId, motivo }) => {
-    const { error } = await supabase.functions.invoke('invitar-usuario', { body: { nombre, email, rolId, alcance: null, supervisorId: null, equipoId: null, proyectos: ['AMURA'], motivo } })
-    if (error) throw new Error(`No se pudo invitar: ${error.message}. Verifica que la función invitar-usuario esté desplegada.`)
-  },
+  crearUsuario: ({ nombre, email, password, rolId, alcance, equipoId, motivo }) => llamarCuentas({ accion: 'crear', nombre, email, password, rolId, alcance, equipoId, supervisorId: null, motivo }),
+  cambiarClave: ({ usuarioId, password, motivo }) => llamarCuentas({ accion: 'clave', usuarioId, password, motivo }),
 }
 
 export default function ConfiguracionPage() {
@@ -42,20 +54,34 @@ export default function ConfiguracionPage() {
   return remoto && datos ? <ConfiguracionRemota /> : <ConfiguracionLocal />
 }
 
-/** Con Supabase: usuarios y auditoría reales. Roles, equipos y excepciones individuales aún se editan en modo local. */
+/** Con Supabase: usuarios, equipos, roles y auditoría reales. Cada cambio lo verifica y lo registra el servidor. */
 function ConfiguracionRemota() {
   const { can } = useSession()
   const { datos } = useConexion()
+  const [version, setVersion] = useState(0)
+  const verUsuarios = can('config.usuarios') || can('config.equipos') || can('config.cobros')
   return (
     <>
-      <PageHeader eyebrow="Sistema · Configuración" title="Configuración" subtitle="Usuarios reales de Supabase y auditoría. Cada cambio de acceso exige motivo y queda registrado." />
-      <Tabs defaultValue={can('config.usuarios') ? 'usuarios' : 'auditoria'} className="min-w-0">
+      <PageHeader eyebrow="Sistema · Configuración" title="Configuración" subtitle="Usuarios, roles y permisos, y auditoría. Cada cambio de acceso exige motivo y queda registrado." />
+      <Tabs defaultValue={verUsuarios ? 'usuarios' : can('config.roles') ? 'roles' : can('config.auditoria') ? 'auditoria' : 'multimedia'} className="min-w-0">
         <TabsList className="mb-3">
-          {can('config.usuarios') && <TabsTrigger value="usuarios">Usuarios</TabsTrigger>}
+          {verUsuarios && <TabsTrigger value="usuarios">Usuarios</TabsTrigger>}
+          {can('config.roles') && <TabsTrigger value="roles">Roles y permisos</TabsTrigger>}
           {can('config.auditoria') && <TabsTrigger value="auditoria">Auditoría</TabsTrigger>}
+          {can('config.multimedia') && <TabsTrigger value="multimedia">Multimedia del proyecto</TabsTrigger>}
         </TabsList>
-        {can('config.usuarios') && <TabsContent value="usuarios"><UsuariosRemoto datos={datos!} acciones={accionesSupabase} /></TabsContent>}
+        {verUsuarios && (
+          <TabsContent value="usuarios" className="grid gap-4">
+            {can('config.usuarios') && <UsuariosRemoto datos={datos!} acciones={accionesSupabase} version={version} />}
+            {can('config.equipos') && <EquiposRemoto datos={datos!} onCambio={() => setVersion((v) => v + 1)} />}
+            {can('config.cobros') && <ReceptorPagos datos={datos!} />}
+            {can('config.cobros') && <ReservaPredeterminada datos={datos!} />}
+            {can('config.cobros') && <ArchivosSinVincular datos={datos!} />}
+          </TabsContent>
+        )}
+        {can('config.roles') && <TabsContent value="roles"><RolesRemoto datos={datos!} /></TabsContent>}
         {can('config.auditoria') && <TabsContent value="auditoria"><AuditoriaRemota datos={datos!} /></TabsContent>}
+        {can('config.multimedia') && <TabsContent value="multimedia"><MultimediaProyecto datos={datos!} /></TabsContent>}
       </Tabs>
     </>
   )

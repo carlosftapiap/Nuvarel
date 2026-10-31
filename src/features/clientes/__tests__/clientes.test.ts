@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { PermissionError } from '@/app/permissions'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
-import { createInitialState } from '@/features/inventario/service'
 import type { Actor } from '@/features/inventario/types'
-import {
-  actualizarCliente, clientesVisibles, completarProxima, crearCliente, estadoInicialClientes, moverEtapa,
-  programarProxima, registrarActividad, resumenClientes, urgencia, vincularCotizacion, type ClienteInput,
-} from '../service'
+import { actualizarCliente, clientesVisibles, completarProxima, crearCliente, estadoInicialClientes, moverEtapa, programarProxima, registrarActividad, resumenClientes, urgencia, vincularCotizacion, type ClienteInput } from '../service'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 
 const asesor: Actor = { id: 'u-ana-asesora', nombre: 'Ana Asesora', rol: 'asesor' }
 const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia', alcance: { tipo: 'empresa', usuarios: [] } }

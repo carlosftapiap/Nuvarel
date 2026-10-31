@@ -70,3 +70,12 @@ export function datosPglite(db: PGlite, userId: string): Datos {
     },
   }
 }
+
+/** Storage simulado para las pantallas: la subida se registra en memoria. */
+export const almacenPrueba = {
+  archivos: new Set<string>(),
+  async subir(_b: string, ruta: string) { almacenPrueba.archivos.add(ruta) },
+  async descargar() { return new ArrayBuffer(4) },
+  async quitar(_b: string, ruta: string) { almacenPrueba.archivos.delete(ruta) },
+}
+export const archivoPrueba = () => new File(['comprobante'], 'comprobante.pdf', { type: 'application/pdf' })

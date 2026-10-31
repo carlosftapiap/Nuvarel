@@ -9,13 +9,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { FieldError, pisoCorto } from '@/features/inventario/components/shared'
+import { FieldError, ReglaPrecios, pisoCorto } from '@/features/inventario/components/shared'
 import { calcularPrecio, fmtFecha, fmtNum, fmtPct, fmtUsd, round2, totalVenta } from '@/features/inventario/pricing'
-import { aprobarPropuesta, crearPropuesta, previsualizarCambioPrecio, rechazarPropuesta, type Alcance, type ModoPrecio } from '@/features/inventario/service'
+import { aprobarPropuesta, guardarCambioPrecio, previsualizarCambioPrecio, rechazarPropuesta, type Alcance, type ModoPrecio } from '@/features/inventario/service'
 import { useInventory } from '@/features/inventario/store'
 import type { Edificio, Piso, PriceProposal, Tipologia } from '@/features/inventario/types'
-import { comparacionPorPiso, conteoPosiciones, posicion, POSICION_LABEL, rangoParaPiso, RANGO_FRATELLI_TOTAL, type Posicion } from '@/features/precios/competencia'
-import { FRATELLI, FUENTE_FRATELLI } from '@/features/precios/data/fratelli'
+import { comparacionPorPiso, conteoPosiciones, posicion, POSICION_LABEL, rangoParaPiso, type Posicion, type RangoFratelli } from '@/features/precios/competencia'
+import { useFratelli } from '@/features/precios/useFratelli'
 import { cn } from '@/lib/utils'
 
 const POS_TONE: Record<Posicion, string> = {
@@ -29,6 +29,7 @@ export default function PreciosPage() {
   const { state } = useInventory()
   const { can } = useSession()
   const pendientes = state.propuestas.filter((p) => p.estado === 'pendiente').length
+  const fratelli = useFratelli()
   return (
     <>
       <PageHeader eyebrow="Ventas · Precios" title="Precios dinámicos"
@@ -40,9 +41,9 @@ export default function PreciosPage() {
           <TabsTrigger value="propuestas">Propuestas{pendientes ? ` (${pendientes})` : ''}</TabsTrigger>
           {can('precios.competencia') && <TabsTrigger value="competencia">Competencia FRATELLI</TabsTrigger>}
         </TabsList>
-        <TabsContent value="simulacion" className="min-w-0"><Simulacion /></TabsContent>
+        <TabsContent value="simulacion" className="min-w-0"><Simulacion rangos={fratelli.rangos} /></TabsContent>
         <TabsContent value="propuestas" className="min-w-0"><Propuestas /></TabsContent>
-        {can('precios.competencia') && <TabsContent value="competencia" className="min-w-0"><Competencia /></TabsContent>}
+        {can('precios.competencia') && <TabsContent value="competencia" className="min-w-0"><Competencia fratelli={fratelli} /></TabsContent>}
       </Tabs>
     </>
   )
@@ -50,10 +51,11 @@ export default function PreciosPage() {
 
 /* ------------------------------------------------------------------ simulación */
 
-function Simulacion() {
+function Simulacion({ rangos }: { rangos: Record<string, RangoFratelli> | null }) {
   const { state, update } = useInventory()
   const { actor, can } = useSession()
-  const [edificio, setEdificio] = useState('todos')
+  // Sin valor inicial: el edificio se elige, también para simular.
+  const [edificio, setEdificio] = useState('')
   const [piso, setPiso] = useState('todos')
   const [tipologia, setTipologia] = useState('todos')
   const [modo, setModo] = useState<ModoPrecio>('porcentaje')
@@ -69,7 +71,7 @@ function Simulacion() {
   }
   const numero = Number(valor.replace(',', '.'))
   const preview = useMemo(() => {
-    if (!valor.trim()) return { data: null, error: null }
+    if (!valor.trim() || !edificio) return { data: null, error: null }
     try { return { data: previsualizarCambioPrecio(state, { alcance, modo, valor: numero, motivo: '' }), error: null } }
     catch (e) { return { data: null, error: (e as Error).message } }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,8 +84,8 @@ function Simulacion() {
   function proponer() {
     setError(null); setOk(null)
     try {
-      update((s) => crearPropuesta(s, { alcance, modo, valor: numero, motivo }, actor))
-      setOk('Propuesta enviada a aprobación. Los precios oficiales no cambian hasta que administración la apruebe.')
+      update((s) => guardarCambioPrecio(s, { alcance, modo, valor: numero, motivo }, actor))
+      setOk(can('precios.aprobar') ? 'Cambio aplicado: ya es el precio oficial.' : 'Propuesta enviada a aprobación. Los precios oficiales no cambian hasta que administración la apruebe.')
       setValor(''); setMotivo('')
     } catch (e) { setError((e as Error).message) }
   }
@@ -93,7 +95,7 @@ function Simulacion() {
       <section className="dashboard-card p-5 grid content-start gap-4" aria-label="Parámetros de la simulación">
         <div className="grid gap-2">
           <span className="text-xs font-medium">Alcance</span>
-          <Sel id="sim-ed" label="Edificio" value={edificio} onChange={setEdificio} items={[['todos', 'Ambos edificios'], ['1', 'Edificio 1'], ['2', 'Edificio 2']]} />
+          <Sel id="sim-ed" label="Edificio" placeholder="Elige el edificio" value={edificio} onChange={setEdificio} items={[['todos', 'Ambos edificios'], ['1', 'Edificio 1'], ['2', 'Edificio 2']]} />
           <Sel id="sim-piso" label="Piso" value={piso} onChange={setPiso} items={[['todos', 'Todos los pisos'], ['PB', 'Planta baja'], ['1', 'Piso 1'], ['2', 'Piso 2'], ['3', 'Piso 3'], ['4', 'Piso 4'], ['5', 'Piso 5']]} />
           <Sel id="sim-tip" label="Tipología" value={tipologia} onChange={setTipologia} items={[['todos', 'Todas'], ['1 hab', '1 hab'], ['2 hab', '2 hab'], ['2 hab + estudio', '2 hab + estudio']]} />
         </div>
@@ -110,14 +112,16 @@ function Simulacion() {
           <Label htmlFor="sim-valor" className="text-[11px] text-muted-foreground">{modo === 'porcentaje' ? 'Porcentaje (negativo para reducir)' : 'Nuevo USD/m²'}</Label>
           <Input id="sim-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={modo === 'porcentaje' ? 'Ej. 2 o -1,5' : 'Ej. 2300'} className="h-9" />
         </div>
+        {!edificio && <p className="rounded-md bg-muted px-3 py-2 text-[11px] text-muted-foreground">Elige el edificio para simular o preparar el cambio.</p>}
         <FieldError>{preview.error}</FieldError>
         {can('precios.proponer') ? (
           <div className="grid gap-2">
-            <Label htmlFor="sim-motivo" className="text-xs">Motivo de la propuesta</Label>
+            <ReglaPrecios />
+            <Label htmlFor="sim-motivo" className="text-xs">Motivo del cambio</Label>
             <Textarea id="sim-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Alinear piso 1 del Edificio 2 con FRATELLI" />
             <FieldError>{error}</FieldError>
             {ok && <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-200">{ok}</p>}
-            <Button onClick={proponer} disabled={!preview.data?.cambios.length || motivo.trim().length < 5}>Enviar a aprobación</Button>
+            <Button onClick={proponer} disabled={!preview.data?.cambios.length || motivo.trim().length < 5}>{can('precios.aprobar') ? 'Aplicar cambio' : 'Enviar a aprobación'}</Button>
           </div>
         ) : <p className="rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">Puedes simular; solo gerencia y administración envían propuestas.</p>}
       </section>
@@ -140,7 +144,7 @@ function Simulacion() {
                   {preview.data.cambios.map((c) => {
                     const u = porCodigo.get(c.codigo)!
                     const nuevoComp = calcularPrecio({ ...u, usdM2: c.despuesUsdM2 }, state.params)
-                    const pos = posicion(nuevoComp.precioAreaBodega / nuevoComp.areaVendibleM2, rangoParaPiso(u.piso))
+                    const pos = rangos ? posicion(nuevoComp.precioAreaBodega / nuevoComp.areaVendibleM2, rangoParaPiso(u.piso, rangos)) : null
                     return (
                       <tr key={c.codigo} className="border-t border-border">
                         <td className="px-4 py-1.5"><b>{u.dpt}</b> <span className="text-muted-foreground">E{u.edificio} · {pisoCorto(u.piso)} · {u.tipologia}</span></td>
@@ -148,7 +152,7 @@ function Simulacion() {
                         <td className="px-2 py-1.5 text-right tabular-nums">{fmtUsd(c.antesPrecio)}</td>
                         <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{fmtUsd(c.despuesPrecio)}</td>
                         <td className={`px-2 py-1.5 text-right tabular-nums ${c.despuesPrecio >= c.antesPrecio ? 'text-emerald-700' : 'text-rose-700'}`}>{c.despuesPrecio >= c.antesPrecio ? '+' : ''}{fmtUsd(c.despuesPrecio - c.antesPrecio)}</td>
-                        {can('precios.competencia') && <td className="px-4 py-1.5"><PosBadge p={pos} /></td>}
+                        {can('precios.competencia') && <td className="px-4 py-1.5">{pos ? <PosBadge p={pos} /> : <span className="text-muted-foreground">—</span>}</td>}
                       </tr>
                     )
                   })}
@@ -214,17 +218,20 @@ function PropuestaCard({ p }: { p: PriceProposal }) {
 
 /* ------------------------------------------------------------------ competencia */
 
-function Competencia() {
+function Competencia({ fratelli }: { fratelli: ReturnType<typeof useFratelli> }) {
   const { state } = useInventory()
-  const filas = useMemo(() => comparacionPorPiso(state.units, state.params), [state])
-  const conteo = conteoPosiciones(state.units, state.params)
+  const { lista, error, rangos, total } = fratelli
+  const filas = useMemo(() => (rangos ? comparacionPorPiso(state.units, state.params, rangos) : []), [state, rangos])
+  if (error) return <FieldError>{error}</FieldError>
+  if (!lista || !rangos || !total) return <p className="text-sm text-muted-foreground">Cargando competencia…</p>
+  const conteo = conteoPosiciones(state.units, state.params, rangos)
   const min = 2000, max = 2650
   const pct = (v: number) => `${((v - min) / (max - min)) * 100}%`
   return (
     <div className="grid gap-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi t="FRATELLI · rango de precio" v={`${fmtUsd(RANGO_FRATELLI_TOTAL.precioMin)} – ${fmtUsd(RANGO_FRATELLI_TOTAL.precioMax)}`} d={`${FRATELLI.length} unidades`} />
-        <Kpi t="FRATELLI · USD/m²" v={`${fmtNum(RANGO_FRATELLI_TOTAL.m2Min)} – ${fmtNum(RANGO_FRATELLI_TOTAL.m2Max)}`} d="Precio / (dpto + bodega)" />
+        <Kpi t="FRATELLI · rango de precio" v={`${fmtUsd(total.precioMin)} – ${fmtUsd(total.precioMax)}`} d={`${lista.length} unidades`} />
+        <Kpi t="FRATELLI · USD/m²" v={`${fmtNum(total.m2Min)} – ${fmtNum(total.m2Max)}`} d="Precio / (dpto + bodega)" />
         <Kpi t="AMURA · USD/m² promedio" v={fmtNum(filas.reduce((t, f) => t + f.amuraM2 * f.unidades, 0) / filas.reduce((t, f) => t + f.unidades, 0))} d="Área + bodega, sin patio" />
         <Kpi t="AMURA frente al rango" v={`${conteo.bajo} · ${conteo.dentro} · ${conteo.sobre}`} d="Bajo · dentro · sobre (por unidad)" />
       </div>
@@ -255,7 +262,7 @@ function Competencia() {
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Torre · Depto</th><th className="px-2 py-2 text-left font-medium">Planta</th><th className="px-2 py-2 text-right font-medium">Dpto + bodega</th><th className="px-2 py-2 text-right font-medium">Patio</th><th className="px-2 py-2 text-right font-medium">Precio total</th><th className="px-2 py-2 text-right font-medium">USD/m²</th><th className="px-2 py-2 text-left font-medium">Estado</th><th className="px-4 py-2 text-left font-medium">Entrega est.</th></tr></thead>
             <tbody>
-              {FRATELLI.map((f) => (
+              {lista.map((f) => (
                 <tr key={f.torre + f.depto} className="border-t border-border">
                   <td className="px-4 py-1.5">{f.torre} · {f.depto} <span className="text-muted-foreground">Modelo {f.modelo}</span></td>
                   <td className="px-2 py-1.5">{f.planta}</td>
@@ -270,7 +277,7 @@ function Competencia() {
             </tbody>
           </table>
         </div>
-        <p className="border-t border-border px-4 py-2 text-[10px] text-muted-foreground">Fuente: {FUENTE_FRATELLI}. Uso interno: no visible para corredores externos.</p>
+        <p className="border-t border-border px-4 py-2 text-[10px] text-muted-foreground">Fuente: {lista[0]?.fuente ?? ''}. Uso interno: no visible para corredores externos.</p>
       </section>
     </div>
   )
@@ -288,12 +295,12 @@ function Kpi({ t, v, d }: { t: string; v: string; d?: string }) {
   )
 }
 
-function Sel({ id, label, value, onChange, items }: { id: string; label: string; value: string; onChange: (v: string) => void; items: [string, string][] }) {
+function Sel({ id, label, value, onChange, items, placeholder }: { id: string; label: string; value: string; onChange: (v: string) => void; items: [string, string][]; placeholder?: string }) {
   return (
     <div className="grid gap-1">
       <Label htmlFor={id} className="text-[11px] text-muted-foreground">{label}</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
+        <SelectTrigger id={id} className="h-8 w-full text-xs"><SelectValue placeholder={placeholder} /></SelectTrigger>
         <SelectContent>{items.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
       </Select>
     </div>

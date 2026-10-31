@@ -9,6 +9,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
-    testTimeout: 20000,
+    testTimeout: 60000,
+    // Cada archivo crea su base con todas las migraciones: con la suite en paralelo puede tardar más de 10 s.
+    hookTimeout: 60000,
   },
 })

@@ -3,10 +3,10 @@ import { PermissionError } from '@/app/permissions'
 import { crearCliente, estadoInicialClientes, moverEtapa, vincularCotizacion } from '@/features/clientes/service'
 import { crearCotizacion, type Cotizacion, type CotizacionInput } from '@/features/cotizaciones/cotizacion'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
-import { cambiarEstado, createInitialState } from '@/features/inventario/service'
 import type { Actor, InventoryState } from '@/features/inventario/types'
 import { anularReserva, aprobarReserva, reservasVisibles, ReservaError, solicitarReserva, verificarPagoReserva, type Estado } from '../service'
 import { estadoInicialReservas } from '../service'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 
 const asesor: Actor = { id: 'u-ana-asesora', nombre: 'Ana Asesora', rol: 'asesor' }
 const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
@@ -18,11 +18,14 @@ const finanzas: Actor = { id: 'u-finanzas', nombre: 'Finanzas', rol: 'finanzas' 
 const confirmar = (e: Estado, id: string, input: { comprobante: string; montoRecibido: number }, aprobador: Actor) =>
   aprobarReserva(verificarPagoReserva(e, id, input, finanzas), id, 'Aprobada en comité', aprobador)
 
+/** Lleva una unidad al estado «por confirmar»: el de antes de esta versión, para probar sus reglas. */
+const porValidar = (s: InventoryState, codigo: string): InventoryState => ({ ...s, units: s.units.map((u) => (u.codigo === codigo ? { ...u, estado: 'por_confirmar' as const } : u)) })
+
 /** Escenario: cliente, unidad disponible y cotización emitida para ese cliente. */
 function escenario(opts: { fecha?: string; unidad?: string; disponible?: boolean } = {}) {
   const unidad = opts.unidad ?? 'E1-PB-A2'
   let inv: InventoryState = createInitialState()
-  if (opts.disponible !== false) inv = cambiarEstado(inv, unidad, 'disponible', 'Disponibilidad confirmada', gerencia)
+  if (opts.disponible === false) inv = porValidar(inv, unidad)
   const cli = crearCliente(estadoInicialClientes(), {
     nombre: 'María Pérez', telefono: '0991234567', email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [unidad],
     presupuesto: null, proposito: null, formaPago: null, asesorId: asesor.id, asesor: asesor.nombre,
@@ -44,7 +47,7 @@ describe('solicitud de reserva', () => {
   it('crea una solicitud sin bloquear la unidad', () => {
     const { e, cot } = escenario()
     const s = solicitarReserva(e, cot, asesor)
-    expect(s.res.reservas[0]).toMatchObject({ estado: 'solicitada', unidad: 'E1-PB-A2', cotizacionNumero: cot.numero, montoReserva: cot.plan.reserva })
+    expect(s.res.reservas[0]).toMatchObject({ estado: 'solicitada', unidad: 'E1-PB-A2', cotizacionNumero: cot.numero, montoReserva: 500 })
     expect(s.inv.units.find((u) => u.codigo === 'E1-PB-A2')!.estado).toBe('disponible')
   })
 
@@ -96,7 +99,7 @@ describe('confirmación de reserva', () => {
   it('no confirma con un monto menor a la reserva acordada', () => {
     const { e, cot } = escenario()
     const s = solicitarReserva(e, cot, asesor)
-    expect(() => confirmar(s, s.res.reservas[0].id, pago(cot.plan.reserva - 1), gerencia)).toThrow(/menor a la reserva/)
+    expect(() => confirmar(s, s.res.reservas[0].id, pago(499), gerencia)).toThrow(/menor a la reserva/)
   })
 
   it('exige comprobante de pago', () => {

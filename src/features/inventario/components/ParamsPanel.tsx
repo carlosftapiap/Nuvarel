@@ -43,12 +43,13 @@ export default function ParamsPanel({ onMessage }: { onMessage: (m: string) => v
         <div className="section-heading"><div><h2 id="par-title">Parámetros de precio y forma de pago</h2><p>{editable ? 'Sólo el administrador puede modificarlos. Cada cambio queda en el historial.' : 'Consulta. Sólo el administrador puede modificarlos.'}</p></div></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <Campo id="par-patio" label="Valor del m² de patio (USD)" value={form.patio} onChange={(v) => setForm({ ...form, patio: v })} disabled={!editable} />
-          <Campo id="par-reserva" label="Reserva (%)" value={form.reserva} onChange={(v) => setForm({ ...form, reserva: v })} disabled={!editable} />
-          <Campo id="par-cuotas" label="Cuotas durante la obra (%)" value={form.cuotas} onChange={(v) => setForm({ ...form, cuotas: v })} disabled={!editable} />
+          <Campo id="par-reserva" label="Pago a la firma, acumulado (%)" value={form.reserva} onChange={(v) => setForm({ ...form, reserva: v })} disabled />
+          <Campo id="par-cuotas" label="Cuotas durante la obra (%)" value={form.cuotas} onChange={(v) => setForm({ ...form, cuotas: v })} disabled />
           <div className="grid gap-1"><span className="text-[11px] text-muted-foreground">Contra entrega (calculado)</span><span className="flex h-8 items-center rounded-lg border border-border bg-muted px-3 text-sm tabular-nums">{Number.isFinite(contra) ? `${contra}%` : '—'}</span></div>
           <Campo id="par-m1" label="Meses de cuotas · Edificio 1" value={form.m1} onChange={(v) => setForm({ ...form, m1: v })} disabled={!editable} />
           <Campo id="par-m2" label="Meses de cuotas · Edificio 2" value={form.m2} onChange={(v) => setForm({ ...form, m2: v })} disabled={!editable} />
         </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">La entrada es política comercial fija: 6 % a la firma + 14 % en cuotas = 20 %; 80 % contra entrega.</p>
         {editable && (
           <div className="mt-4 grid gap-2">
             <Label htmlFor="par-motivo" className="text-xs">Motivo</Label>
@@ -68,8 +69,8 @@ export default function ParamsPanel({ onMessage }: { onMessage: (m: string) => v
           <li>Precio área + bodega = USD/m² × área vendible, redondeado al dólar.</li>
           <li>Valor patio = m² de patio × valor del m² de patio.</li>
           <li>Precio de venta = precio área + bodega + valor patio.</li>
-          <li>Reserva y cuotas = porcentaje del precio; cuota mensual = cuotas ÷ meses.</li>
-          <li>Contra entrega = precio − reserva − cuotas.</li>
+          <li>Pago a la firma y cuotas = porcentaje del precio. La reserva se acredita al pago a la firma; no se cobra dos veces. Cuota = cuotas ÷ meses; la última ajusta los centavos.</li>
+          <li>Contra entrega = precio − pago a la firma − cuotas.</li>
         </ol>
         <p className="mt-3">Fuente de la lista base: {FUENTES.lista}. Superficies verificadas con {FUENTES.bodegas} y {FUENTES.planos}.</p>
       </section>

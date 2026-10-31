@@ -10,6 +10,7 @@ import type { Cliente } from '@/features/clientes/model'
 import { ClientesProvider } from '@/features/clientes/store'
 import type { Actor } from '@/features/inventario/types'
 import { InventoryProvider } from '@/features/inventario/store'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 import { ReservasProvider } from '@/features/reservas/store'
 import ClientesPage from '@/pages/ClientesPage'
 import { datosPglite } from './datos-pglite'
@@ -32,7 +33,7 @@ async function abrirComo(id: string, base: PGlite = db, url = '/clientes') {
   return render(
     <ConexionProvider value={{ remoto: true, datos: datosPglite(base, id), cuenta: null, salir: async () => {} }}>
       <SessionProvider actorRemoto={actor}>
-        <InventoryProvider>
+        <InventoryProvider initialState={createInitialState()}>
           <ClientesProvider>
             <ReservasProvider>
               <MemoryRouter initialEntries={[url]}><ClientesPage /></MemoryRouter>
@@ -49,14 +50,16 @@ const fila = (base: PGlite, nombre: string) => base.query<{ id: string; etapa: s
 async function registrar(user: ReturnType<typeof userEvent.setup>, nombre: string, telefono: string) {
   await user.click((await screen.findAllByRole('button', { name: /Nuevo cliente/ }))[0])
   const dlg = await screen.findByRole('dialog', { name: 'Nuevo cliente' })
-  await user.type(within(dlg).getByLabelText('Nombre *'), nombre)
+  const [primero, ...resto] = nombre.split(' ')
+  await user.type(within(dlg).getByLabelText('Primer nombre *'), primero)
+  await user.type(within(dlg).getByLabelText('Primer apellido *'), resto.join(' '))
   await user.type(within(dlg).getByLabelText('Teléfono'), telefono)
   await user.click(within(dlg).getByRole('button', { name: 'Registrar cliente' }))
   return dlg
 }
 
 beforeEach(() => {
-  localStorage.clear()
+  localStorage.clear(); localStorage.setItem('amura.clientes.vista', 'tablero')
   globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver
   Element.prototype.scrollIntoView ??= () => {}
   Element.prototype.hasPointerCapture ??= () => false
@@ -81,7 +84,7 @@ describe('Clientes conectado a la base de datos (Postgres real con RLS)', () => 
     primera.unmount()
 
     // Otra sesión, sin nada en el navegador.
-    localStorage.clear()
+    localStorage.clear(); localStorage.setItem('amura.clientes.vista', 'tablero')
     const segunda = await abrirComo(cora)
     expect(await screen.findByRole('button', { name: 'Abrir ficha de Lucía Andrade' })).toBeInTheDocument()
     segunda.unmount()
@@ -153,7 +156,7 @@ describe('Clientes conectado a la base de datos (Postgres real con RLS)', () => 
     await db.query(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Oculto', '0995556677', 'whatsapp', $1, $1, $1)`, [otro])
     const dlg = await registrar(user, 'Copia Oculta', '0995556677')
     expect(await within(dlg).findByRole('alert')).toHaveTextContent(/Ya existe un cliente con ese teléfono/)
-    expect(within(dlg).getByLabelText('Nombre *')).toHaveValue('Copia Oculta')
+    expect(within(dlg).getByLabelText('Primer nombre *')).toHaveValue('Copia')
     expect((await fila(db, 'Copia Oculta')).rows).toHaveLength(0)
   })
 

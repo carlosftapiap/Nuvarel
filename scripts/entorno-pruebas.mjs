@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Entorno de pruebas local: Postgres en memoria (PGlite) con las migraciones reales del proyecto, detrás de un servidor
+ * Solo para programar en este equipo: no crea nada en Supabase, se borra al detenerlo y no es el lugar de las pruebas funcionales,
+ * que Codex hace en la app con las cuentas autorizadas. Postgres en memoria (PGlite) con las migraciones reales del proyecto, detrás de un servidor
  * que responde como Supabase Auth y su API REST en lo que usa la app. RLS y funciones se ejecutan como en producción.
  * No se conecta a ningún proyecto de Supabase; los datos se pierden al detenerlo. No sustituye la prueba en un proyecto alojado.
  *
- *   npm run entorno:pruebas
+ *   npm run entorno:local
  *   VITE_SUPABASE_URL=http://127.0.0.1:54399 VITE_SUPABASE_PUBLISHABLE_KEY=local npx vite --port 5174
  */
 import fs from 'node:fs'

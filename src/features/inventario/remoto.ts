@@ -1,6 +1,7 @@
 import type { Datos } from '@/features/conexion/datos'
-import { createInitialState } from './service'
-import type { InventoryState, PriceChange, PriceHistoryEntry, PriceProposal, StatusHistoryEntry, Unit } from './types'
+import { estadoDesde, estadoSinDatos } from './service'
+import type { PricingParams } from './types'
+import type { InventoryState, PriceChange, PriceHistoryEntry, PriceProposal, SolicitudActiva, StatusHistoryEntry, Unit } from './types'
 
 /**
  * Inventario desde Supabase. Lectura con RLS; cada cambio se guarda con su función del servidor
@@ -10,37 +11,54 @@ type Fila = Record<string, unknown>
 const s = (v: unknown) => (v === null || v === undefined ? null : String(v))
 const n = (v: unknown) => Number(v)
 
-/** Carga el inventario completo. La semilla aporta solo los datos que no viven en la base (precio de referencia). */
+const aParams = (r: Fila): PricingParams => ({
+  patioUsdM2: n(r.patio_usd_m2), reservaPct: n(r.reserva_pct), cuotasPct: n(r.cuotas_pct),
+  meses: { 1: n(r.meses_e1), 2: n(r.meses_e2) },
+  ...(r.reserva_predeterminada === undefined ? {} : { reservaPredeterminada: n(r.reserva_predeterminada) }),
+})
+const ordenPiso = (piso: unknown) => (String(piso) === 'PB' ? 0 : n(piso))
+
+/** Solicitudes en trámite por unidad. Sin la función del servidor, solo las que el perfil puede ver. */
+async function cargarSolicitudes(datos: Datos): Promise<Map<string, SolicitudActiva>> {
+  const filas = await datos.rpc<Fila[]>('inventario_solicitudes_activas')
+    .catch(() => datos.select<Fila>('reservations').then((rs) => rs.filter((r) => r.estado === 'solicitada' || r.estado === 'pago_verificado')))
+    .catch(() => [] as Fila[])
+  return new Map(filas.map((r) => [String(r.codigo_unidad), { codigo: String(r.codigo), estado: String(r.estado), vigenciaHasta: r.vigencia_hasta ? String(r.vigencia_hasta).slice(0, 10) : null, cotizacionId: s(r.quote_id) }]))
+}
+
+/** Carga el inventario completo. Todo viene de la base: unidades, parámetros, lista base e historial. */
 export async function cargarInventario(datos: Datos): Promise<InventoryState> {
-  const seed = createInitialState()
-  const orden = new Map(seed.units.map((u, i) => [u.codigo, i]))
-  const [filas, params, ph, sh, pr, perfiles] = await Promise.all([
+  const [filas, params, ph, sh, pr, perfiles, solicitudes] = await Promise.all([
     datos.select<Fila>('inventory_units'),
     datos.select<Fila>('pricing_params', { filtros: { id: 1 } }),
     datos.select<Fila>('inventory_price_history', { orden: [{ columna: 'fecha', asc: false }], limite: 300 }),
     datos.select<Fila>('inventory_status_history', { orden: [{ columna: 'fecha', asc: false }], limite: 300 }),
     datos.select<Fila>('price_proposals', { orden: [{ columna: 'fecha', asc: false }], limite: 200 }),
     datos.select<Fila>('profiles'),
+    cargarSolicitudes(datos),
   ])
   const nombre = new Map(perfiles.map((p) => [String(p.id), String(p.nombre)]))
   const quien = (id: unknown) => nombre.get(String(id)) ?? 'Usuario'
+  // Un perfil sin acceso comercial no recibe unidades ni parámetros: no es un error.
+  if (!params[0]) {
+    if (filas.length) throw new Error('Falta la configuración de precios (pricing_params) en la base de datos.')
+    return estadoSinDatos()
+  }
   const p = params[0]
-  if (!p) throw new Error('Falta la configuración de precios (pricing_params) en la base de datos.')
 
-  const seedPorCodigo = new Map(seed.units.map((u) => [u.codigo, u]))
   const units: Unit[] = filas
     .map((f): Unit => {
-      const sd = seedPorCodigo.get(String(f.codigo))
       return {
         codigo: String(f.codigo), dpt: String(f.dpt), edificio: n(f.edificio) as Unit['edificio'], piso: String(f.piso) as Unit['piso'],
         posicion: n(f.posicion), ubicacion: String(f.ubicacion), tipologia: String(f.tipologia) as Unit['tipologia'],
         areaM2: n(f.area_m2), bodegaCodigo: s(f.bodega_codigo), bodegaM2: n(f.bodega_m2), patioM2: n(f.patio_m2),
-        usdM2: n(f.usd_m2), precioReferencia: sd?.precioReferencia ?? 0,
+        usdM2: n(f.usd_m2), usdM2Lista: n(f.usd_m2_lista), precioReferencia: n(f.precio_referencia),
         estado: String(f.estado) as Unit['estado'], reservaId: s(f.reserva_id), notas: String(f.notas ?? ''),
         parqueo: s(f.parqueo), planoPath: s(f.plano_path), imagenes: (f.imagenes as string[] | null) ?? [],
+        solicitud: solicitudes.get(String(f.codigo)) ?? null,
       }
     })
-    .sort((a, b) => (orden.get(a.codigo) ?? 999) - (orden.get(b.codigo) ?? 999))
+    .sort((a, b) => a.edificio - b.edificio || ordenPiso(a.piso) - ordenPiso(b.piso) || a.posicion - b.posicion)
 
   const priceHistory: PriceHistoryEntry[] = ph.map((h) => ({
     id: String(h.id), fecha: String(h.fecha), usuario: quien(h.user_id), rol: String(h.rol), tipo: h.tipo as PriceHistoryEntry['tipo'],
@@ -67,17 +85,7 @@ export async function cargarInventario(datos: Datos): Promise<InventoryState> {
       : null,
   }))
 
-  return {
-    version: 1,
-    units,
-    params: {
-      patioUsdM2: n(p.patio_usd_m2), reservaPct: n(p.reserva_pct), cuotasPct: n(p.cuotas_pct),
-      meses: { 1: n(p.meses_e1), 2: n(p.meses_e2) },
-    },
-    priceHistory,
-    statusHistory,
-    propuestas,
-  }
+  return { ...estadoDesde(units, aParams(p), aParams(p.lista_base as Fila)), priceHistory, statusHistory, propuestas }
 }
 
 /**

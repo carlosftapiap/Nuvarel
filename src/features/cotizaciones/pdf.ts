@@ -1,6 +1,7 @@
+import { etiquetaPagoFirma, NOTA_RESERVA } from '@/features/inventario/pricing'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { fmtFechaCorta } from '@/features/financiamiento/plan'
+import { cronogramaPorMes, fmtFechaCorta } from '@/features/financiamiento/plan'
 import { ESTADOS } from '@/features/inventario/estados'
 import type { Cotizacion } from './cotizacion'
 
@@ -97,12 +98,15 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
   // Forma de pago
   doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(...INK).text('Forma de pago', M, y)
   y += 3
+  const extras = c.plan.extraordinarias ?? []
+  const sumaExtras = extras.reduce((t, e) => t + e.monto, 0)
   const cajas = [
-    [`Reserva ${num(c.plan.reservaPct, 0)}%`, usd(c.plan.reserva), `A la firma · ${fmtFechaCorta(c.fecha)}`],
-    [`Cuotas ${num(c.plan.cuotasPct, 0)}%`, `${c.plan.meses} × ${usd(c.plan.cuotaMensual)}`, `Total ${usd(c.plan.cuotasTotal)}`],
+    [etiquetaPagoFirma(c.plan.reservaPct), usd(c.plan.reserva), 'Incluye la reserva'],
+    [`Cuotas ${num(c.plan.cuotasPct, 0)}%`, `${c.plan.meses} × ${usd(c.plan.cuotaMensual)}`, c.plan.ultimaCuota === c.plan.cuotaMensual ? `Total ${usd(c.plan.cuotasTotal)}` : extras.length ? `Última ${usd(c.plan.ultimaCuota)}` : `Última ${usd(c.plan.ultimaCuota)} · total ${usd(c.plan.cuotasTotal)}`],
+    ...(extras.length ? [[`Cuotas extraordinarias`, `${extras.length} · ${usd(sumaExtras)}`, 'Dentro de las cuotas del 14 %']] : []),
     [`Contra entrega ${num(c.plan.entregaPct, 0)}%`, usd(c.plan.contraEntrega), 'A la entrega del inmueble'],
   ]
-  const cw = (W - 2 * M - 8) / 3
+  const cw = (W - 2 * M - 4 * (cajas.length - 1)) / cajas.length
   cajas.forEach(([t, v, h], i) => {
     const x = M + i * (cw + 4)
     doc.setFillColor(...IVORY).setDrawColor(...SAND).roundedRect(x, y, cw, 20, 2, 2, 'FD')
@@ -119,23 +123,43 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
     margin: { left: M, right: M, bottom: 20 },
     head: [['N.º', 'Concepto', 'Fecha', 'Monto', 'Saldo']],
     body: c.plan.cronograma.map((p) => [String(p.n), p.concepto, fmtFechaCorta(p.fecha), usd(p.monto), usd(p.saldo)]),
+    didParseCell: (d) => {
+      if ((d.section === 'head' || d.section === 'foot') && d.column.index >= 3) d.cell.styles.halign = 'right'
+      if (d.section === 'body' && c.plan.cronograma[d.row.index]?.tipo === 'extraordinaria') { d.cell.styles.fontStyle = 'bold'; d.cell.styles.fillColor = SAND }
+    },
     styles: { fontSize: 8.5, cellPadding: 1.6, textColor: INK, lineColor: SAND, lineWidth: 0.1 },
     headStyles: { fillColor: BROWN, textColor: [255, 255, 255], fontStyle: 'bold' },
     alternateRowStyles: { fillColor: IVORY },
     columnStyles: { 0: { cellWidth: 12, halign: 'center' }, 2: { cellWidth: 28 }, 3: { halign: 'right', cellWidth: 34 }, 4: { halign: 'right', cellWidth: 34 } },
     foot: [['', 'Total', '', usd(c.plan.precioFinal), '']],
     showFoot: 'lastPage',
-    didParseCell: (d) => { if ((d.section === 'head' || d.section === 'foot') && d.column.index >= 3) d.cell.styles.halign = 'right' },
     footStyles: { fillColor: SAND, textColor: INK, fontStyle: 'bold' },
   })
   y = lastY(doc) + 7
+
+  // Por mes: cuota mensual, extraordinaria y total
+  if (extras.length) {
+    if (y + 30 > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); y = 20 }
+    doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(...INK).text('Meses con cuota extraordinaria', M, y)
+    autoTable(doc, {
+      startY: y + 2,
+      margin: { left: M, right: M, bottom: 20 },
+      head: [['Mes', 'Fecha', 'Cuota mensual', 'Extraordinaria', 'Total del mes']],
+      body: cronogramaPorMes(c.plan, c.fecha).filter((f) => f.extraordinaria > 0).map((f) => [String(f.mes), fmtFechaCorta(f.fecha), usd(f.cuota), usd(f.extraordinaria), usd(f.total)]),
+      styles: { fontSize: 8.5, cellPadding: 1.6, textColor: INK, lineColor: SAND, lineWidth: 0.1 },
+      headStyles: { fillColor: BROWN, textColor: [255, 255, 255], fontStyle: 'bold' },
+    })
+    y = lastY(doc) + 7
+  }
 
   // Observaciones y condiciones
   const condiciones = [
     'Precios referenciales en dólares de los Estados Unidos, sujetos a cambio sin previo aviso y a aprobación de la gerencia.',
     u.estado === 'por_confirmar' ? 'La disponibilidad de la unidad está sujeta a confirmación al momento de la reserva.' : '',
     'Esta cotización no constituye reserva ni promesa de compraventa; la unidad se separa únicamente con la reserva confirmada.',
-    'Las fechas de las cuotas se cuentan desde la fecha de reserva indicada; el saldo se paga a la entrega del inmueble.',
+    `El pago a la firma y las cuotas forman la entrada del ${num(c.plan.reservaPct + c.plan.cuotasPct, 0)} %. ${NOTA_RESERVA}`,
+    extras.length ? 'Las cuotas extraordinarias son pagos programados dentro de las cuotas del 14 %; no constituyen pagos recibidos.' : '',
+    'Las fechas de este cronograma son referenciales: en el contrato, las cuotas se cuentan desde la firma; el saldo se paga a la entrega del inmueble.',
     'Superficies según planos y lista de precios del proyecto; pueden tener variaciones menores en obra.',
   ].filter(Boolean)
   const necesita = (c.observaciones ? 14 : 0) + condiciones.length * 9 + 10

@@ -104,8 +104,8 @@ describe('correctivo', () => {
 
   it('deja la base igual que una instalación limpia, salvo lo que queda fuera a propósito', async () => {
     const d = diferencias(await foto(db), limpio)
-    // Es de la integración comercial: un contrato no guardaría origen_detalle hasta corregirla. Se informa aparte.
-    expect(d).toEqual(['funcion contrato_datos_venta()'])
+    // El correctivo incluye contrato_datos_venta con origen_detalle: no queda ninguna diferencia.
+    expect(d).toEqual([])
   })
 
   it('crea exactamente los cuatro componentes faltantes y lo necesario para que funcionen', async () => {
@@ -154,7 +154,7 @@ describe('correctivo', () => {
     expect(await ve(cora)).toBe(false)
     expect(await ve(sofia)).toBe(true)
     expect(await ve(admin)).toBe(true)
-    await expect(como(db, cora, () => db.query(`select public.clientes_registrar_actividad(null, $1, 'nota', current_date, 'Ajena', null)`, [id]))).rejects.toThrow(/fuera de tu alcance/)
+    await expect(como(db, cora, () => db.query(`select public.clientes_registrar_actividad(null, $1, 'nota', (now() at time zone 'America/Guayaquil')::date, 'Ajena', null)`, [id]))).rejects.toThrow(/fuera de tu alcance/)
     await expect(como(db, carlos, () => db.query(`update public.clients set nombre = 'Directo' where id = $1`, [id]))).rejects.toThrow(/row-level security/)
   })
 
@@ -201,15 +201,57 @@ describe('seguridad al ejecutarlo', () => {
     expect(diferencias(await foto(db), una)).toEqual([])
   }, 120_000)
 
-  it('si ya hay clientes se detiene y no aplica nada', async () => {
+  it('con clientes cuyo acceso no cambia, se aplica sin tocar sus datos y siguen operando', async () => {
     const db = await instalar(ANTERIORES)
     const u = await crearUsuario(db, 'Vera', 'asesor')
-    await db.query(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Existente', '0991110000', 'whatsapp', $1, $1, $1)`, [u])
+    await db.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A2'`)
+    const c = (await db.query<{ id: string }>(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Existente', '0991110000', 'whatsapp', $1, $1, $1) returning id`, [u])).rows[0].id
+    const op = (await db.query<{ id: string }>(`insert into public.opportunities (client_id, codigo_unidad, responsable_id, created_by) values ($1, 'E1-PB-A2', $2, $2) returning id`, [c, u])).rows[0].id
+    const fila = async () => (await db.query(`select c.id, c.nombre, c.telefono, c.etapa, c.asesor_id, c.created_by, c.atribucion_usuario_id, c.origen, c.version, c.updated_at, o.etapa as op_etapa, o.responsable_id, o.updated_at as op_updated from public.clients c join public.opportunities o on o.client_id = c.id where c.id = $1`, [c])).rows[0]
+    const antes = await fila()
+    expect((await db.query(leer('instalacion/impacto_acceso_clientes.sql'))).rows).toEqual([])
+    await db.exec(leer(CORRECTIVO))
+    expect(await fila()).toEqual(antes)
+    await db.exec(leer('migrations/20261031030000_desistimiento.sql'))
+    expect(await fila()).toEqual(antes)
+    await como(db, u, async () => {
+      expect((await db.query(`select 1 from public.clients where id = $1`, [c])).rows).toHaveLength(1)
+      await db.query(`select public.cotizaciones_emitir($1, 0, 30, '')`, [op])
+    })
+  }, 120_000)
+
+  it('si alguien perdería acceso a un cliente se detiene, no aplica nada y lo identifica', async () => {
+    const db = await instalar(ANTERIORES)
+    const creador = await crearUsuario(db, 'Creador', 'asesor')
+    const asesor = await crearUsuario(db, 'Asesor', 'asesor')
+    await db.query(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Reasignado', '0991110001', 'whatsapp', $1, $2, $2)`, [asesor, creador])
     const antes = await contar(db)
-    await expect(db.exec(leer(CORRECTIVO))).rejects.toThrow(/Ya hay clientes/)
+    expect((await db.query(leer('instalacion/impacto_acceso_clientes.sql'))).rows).toMatchObject([{ tipo: 'cliente', cliente: 'Reasignado', asesor: 'Asesor', pierde_acceso: 'Creador' }])
+    await expect(db.exec(leer(CORRECTIVO))).rejects.toThrow(/Perderían acceso 1 cliente/)
     await db.exec('rollback')
     expect(await contar(db)).toBe(antes)
     expect((await db.query(`select to_regclass('public.client_access') as r`)).rows[0]).toEqual({ r: null })
+  }, 120_000)
+
+  it('si el creador conserva acceso por una negociación abierta, se aplica', async () => {
+    const db = await instalar(ANTERIORES)
+    const creador = await crearUsuario(db, 'Creador', 'asesor')
+    const asesor = await crearUsuario(db, 'Asesor', 'asesor')
+    const c = (await db.query<{ id: string }>(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Compartido', '0991110002', 'whatsapp', $1, $2, $2) returning id`, [asesor, creador])).rows[0].id
+    await db.query(`insert into public.opportunities (client_id, responsable_id, created_by) values ($1, $2, $2)`, [c, creador])
+    await db.exec(leer(CORRECTIVO))
+    expect((await db.query(`select to_regclass('public.client_access') is not null as r`)).rows[0]).toEqual({ r: true })
+  }, 120_000)
+
+  it('si un responsable perdería una negociación cerrada se detiene', async () => {
+    const db = await instalar(ANTERIORES)
+    const asesor = await crearUsuario(db, 'Asesor', 'asesor')
+    const otro = await crearUsuario(db, 'Otro', 'asesor')
+    const c = (await db.query<{ id: string }>(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Cerrada', '0991110003', 'whatsapp', $1, $1, $1) returning id`, [asesor])).rows[0].id
+    await db.query(`insert into public.opportunities (client_id, responsable_id, created_by, etapa, motivo_perdida) values ($1, $2, $2, 'perdida', 'No continúa')`, [c, otro])
+    expect((await db.query(leer('instalacion/impacto_acceso_clientes.sql'))).rows).toMatchObject([{ tipo: 'negociacion cerrada', pierde_acceso: 'Otro' }])
+    await expect(db.exec(leer(CORRECTIVO))).rejects.toThrow(/1 negociación/)
+    await db.exec('rollback')
   }, 120_000)
 
   it('sobre una base que no tiene la versión anterior se detiene', async () => {

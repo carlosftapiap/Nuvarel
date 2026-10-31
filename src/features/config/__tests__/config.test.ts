@@ -2,12 +2,9 @@
 import { describe, expect, it } from 'vitest'
 import { can, PermissionError, puedeVerDe } from '@/app/permissions'
 import { crearCliente, clientesVisibles, estadoInicialClientes } from '@/features/clientes/service'
-import { createInitialState } from '@/features/inventario/service'
 import type { DirectorioState, Usuario } from '../model'
-import {
-  actorDe, actualizarUsuario, cambiarEstadoUsuario, directorioInicial, fijarExcepcion, guardarEquipo, guardarRol,
-  ID_ADMIN_INICIAL, invitarUsuario, permisosEfectivos, type UsuarioInput,
-} from '../service'
+import { actorDe, actualizarUsuario, cambiarEstadoUsuario, directorioInicial, fijarExcepcion, guardarEquipo, guardarRol, ID_ADMIN_INICIAL, invitarUsuario, permisosEfectivos, type UsuarioInput } from '../service'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 
 const motivo = 'Alta del equipo comercial'
 const base = (o: Partial<UsuarioInput>): UsuarioInput => ({ nombre: 'Persona', email: 'x@nuvarel.com', rolId: 'asesor', alcance: null, supervisorId: null, equipoId: null, proyectos: ['AMURA'], ...o })
@@ -32,7 +29,7 @@ describe('usuarios y alcance', () => {
   it('estado inicial: perfiles plantilla y un solo administrador, sin personas ficticias', () => {
     const d = directorioInicial()
     expect(d.usuarios).toHaveLength(1)
-    expect(d.roles.map((r) => r.id)).toEqual(['administrador', 'gerencia', 'supervisor', 'asesor', 'corredor', 'finanzas', 'legal', 'jarval'])
+    expect(d.roles.map((r) => r.id)).toEqual(['administrador', 'gerencia', 'supervisor', 'asesor', 'corredor', 'finanzas', 'legal', 'constructor', 'jarval'])
   })
 
   it('los invitados no tienen acceso hasta activarse', () => {

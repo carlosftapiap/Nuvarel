@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import type { PGlite } from '@electric-sql/pglite'
 import { ConexionProvider } from '@/app/auth'
 import { SessionProvider } from '@/app/session'
+import { ClientesProvider } from '@/features/clientes/store'
 import { InventoryProvider } from '@/features/inventario/store'
 import type { Actor } from '@/features/inventario/types'
 import FinanciamientoPage from '@/pages/FinanciamientoPage'
@@ -25,7 +26,7 @@ async function abrirComo(id: string) {
     <ConexionProvider value={{ remoto: true, datos: datosPglite(db, id), cuenta: null, salir: async () => {} }}>
       <SessionProvider actorRemoto={actor}>
         <InventoryProvider>
-          <MemoryRouter initialEntries={['/financiamiento?unidad=E1-PB-A2']}><FinanciamientoPage /></MemoryRouter>
+          <ClientesProvider><MemoryRouter initialEntries={['/financiamiento?unidad=E1-PB-A2']}><FinanciamientoPage /></MemoryRouter></ClientesProvider>
         </InventoryProvider>
       </SessionProvider>
     </ConexionProvider>,

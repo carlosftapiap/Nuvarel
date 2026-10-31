@@ -100,3 +100,9 @@
     cursor: pointer;
   }
 }
+
+/* Tipografías del manual de marca AMURA, solo para las piezas de marca. */
+@font-face { font-family: 'Roclette'; src: url('/brand/fonts/RocletteDisplay-Light.woff2') format('woff2'); font-weight: 300; font-display: swap; }
+@font-face { font-family: 'Anteroly'; src: url('/brand/fonts/anteroly.otf') format('opentype'); font-display: swap; }
+.marca-titulo { font-family: 'Roclette', var(--font-display); font-weight: 300; }
+.marca-clave { font-family: 'Anteroly', var(--font-display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }

@@ -1,7 +1,6 @@
-import { assertCan } from '@/app/permissions'
-import { AMURA_UNITS_SEED } from './data/amura-units'
-import { ESTADOS, ESTADOS_PRECIO_BLOQUEADO, puedeTransicionar } from './estados'
-import { aplicarPorcentaje, calcularPrecio, DEFAULT_PARAMS, round2, totalVenta } from './pricing'
+import { assertCan, can } from '@/app/permissions'
+import { ESTADOS, ESTADOS_EFECTIVOS, ESTADOS_PRECIO_BLOQUEADO, estadoEfectivo, MOTIVO_SIN_CAMBIO, puedeCambiarManual, puedeTransicionar, type EstadoEfectivo } from './estados'
+import { aplicarPorcentaje, calcularPrecio, round2, totalVenta } from './pricing'
 import type {
   Actor, Edificio, EstadoComercial, InventoryState, Piso, PriceChange, PriceHistoryEntry,
   PriceProposal, PricingParams, StatusHistoryEntry, Tipologia, Unit,
@@ -18,24 +17,15 @@ let seq = 0
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${(seq++).toString(36)}`
 const nowIso = () => new Date().toISOString()
 
-export function createInitialState(): InventoryState {
-  return {
-    version: 1,
-    units: AMURA_UNITS_SEED.map((s) => ({
-      ...s,
-      // La disponibilidad real no ha sido entregada: no se asume "disponible".
-      estado: 'por_confirmar',
-      reservaId: null,
-      notas: '',
-      parqueo: null,
-      planoPath: null,
-      imagenes: [],
-    })),
-    params: { ...DEFAULT_PARAMS, meses: { ...DEFAULT_PARAMS.meses } },
-    priceHistory: [],
-    statusHistory: [],
-    propuestas: [],
-  }
+/** Estado a partir de lo que entrega la base. Aquí no se inventa ningún dato. */
+export function estadoDesde(units: Unit[], params: PricingParams, listaBase: PricingParams): InventoryState {
+  return { version: 1, units, params, listaBase, priceHistory: [], statusHistory: [], propuestas: [] }
+}
+
+/** Sin conexión con Supabase no hay inventario: el estado vacío no trae unidades ni precios. */
+export function estadoSinDatos(): InventoryState {
+  const cero: PricingParams = { patioUsdM2: 0, reservaPct: 0, cuotasPct: 0, meses: { 1: 0, 2: 0 } }
+  return estadoDesde([], cero, cero)
 }
 
 /* ------------------------------------------------------------------ alcance */
@@ -154,6 +144,41 @@ export function aplicarCambioPrecio(state: InventoryState, input: CambioPrecioIn
   }
 }
 
+/** Un solo criterio en Inventario y Precios: quien aprueba aplica; los demás envían una propuesta. */
+export function guardarCambioPrecio(state: InventoryState, input: CambioPrecioInput, actor: Actor): InventoryState {
+  return can(actor, 'precios.aprobar') ? aplicarCambioPrecio(state, input, actor) : crearPropuesta(state, input, actor)
+}
+
+export interface TrazaAjuste {
+  /** Null si se aplicó sin propuesta previa. */
+  propuso: { usuario: string; fecha: string } | null
+  /** Null si el cambio no pasa por aprobación (importación o restablecimiento). */
+  aprobo: { usuario: string; fecha: string; comentario: string } | null
+  registro: { usuario: string; fecha: string }
+}
+
+/** Quién propuso y quién aprobó un ajuste. La propuesta aprobada y su ajuste comparten motivo y momento: se aplican juntos. */
+export function trazaAjuste(h: PriceHistoryEntry, propuestas: PriceProposal[]): TrazaAjuste {
+  const registro = { usuario: h.usuario, fecha: h.fecha }
+  if (h.tipo !== 'precio_m2' && h.tipo !== 'porcentaje') return { propuso: null, aprobo: null, registro }
+  const p = propuestas.find((x) => x.estado === 'aprobada' && x.resolucion && h.motivo.startsWith(x.motivo) && Math.abs(Date.parse(x.resolucion.fecha) - Date.parse(h.fecha)) < 60_000)
+  if (!p?.resolucion) return { propuso: null, aprobo: { usuario: h.usuario, fecha: h.fecha, comentario: '' }, registro }
+  return { propuso: { usuario: p.usuario, fecha: p.fecha }, aprobo: { usuario: p.resolucion.usuario, fecha: p.resolucion.fecha, comentario: p.resolucion.comentario }, registro }
+}
+
+export const unidadesTxt = (n: number) => (n === 1 ? '1 unidad' : `${n} unidades`)
+
+export const FECHA_LISTA_BASE = '2026-10-28'
+
+/** Aprobado si su último cambio lo aplicó quien aprueba precios; si no, sigue siendo referencial. */
+export function estadoPrecio(historial: PriceHistoryEntry[], codigo: string): { tipo: 'aprobado' | 'referencial'; fecha: string } {
+  const ultimo = historial
+    .filter((h) => h.tipo !== 'parametros' && h.cambios.some((c) => c.codigo === codigo))
+    .reduce<PriceHistoryEntry | null>((a, h) => (!a || h.fecha > a.fecha ? h : a), null)
+  if (!ultimo) return { tipo: 'referencial', fecha: FECHA_LISTA_BASE }
+  return { tipo: ultimo.tipo === 'precio_m2' || ultimo.tipo === 'porcentaje' ? 'aprobado' : 'referencial', fecha: ultimo.fecha.slice(0, 10) }
+}
+
 /* ------------------------------------------------- propuestas de precio */
 
 /** Registra una propuesta sin tocar los precios oficiales. */
@@ -235,7 +260,7 @@ export function actualizarParametros(state: InventoryState, params: PricingParam
   const antes = state.params
   const cambiosTexto = [
     antes.patioUsdM2 !== params.patioUsdM2 && `Patio USD/m² ${antes.patioUsdM2} → ${params.patioUsdM2}`,
-    antes.reservaPct !== params.reservaPct && `Reserva ${antes.reservaPct}% → ${params.reservaPct}%`,
+    antes.reservaPct !== params.reservaPct && `Pago a la firma ${antes.reservaPct}% → ${params.reservaPct}%`,
     antes.cuotasPct !== params.cuotasPct && `Cuotas ${antes.cuotasPct}% → ${params.cuotasPct}%`,
     antes.meses[1] !== params.meses[1] && `Meses E1 ${antes.meses[1]} → ${params.meses[1]}`,
     antes.meses[2] !== params.meses[2] && `Meses E2 ${antes.meses[2]} → ${params.meses[2]}`,
@@ -252,26 +277,25 @@ export function actualizarParametros(state: InventoryState, params: PricingParam
   return { ...state, params: { ...params, meses: { ...params.meses } }, priceHistory: [entry, ...state.priceHistory] }
 }
 
-/** Vuelve todos los precios por m² a la lista base del 28/10/2026 (deja trazabilidad). */
+/** Vuelve todos los precios por m² a la lista base guardada en la base, con sus parámetros. */
 export function restablecerListaBase(state: InventoryState, motivo: string, actor: Actor): InventoryState {
   assertCan(actor, 'inventario.parametros')
   requireMotivo(motivo)
-  const base = createInitialState()
-  const seed = new Map(base.units.map((u) => [u.codigo, u.usdM2]))
+  const base = state.listaBase
   const cambios: PriceChange[] = state.units
-    .filter((u) => u.usdM2 !== seed.get(u.codigo) && !ESTADOS_PRECIO_BLOQUEADO.includes(u.estado))
+    .filter((u) => u.usdM2 !== u.usdM2Lista && !ESTADOS_PRECIO_BLOQUEADO.includes(u.estado))
     .map((u) => ({
-      codigo: u.codigo, antesUsdM2: u.usdM2, despuesUsdM2: seed.get(u.codigo)!,
+      codigo: u.codigo, antesUsdM2: u.usdM2, despuesUsdM2: u.usdM2Lista,
       antesPrecio: calcularPrecio(u, state.params).precioVenta,
-      despuesPrecio: calcularPrecio({ ...u, usdM2: seed.get(u.codigo)! }, base.params).precioVenta,
+      despuesPrecio: calcularPrecio({ ...u, usdM2: u.usdM2Lista }, base).precioVenta,
     }))
-  const units = state.units.map((u) => (cambios.some((c) => c.codigo === u.codigo) ? { ...u, usdM2: seed.get(u.codigo)! } : u))
+  const units = state.units.map((u) => (cambios.some((c) => c.codigo === u.codigo) ? { ...u, usdM2: u.usdM2Lista } : u))
   const entry: PriceHistoryEntry = {
     id: newId('pr'), fecha: nowIso(), usuario: actor.nombre, rol: actor.rol, tipo: 'restablecer',
-    alcance: 'Todo el proyecto', motivo: motivo.trim(), detalle: 'Restablecida la lista base del 28/10/2026 y sus parámetros',
-    cambios, totalAntes: totalVenta(state.units, state.params), totalDespues: totalVenta(units, base.params),
+    alcance: 'Todo el proyecto', motivo: motivo.trim(), detalle: 'Restablecida la lista base y sus parámetros',
+    cambios, totalAntes: totalVenta(state.units, state.params), totalDespues: totalVenta(units, base),
   }
-  return { ...state, units, params: base.params, priceHistory: [entry, ...state.priceHistory] }
+  return { ...state, units, params: base, priceHistory: [entry, ...state.priceHistory] }
 }
 
 /* ------------------------------------------------------------------- estados */
@@ -289,6 +313,10 @@ export function cambiarEstado(
   const u = state.units.find((x) => x.codigo === codigo)
   if (!u) throw new InventoryError(`No existe la unidad ${codigo}.`)
   if (u.estado === estado) throw new InventoryError('La unidad ya tiene ese estado.')
+  // Una persona solo hace los cambios manuales; los compromisos los registran Reservas y Contratos.
+  if (!opts.sistema && !puedeCambiarManual(u.estado, estado)) {
+    throw new InventoryError(MOTIVO_SIN_CAMBIO[u.estado] ?? `No se permite pasar de "${ESTADOS[u.estado].label}" a "${ESTADOS[estado].label}".`)
+  }
   if (!puedeTransicionar(u.estado, estado)) {
     throw new InventoryError(`No se permite pasar de "${ESTADOS[u.estado].label}" a "${ESTADOS[estado].label}".`)
   }
@@ -332,8 +360,8 @@ export function resumenInventario(state: InventoryState) {
   const total = round2(precios.reduce((t, x) => t + x.p.precioVenta, 0))
   const area = precios.reduce((t, x) => t + x.p.areaVendibleM2, 0)
   const areaBodegaTotal = precios.reduce((t, x) => t + x.p.precioAreaBodega, 0)
-  const porEstado = Object.fromEntries(Object.keys(ESTADOS).map((k) => [k, 0])) as Record<EstadoComercial, number>
-  state.units.forEach((u) => porEstado[u.estado]++)
+  const porEstado = Object.fromEntries(Object.keys(ESTADOS_EFECTIVOS).map((k) => [k, 0])) as Record<EstadoEfectivo, number>
+  state.units.forEach((u) => porEstado[estadoEfectivo(u)]++)
   return {
     unidades: state.units.length,
     porEdificio: { 1: state.units.filter((u) => u.edificio === 1).length, 2: state.units.filter((u) => u.edificio === 2).length },

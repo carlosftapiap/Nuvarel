@@ -1,3 +1,4 @@
+import type { AlmacenContratos } from '@/features/contratos/almacen'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
@@ -39,6 +40,8 @@ interface ConexionValue {
   cuenta: Cuenta | null
   estado?: EstadoAuth
   salir: () => Promise<void>
+  /** En pruebas se entrega un Storage simulado; en la app se usa el de Supabase. */
+  almacen?: AlmacenContratos
 }
 
 const ConexionContext = createContext<ConexionValue>({ remoto: false, datos: null, cuenta: null, salir: async () => {} })
@@ -104,12 +107,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function MarcoAcceso({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh items-center justify-center bg-[radial-gradient(ellipse_at_top,#e8eef9,#f4f6fa_60%)] px-4 py-10">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-white p-7 shadow-[0_12px_40px_-16px_rgba(15,35,80,0.25)]">
-        <img src="/brand/logo-amura.png" alt="AMURA Apartments" className="mx-auto mb-6 h-10 w-auto" />
-        {children}
+    <div className="grid min-h-svh grid-rows-[34svh_auto] bg-white md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:grid-rows-none">
+      <div className="relative overflow-hidden bg-[#282828]">
+        <img src="/media/torres.webp" srcSet="/media/miniaturas/torres.webp 405w, /media/torres.webp 941w" sizes="(max-width: 768px) 100vw, 55vw" alt="Vista aérea de las dos torres de AMURA"
+          width={941} height={1672} fetchPriority="high" className="absolute inset-0 size-full object-cover object-top" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(40,40,40,.62),rgba(40,40,40,.28)_22%,rgba(40,40,40,0)_42%,rgba(40,40,40,0)_62%,rgba(40,40,40,.86))]" aria-hidden="true" />
+        <img src="/media/logo-horizontal-crema.webp" alt="AMURA Apartments" width={600} height={163} className="absolute left-5 top-4 h-10 w-auto md:left-10 md:top-8 md:h-14" />
+        <div className="absolute inset-x-10 bottom-8 hidden text-[#f7f4ed] md:block">
+          <p className="marca-titulo text-3xl leading-tight">Un lugar para vivir, compartir y crecer.</p>
+          <small className="mt-2 block text-[11px] opacity-80">Visualización conceptual</small>
+        </div>
       </div>
-      <p className="fixed bottom-4 text-[10px] text-muted-foreground">AMURA · Espacio comercial · Acceso solo para personal autorizado</p>
+      <div className="flex flex-col items-center justify-center gap-6 px-5 py-8 [--primary:#584536] [--ring:#584536]">
+        <div className="w-full max-w-sm">{children}</div>
+        <p className="text-center text-[10px] text-muted-foreground">AMURA · Espacio comercial · Acceso solo para personal autorizado</p>
+      </div>
     </div>
   )
 }

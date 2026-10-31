@@ -30,7 +30,7 @@ async function cotizacion(unidad: string, usuario: string) {
   const numero = `COT-T-${Math.random().toString(36).slice(2, 8)}`
   const q = await db.query<{ id: string }>(
     `insert into public.quotes (numero, fecha, valida_hasta, codigo, cliente, asesor, descuento_pct, precio_lista, precio_final, plan, created_by, client_id, opportunity_id)
-     values ($1, current_date, current_date + 15, $2, '{}', '{}', 0, 172147.2, 172147.2,
+     values ($1, (now() at time zone 'America/Guayaquil')::date, (now() at time zone 'America/Guayaquil')::date + 15, $2, '{}', '{}', 0, 172147.2, 172147.2,
        '{"reserva": 10328.83, "reservaPct": 6, "meses": 30, "cuotaMensual": 803.35, "ultimaCuota": 803.35, "contraEntrega": 137717.76}', $3, $4, $5)
      returning id`, [numero, unidad, usuario, clienteId, op.rows[0].id])
   await db.query(`update public.quotes set estado = 'aceptada' where id = $1`, [q.rows[0].id])
@@ -68,20 +68,20 @@ describe('reservas: pago verificado, aprobación y simultaneidad', () => {
     const quote = await cotizacion('E1-PB-A2', vendedora)
     const r = await como(db, vendedora, () => db.query<{ id: string }>(`select public.reservas_solicitar($1) as id`, [quote]))
     await expect(como(db, finanzas, () => db.query(
-      `select public.reservas_verificar_pago($1, 10328.83, (now() at time zone 'America/Guayaquil')::date, 'TRF-1', 'motivo de prueba')`, [r.rows[0].id])))
+      `select public.reservas_confirmar_pago($1, 10328.83, (now() at time zone 'America/Guayaquil')::date, 'TRF-1', true, 'motivo de prueba')`, [r.rows[0].id])))
       .rejects.toThrow(/Verificación de cobros deshabilitada/)
   })
 
   it('definir el receptor exige permiso; con permiso, el ingreso se verifica', async () => {
     await expect(como(db, vendedora, () => db.query(`select public.config_definir_receptor('NUVAREL', 'Intento de prueba')`))).rejects.toThrow()
-    await como(db, admin, () => db.query(`select public.config_definir_receptor('FIDUCIARIA', 'Definido en comité de prueba')`))
+    await como(db, admin, () => db.query(`select public.config_definir_receptor('NUVAREL', 'Definido en comité de prueba')`))
     const { rows } = await db.query<{ id: string }>(`select id from public.reservations where estado = 'solicitada' limit 1`)
     // El comprobante del cliente debe estar registrado antes de que Finanzas verifique el ingreso.
-    await como(db, vendedora, () => db.query(`select public.reservas_adjuntar_comprobante($1, 'TRF-1', 'comprobantes/trf-1.pdf')`, [rows[0].id]))
+    await como(db, vendedora, () => db.query(`select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-1', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [rows[0].id]))
     await como(db, finanzas, () => db.query(
-      `select public.reservas_verificar_pago($1, 10328.83, (now() at time zone 'America/Guayaquil')::date, 'TRF-1', 'Ingreso confirmado en banco')`, [rows[0].id]))
+      `select public.reservas_confirmar_pago($1, 10328.83, (now() at time zone 'America/Guayaquil')::date, 'TRF-1', true, 'Ingreso confirmado en banco')`, [rows[0].id]))
     const st = await db.query(`select estado, pago_receptor from public.reservations where id = $1`, [rows[0].id])
-    expect(st.rows[0]).toMatchObject({ estado: 'pago_verificado', pago_receptor: 'FIDUCIARIA' })
+    expect(st.rows[0]).toMatchObject({ estado: 'pago_verificado', pago_receptor: 'NUVAREL' })
   })
 
   it('el cambio de etapa del cliente no confirma una reserva', async () => {

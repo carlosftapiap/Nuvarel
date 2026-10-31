@@ -12,6 +12,7 @@ import { useInventory } from '@/features/inventario/store'
 import type { EstadoComercial } from '@/features/inventario/types'
 import { MOTIVOS_DESISTIMIENTO, previsualizar, registrar, type MotivoDesistimiento, type Previsualizacion } from '../desistimiento'
 import { ETAPAS_OPORTUNIDAD } from '../model'
+import ReglasAnulacion from './ReglasAnulacion'
 import { clientesVisibles } from '../service'
 import { useClientes } from '../store'
 
@@ -59,7 +60,7 @@ export default function DesistimientoDialog({ clienteId, oportunidadId, onClose,
     try {
       await registrar(datos, cliente, oportunidad, motivo, observaciones.trim())
       await Promise.all([recargar(), recargarInventario()])
-      await onDone('Desistimiento registrado')
+      await onDone(vista?.nivel === 'directo' ? 'Desistimiento registrado' : 'Solicitud enviada: nada cambia hasta que se autorice')
       onClose()
     } catch (e) {
       setError((e as Error).message)
@@ -78,7 +79,7 @@ export default function DesistimientoDialog({ clienteId, oportunidadId, onClose,
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Registrar desistimiento</DialogTitle>
-          <DialogDescription>Nada se borra: el cliente, sus cotizaciones y su reserva quedan en el historial. No se crea ninguna devolución ni pago.</DialogDescription>
+          <DialogDescription>Según el caso se aplica en el momento o queda pendiente de autorización. Nada se borra.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           {!clienteId && (
@@ -114,22 +115,26 @@ export default function DesistimientoDialog({ clienteId, oportunidadId, onClose,
           {vista?.bloqueo && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{vista.bloqueo}</p>}
           {vista && !vista.bloqueo && (
             <div className="grid gap-1 rounded-lg bg-muted/60 px-3 py-2 text-xs" aria-label="Qué ocurrirá">
-              <b>Al confirmar:</b>
+              {vista.nivel !== 'directo' && (
+                <p className="font-medium text-amber-900">
+                  {vista.nivel === 'gerencia_y_finanzas' ? 'Requiere la autorización de Gerencia y la revisión de Finanzas.' : 'Requiere la autorización de un supervisor o de Gerencia.'} Por ahora solo se envía la solicitud: nada cambia.
+                </p>
+              )}
+              <b>{vista.nivel === 'directo' ? 'Al confirmar:' : 'Cuando se autorice:'}</b>
               {vista.reserva && <span>La reserva {vista.reserva} se anula.</span>}
               {oportunidad && <span>La negociación se cierra como perdida por desistimiento.</span>}
               {efectoUnidad && <span>{efectoUnidad}</span>}
               {(vista.monto_recibido || vista.comprobante) && (
-                <span className="font-medium text-amber-800">
-                  {vista.monto_recibido ? `Hay ${fmtUsd2(vista.monto_recibido)} recibidos` : `Hay un comprobante registrado (${vista.comprobante})`}: queda pendiente de revisión de Finanzas. No se devuelve nada automáticamente.
-                </span>
+                <span>{vista.monto_recibido ? `Hay ${fmtUsd2(vista.monto_recibido)} recibidos` : `Hay un comprobante registrado (${vista.comprobante})`}. No se devuelve nada automáticamente.</span>
               )}
             </div>
           )}
+          {cliente && elegida && <ReglasAnulacion actual={vista?.bloqueo?.includes('contrato') ? 'contrato' : vista && !vista.reserva ? 'sin_reserva' : vista?.nivel} />}
           <FieldError>{error}</FieldError>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Volver</Button>
-          <Button variant="destructive" disabled={!listo} onClick={() => void confirmar()}>{enviando ? 'Registrando…' : 'Confirmar desistimiento'}</Button>
+          <Button variant="destructive" disabled={!listo} onClick={() => void confirmar()}>{enviando ? 'Registrando…' : vista && vista.nivel !== 'directo' ? 'Enviar solicitud' : 'Confirmar desistimiento'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

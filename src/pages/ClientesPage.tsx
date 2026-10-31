@@ -22,13 +22,22 @@ import { cn } from '@/lib/utils'
 
 const norm = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
+/** Vista recordada entre módulos; la primera vez se abre la lista. */
+const CLAVE_VISTA = 'amura.clientes.vista'
+const vistaGuardada = (): 'tablero' | 'lista' => (typeof localStorage !== 'undefined' && localStorage.getItem(CLAVE_VISTA) === 'tablero' ? 'tablero' : 'lista')
+
+type Indicador = 'todos' | 'activos' | 'perdidos'
+
 export default function ClientesPage() {
   const { state, guardar, cargando, faltaMigracion, hayDesistimientos } = useClientes()
   const { state: inv } = useInventory()
   const { actor, can } = useSession()
   const [desiste, setDesiste] = useState(false)
   const [params, setParams] = useSearchParams()
-  const [vista, setVista] = useState<'tablero' | 'lista'>('tablero')
+  const [vista, setVistaState] = useState<'tablero' | 'lista'>(vistaGuardada)
+  const setVista = (v: 'tablero' | 'lista') => { setVistaState(v); localStorage.setItem(CLAVE_VISTA, v) }
+  const [indicador, setIndicador] = useState<Indicador>('todos')
+  const [etapaFiltro, setEtapaFiltro] = useState<'todas' | Etapa>('todas')
   const [q, setQ] = useState('')
   const [asesor, setAsesor] = useState('todos')
   const [form, setForm] = useState<{ open: boolean; id?: string }>({ open: false })
@@ -44,10 +53,14 @@ export default function ClientesPage() {
   const visibles = useMemo(() => clientesVisibles(state.clientes, actor), [state.clientes, actor])
   const asesores = useMemo(() => [...new Set(visibles.map((c) => c.asesor))].sort(), [visibles])
   const filtrados = visibles.filter((c) =>
+    (indicador === 'todos' || (indicador === 'perdidos' ? c.etapa === 'perdido' : c.etapa !== 'perdido')) &&
+    (etapaFiltro === 'todas' || c.etapa === etapaFiltro) &&
     (asesor === 'todos' || c.asesor === asesor) &&
     (!q.trim() || norm(`${c.nombre} ${c.telefono} ${c.email} ${c.unidadesInteres.join(' ')}`).includes(norm(q.trim()))),
   )
   const r = resumenClientes(visibles)
+  const filtrosActivos = indicador !== 'todos' || etapaFiltro !== 'todas' || asesor !== 'todos' || q.trim() !== ''
+  const limpiar = () => { setIndicador('todos'); setEtapaFiltro('todas'); setAsesor('todos'); setQ('') }
 
   useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(null), 4000); return () => clearTimeout(t) }, [aviso])
 
@@ -71,11 +84,15 @@ export default function ClientesPage() {
           <Button size="sm" onClick={() => setForm({ open: true })}><UserPlus />Nuevo cliente</Button>
         </div>} />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi t="Clientes activos" v={r.activos} d={`${r.total} registrados`} />
-        <Kpi t="Actividades vencidas" v={r.vencidas} d="Requieren atención" tone={r.vencidas ? 'text-rose-700' : undefined} />
-        <Kpi t="Para hoy" v={r.hoy} d="Actividades programadas" />
-        <Kpi t="Sin próxima actividad" v={r.sinActividad} d="Clientes activos sin siguiente paso" tone={r.sinActividad ? 'text-amber-700' : undefined} />
+      <div className="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-3" role="group" aria-label="Indicadores de clientes">
+        <IndicadorBoton t="Total de clientes" v={r.total} d="Todos los registros autorizados" activo={indicador === 'todos'} onClick={() => setIndicador('todos')} />
+        <IndicadorBoton t="Clientes activos" v={r.activos} d="Incluye los que están en seguimiento" activo={indicador === 'activos'} onClick={() => setIndicador('activos')} />
+        <IndicadorBoton t="Clientes perdidos" v={r.porEtapa.perdido} d="Desistidos o cerrados" activo={indicador === 'perdidos'} onClick={() => setIndicador('perdidos')} tono="text-rose-700" />
+      </div>
+      <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 px-1 text-[11px] text-muted-foreground">
+        <span>Vencidas: <b className={r.vencidas ? 'text-rose-700' : undefined}>{r.vencidas}</b></span>
+        <span>Para hoy: <b>{r.hoy}</b></span>
+        <span>Sin próxima actividad: <b className={r.sinActividad ? 'text-amber-700' : undefined}>{r.sinActividad}</b></span>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -84,6 +101,10 @@ export default function ClientesPage() {
           <label htmlFor="cli-q" className="sr-only">Buscar cliente</label>
           <Input id="cli-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, teléfono, correo o departamento" className="h-8 pl-8 text-xs" />
         </div>
+        <Select value={etapaFiltro} onValueChange={(v) => setEtapaFiltro(v as 'todas' | Etapa)}>
+          <SelectTrigger size="sm" className="h-8 min-w-40 text-xs" aria-label="Filtrar por etapa"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="todas">Etapa: todas</SelectItem>{ETAPA_ORDEN.map((e) => <SelectItem key={e} value={e}>{ETAPAS[e].label}</SelectItem>)}</SelectContent>
+        </Select>
         <Select value={asesor} onValueChange={setAsesor}>
           <SelectTrigger size="sm" className="h-8 min-w-40 text-xs" aria-label="Filtrar por asesor"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="todos">Asesor: todos</SelectItem>{asesores.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
@@ -94,6 +115,12 @@ export default function ClientesPage() {
         </div>
       </div>
 
+      {filtrosActivos && filtrados.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+          <span>Mostrando {filtrados.length} de {visibles.length}</span>
+          <Button size="xs" variant="ghost" onClick={limpiar}>Limpiar filtros</Button>
+        </div>
+      )}
       {aviso && <p role="status" className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"><CheckCircle2 className="size-4" />{aviso}<button type="button" className="ml-auto" aria-label="Cerrar aviso" onClick={() => setAviso(null)}><X className="size-3.5" /></button></p>}
       {error && <div className="mb-3"><FieldError>{error}</FieldError></div>}
 
@@ -112,6 +139,12 @@ export default function ClientesPage() {
           <h2 className="text-xl font-semibold tracking-tight">Aún no hay clientes</h2>
           <p className="mt-3 max-w-sm text-sm text-muted-foreground">Registra el primer interesado para empezar a darle seguimiento.</p>
           <Button className="mt-6" onClick={() => setForm({ open: true })}><UserPlus />Nuevo cliente</Button>
+        </div>
+      ) : filtrados.length === 0 ? (
+        <div className="dashboard-card flex flex-col items-center gap-2 p-8 text-center">
+          <h2 className="text-sm font-semibold">No hay clientes que coincidan</h2>
+          <p className="max-w-sm text-xs text-muted-foreground">Cambia la búsqueda o los filtros, o vuelve a ver todos los clientes.</p>
+          {filtrosActivos && <Button size="sm" variant="outline" className="mt-2" onClick={limpiar}>Limpiar filtros</Button>}
         </div>
       ) : vista === 'tablero' ? (
         <div className="flex gap-3 overflow-x-auto pb-3" aria-label="Tablero comercial">
@@ -186,12 +219,14 @@ export default function ClientesPage() {
   )
 }
 
-function Kpi({ t, v, d, tone }: { t: string; v: number; d: string; tone?: string }) {
+function IndicadorBoton({ t, v, d, activo, onClick, tono }: { t: string; v: number; d: string; activo: boolean; onClick: () => void; tono?: string }) {
   return (
-    <div className="dashboard-card !p-4">
+    <button type="button" aria-pressed={activo} onClick={onClick}
+      className={cn('dashboard-card !p-4 text-left transition hover:-translate-y-px', activo && 'ring-2 ring-primary')}>
       <div className="text-[11px] text-muted-foreground">{t}</div>
-      <div className={cn('mt-1 text-2xl font-semibold tabular-nums', tone)}>{v}</div>
+      <div className={cn('mt-1 text-2xl font-semibold tabular-nums', tono)}>{v}</div>
       <div className="mt-0.5 text-[11px] text-muted-foreground">{d}</div>
-    </div>
+    </button>
   )
 }
+

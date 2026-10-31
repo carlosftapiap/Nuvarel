@@ -101,7 +101,7 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
           ? { tipo: c.proxima_tipo as ProximaActividad['tipo'], descripcion: String(c.proxima_descripcion ?? ''), fecha: fecha(c.proxima_fecha)! }
           : null
         return {
-          id: String(c.id), nombre: String(c.nombre), documento: String(c.documento ?? ''), telefono: String(c.telefono ?? ''), email: String(c.email ?? ''),
+          id: String(c.id), nombre: String(c.nombre), primerNombre: String(c.primer_nombre ?? ''), segundoNombre: String(c.segundo_nombre ?? ''), primerApellido: String(c.primer_apellido ?? ''), segundoApellido: String(c.segundo_apellido ?? ''), documento: String(c.documento ?? ''), telefono: String(c.telefono ?? ''), email: String(c.email ?? ''),
           origen: c.origen as Cliente['origen'], origenDetalle: String(c.origen_detalle ?? ''), corredorOrigenId: s(c.corredor_origen_id), unidadesInteres: (c.unidades_interes as string[] | null) ?? [],
           presupuesto: c.presupuesto === null || c.presupuesto === undefined ? null : Number(c.presupuesto),
           proposito: (c.proposito as Cliente['proposito']) ?? null, formaPago: (c.forma_pago as Cliente['formaPago']) ?? null,
@@ -128,6 +128,7 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
 }
 
 const aDatos = (c: Cliente) => ({
+  ...(c.primerNombre === undefined ? {} : { primer_nombre: c.primerNombre, segundo_nombre: c.segundoNombre ?? '', primer_apellido: c.primerApellido ?? '', segundo_apellido: c.segundoApellido ?? '' }),
   nombre: c.nombre, documento: c.documento ?? '', corredor_origen_id: c.corredorOrigenId ?? null, telefono: c.telefono, email: c.email, origen: c.origen, origen_detalle: c.origenDetalle, unidades_interes: c.unidadesInteres,
   presupuesto: c.presupuesto, proposito: c.proposito, forma_pago: c.formaPago,
 })
@@ -142,6 +143,8 @@ export async function persistirCambios(datos: Datos, prev: ClientesState, next: 
   const previos = new Map(prev.clientes.map((c) => [c.id, c]))
   for (const c of next.clientes) {
     const p = previos.get(c.id)
+    // Sin los campos en la base se perderían sin aviso: se comprueba antes y, si faltan, no se guarda nada.
+    if (c.primerNombre && (!p || !iguales(aDatos(p), aDatos(c)))) await datos.rpc('clientes_con_nombre', { p: aDatos(c), p_obligatorio: true })
     if (!p) {
       await datos.rpc('clientes_crear', { p_id: c.id, p_datos: aDatos(c), p_asesor: c.asesorId })
       continue

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createInitialState } from '@/features/inventario/service'
 import { generarPlan, sumarMeses } from '../plan'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 
 const s = createInitialState()
 const unit = (c: string) => s.units.find((u) => u.codigo === c)!

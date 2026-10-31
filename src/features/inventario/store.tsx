@@ -2,31 +2,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useConexion } from '@/app/auth'
 import type { Datos } from '@/features/conexion/datos'
 import { cargarInventario, persistirCambios } from './remoto'
-import { createInitialState } from './service'
+import { estadoSinDatos } from './service'
 import type { InventoryState } from './types'
 
 /**
- * Inventario. Sin Supabase: almacén local en el navegador. Con Supabase: se carga desde la base y cada cambio
- * se guarda con su función del servidor; si el servidor lo rechaza, se muestra el motivo y se recarga el inventario real.
+ * Inventario. Con Supabase: se carga desde la base y cada cambio se guarda con su función del servidor;
+ * si el servidor lo rechaza, se muestra el motivo y se recarga el inventario real.
+ * Sin Supabase no hay datos: la aplicación no guarda ni trae inventario propio.
  * Toda mutación pasa por las funciones puras de service.ts / excel.ts, que validan reglas antes de guardar.
  */
-const KEY = 'amura.inventario.v1'
-
-function cargar(): InventoryState {
-  const base = createInitialState()
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return base
-    const saved = JSON.parse(raw) as InventoryState
-    if (saved?.version !== 1 || !Array.isArray(saved.units) || saved.units.length !== base.units.length) return base
-    // Los datos físicos nuevos de la semilla prevalecen sólo si el código coincide; precios/estados vienen del almacenamiento.
-    const porCodigo = new Map(saved.units.map((u) => [u.codigo, u]))
-    if (base.units.some((u) => !porCodigo.has(u.codigo))) return base
-    return { ...base, ...saved, units: base.units.map((u) => ({ ...u, ...porCodigo.get(u.codigo)! })) }
-  } catch {
-    return base
-  }
-}
 
 interface InventoryValue {
   state: InventoryState
@@ -47,10 +31,7 @@ export function InventoryProvider({ children, initialState }: { children: ReactN
 }
 
 function InventarioLocal({ children, initialState }: { children: ReactNode; initialState?: InventoryState }) {
-  const [state, setState] = useState<InventoryState>(() => initialState ?? cargar())
-  useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* sin almacenamiento */ }
-  }, [state])
+  const [state, setState] = useState<InventoryState>(() => initialState ?? estadoSinDatos())
   const ref = useRef(state)
   useEffect(() => { ref.current = state }, [state])
   const update = useCallback((fn: (s: InventoryState) => InventoryState) => {

@@ -1,17 +1,29 @@
 -- AMURA · Correctivo mínimo para habilitar Clientes en un proyecto que tiene instalada la versión ANTERIOR de 20261031000000_clientes_crm.sql.
 -- NO EJECUTAR sin autorización. No incluye Ventas y contratos ni el Gantt. No borra filas ni tablas.
--- Todo o nada: si algo falla, no queda ningún cambio. Se puede repetir. Procedimiento: supabase/instalacion/DESPLIEGUE_CLIENTES.md
+-- Todo o nada: si algo falla, no queda ningún cambio. Se puede repetir. Procedimiento: supabase/instalacion/DESPLIEGUE_PRODUCCION.md
 -- Archivo generado desde la migración actual; supabase/tests/correctivo-clientes.test.ts comprueba que el resultado coincide con ella.
 
 begin;
 
--- Se detiene si la base no está en el estado revisado, o si ya hay clientes: el cambio de acceso se autorizó con cero registros.
-do $$ begin
+-- Se detiene si la base no está en el estado revisado, o si alguien perdería acceso a un cliente o negociación existente.
+-- Hasta ahora también veía un cliente quien lo creó; con esta regla lo ve su asesor, quien lleva una negociación abierta o quien tenga acceso autorizado.
+-- Solo se comprueba la primera vez: si client_access ya existe, el correctivo ya se aplicó.
+do $$
+declare v_clientes int; v_negociaciones int;
+begin
   if to_regprocedure('public.clientes_crear(uuid, jsonb, uuid)') is null or to_regclass('public.client_imports') is null or to_regprocedure('public.cliente_en_alcance(uuid)') is null then
     raise exception 'La base no está en el estado esperado: falta la versión anterior de Clientes. No se aplicó nada.';
   end if;
-  if exists (select 1 from public.clients) or exists (select 1 from public.opportunities) then
-    raise exception 'Ya hay clientes u oportunidades: hay que revisar el impacto del cambio de acceso antes de continuar. No se aplicó nada.';
+  if to_regclass('public.client_access') is null then
+    select count(*) into v_clientes from public.clients c
+    where c.created_by is not null and c.created_by <> c.asesor_id
+      and not exists (select 1 from public.opportunities o where o.client_id = c.id and o.etapa <> 'perdida' and o.responsable_id = c.created_by);
+    select count(*) into v_negociaciones from public.opportunities o join public.clients c on c.id = o.client_id
+    where o.etapa = 'perdida' and o.responsable_id is distinct from c.asesor_id and o.responsable_id is distinct from c.created_by
+      and not exists (select 1 from public.opportunities x where x.client_id = c.id and x.etapa <> 'perdida' and x.responsable_id = o.responsable_id);
+    if v_clientes + v_negociaciones > 0 then
+      raise exception 'Perderían acceso % cliente(s) y % negociación(es) cerrada(s): revísalos con impacto_acceso_clientes.sql. No se aplicó nada.', v_clientes, v_negociaciones;
+    end if;
   end if;
 end $$;
 
@@ -361,6 +373,25 @@ begin
     end;
   end loop;
   return v_res;
+end $$;
+
+
+/* ------------------------------------------ origen comercial en la venta */
+
+-- El contrato conserva también el detalle del origen. Solo afecta a contratos nuevos: los existentes no se tocan.
+create or replace function public.contrato_datos_venta() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare c clients; v_responsable uuid;
+begin
+  select * into c from clients where id = new.client_id;
+  select responsable_id into v_responsable from opportunities where id = new.opportunity_id;
+  new.asesor_id := c.asesor_id;
+  new.responsable_id := coalesce(v_responsable, c.asesor_id);
+  new.atribucion_usuario_id := c.atribucion_usuario_id;
+  new.corredor_origen_id := c.corredor_origen_id;
+  new.origen := c.origen;
+  new.origen_detalle := c.origen_detalle;
+  return new;
 end $$;
 
 

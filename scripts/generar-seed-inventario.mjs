@@ -1,8 +1,8 @@
-// Genera supabase/seed.sql a partir de src/features/inventario/data/amura-units.ts (72 unidades verificadas).
+// Genera supabase/seed.sql a partir de src/features/inventario/__tests__/datos/amura-units.ts (72 unidades verificadas).
 // Uso: node scripts/generar-seed-inventario.mjs
 import fs from 'node:fs'
 
-const src = fs.readFileSync(new URL('../src/features/inventario/data/amura-units.ts', import.meta.url), 'utf8')
+const src = fs.readFileSync(new URL('../src/features/inventario/__tests__/datos/amura-units.ts', import.meta.url), 'utf8')
 const rows = [...src.matchAll(/^ {2}\[(".*)\],$/gm)].map((m) => JSON.parse(`[${m[1]}]`))
 if (rows.length !== 72) throw new Error(`Se esperaban 72 unidades y hay ${rows.length}`)
 

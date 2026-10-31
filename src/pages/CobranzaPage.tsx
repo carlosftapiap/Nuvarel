@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, CloudOff, Loader2, Lock, RefreshCw, X } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { CheckCircle2, CloudOff, FileCheck2, Loader2, Lock, RefreshCw, X } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { useConexion } from '@/app/auth'
 import { useSession } from '@/app/session'
@@ -12,6 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import type { Datos } from '@/features/conexion/datos'
 import * as api from '@/features/cobranza/api'
+import { ESTADO_FILA, filaReserva, indicadoresReservas, type FilaReserva } from '@/features/cobranza/reservas'
+import { useRefresco } from '@/features/conexion/refresco'
+import MovimientosReserva from '@/features/cobranza/components/MovimientosReserva'
+import RevisionPago, { type PagoEnRevision } from '@/features/cobranza/components/RevisionPago'
+import { almacenPagos, errorArchivo, reportarPagoContrato, reportarPagoReserva } from '@/features/cobranza/comprobantes'
+import RegistrarPagoDialog from '@/features/reservas/components/RegistrarPagoDialog'
+import type { Reserva } from '@/features/reservas/model'
 import { calcularTablero, SITUACION, TRAMOS_MORA, type ResumenContrato } from '@/features/cobranza/tablero'
 import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
@@ -67,7 +75,8 @@ function Cobranza({ datos }: { datos: Datos }) {
     // La recarga no borra el mensaje de la última acción: el usuario debe ver por qué no se guardó.
     try { setD(await api.cargarCobranza(datos)) } catch (e) { setError((e as Error).message) }
   }, [datos])
-  useEffect(() => { void cargar() }, [cargar])
+  // Al volver a la pestaña y cada minuto también se releen: otra persona pudo registrar o confirmar un pago.
+  useRefresco(cargar)
 
   const ejecutar = useCallback(async (fn: () => Promise<unknown>, ok: string) => {
     setError(null); setAviso(null)
@@ -75,7 +84,9 @@ function Cobranza({ datos }: { datos: Datos }) {
   }, [cargar])
 
   const tablero = useMemo(() => (d ? calcularTablero(d.contratos, d.cuotas, d.pagos, hoy) : null), [d, hoy])
-  if (!d || !tablero) return error ? <FieldError>{error}</FieldError> : <p className="p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 inline size-4 animate-spin" />Cargando cobranza…</p>
+  const filasReservas = useMemo(() => (d?.reservas ?? []).map((r) => filaReserva(r, d!.reservasConContrato, hoy)), [d, hoy])
+  const indicadores = useMemo(() => (d ? indicadoresReservas(filasReservas, d.pagos, d.contratosVigentes, d.movimientos) : null), [d, filasReservas])
+  if (!d || !tablero || !indicadores) return error ? <FieldError>{error}</FieldError> : <p className="p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 inline size-4 animate-spin" />Cargando cobranza…</p>
 
   const responsables = [...new Set(tablero.contratos.map((r) => r.contrato.responsable))].sort()
   const cartera = tablero.contratos.filter((r) => (edificio === 'todos' || String(r.contrato.edificio) === edificio) && (responsable === 'todos' || r.contrato.responsable === responsable))
@@ -88,15 +99,23 @@ function Cobranza({ datos }: { datos: Datos }) {
         actions={<Button variant="outline" size="sm" onClick={() => { setError(null); setAviso(null); void cargar() }}><RefreshCw />Actualizar</Button>} />
       {aviso && !elegido && <p role="status" className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"><CheckCircle2 className="size-4" />{aviso}</p>}
       {!elegido && <div className="mb-3"><FieldError>{error}</FieldError></div>}
+      {d.receptor !== undefined && d.receptor !== 'NUVAREL' && <p role="alert" className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">No se pueden confirmar pagos: el receptor configurado es {d.receptor ?? 'ninguno'} y el recibo se emite a nombre de NUVAREL. Debe resolverse en Configuración.</p>}
+      {indicadores.vencidas > 0 && <p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{indicadores.vencidas === 1 ? 'Hay 1 reserva vencida' : `Hay ${indicadores.vencidas} reservas vencidas`} sin resolver. No se anulan automáticamente y siguen bloqueando su unidad.</p>}
 
       <Tabs defaultValue="tablero" className="min-w-0">
         <TabsList className="mb-3">
           <TabsTrigger value="tablero">Tablero</TabsTrigger>
+          {d.reservas && <TabsTrigger value="reservas">Reservas ({filasReservas.filter((f) => f.estado !== 'anulada').length})</TabsTrigger>}
           <TabsTrigger value="cartera">Cartera ({tablero.contratos.length})</TabsTrigger>
           <TabsTrigger value="alertas">Alertas ({d.alertas.filter((a) => a.estado === 'pendiente').length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="tablero" className="grid gap-4">
+          <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Reservas y recaudación">
+            {d.reservas && <Kpi t="Reservas pendientes de pago" v={String(indicadores.pendientes.cantidad)} d={`${fmtUsd2(indicadores.pendientes.acordado)} acordados · aún no es ingreso`} tone={indicadores.pendientes.cantidad ? 'text-amber-700' : undefined} />}
+            <Kpi t="Pagos pendientes de verificación" v={String(indicadores.porVerificar.cantidad)} d={`${fmtUsd2(indicadores.porVerificar.monto)} reportados · Finanzas no los ha confirmado`} tone={indicadores.porVerificar.cantidad ? 'text-amber-700' : undefined} />
+            <Kpi t="Total recaudado" v={fmtUsd2(indicadores.recaudado)} d={indicadores.devuelto || indicadores.retenido ? `Neto. Bruto ${fmtUsd2(indicadores.bruto)} · devuelto ${fmtUsd2(indicadores.devuelto)} · retenido ${fmtUsd2(indicadores.retenido)}` : 'Solo pagos confirmados por Finanzas'} destacado />
+          </div>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
             <Kpi t="Total pactado (20%)" v={fmtUsd2(tablero.pactado)} d="Contratos firmados" />
             <Kpi t="Cobrado confirmado" v={fmtUsd2(tablero.cobrado)} d="Solo pagos verificados" />
@@ -164,6 +183,12 @@ function Cobranza({ datos }: { datos: Datos }) {
           )}
         </TabsContent>
 
+        {d.reservas && (
+          <TabsContent value="reservas">
+            <ReservasCobranza filas={filasReservas} d={d} datos={datos} ejecutar={ejecutar} />
+          </TabsContent>
+        )}
+
         <TabsContent value="alertas">
           <Alertas alertas={d.alertas} />
         </TabsContent>
@@ -171,6 +196,77 @@ function Cobranza({ datos }: { datos: Datos }) {
 
       {elegido && <Detalle r={elegido} d={d} datos={datos} ejecutar={ejecutar} error={error} aviso={aviso} onClose={() => setSeleccion(null)} />}
     </>
+  )
+}
+
+/** Solicitudes y reservas desde que se crean. Lo acordado no es un ingreso; solo se confirma con la verificación de Finanzas. */
+function ReservasCobranza({ filas, d, datos, ejecutar }: { filas: FilaReserva[]; d: api.DatosCobranza; datos: Datos; ejecutar: (fn: () => Promise<unknown>, ok: string) => Promise<boolean> }) {
+  const { can, actor } = useSession()
+  const conexion = useConexion()
+  const [revision, setRevision] = useState<Reserva | null>(null)
+  const [verAnuladas, setVerAnuladas] = useState(false)
+  const [pago, setPago] = useState<Reserva | null>(null)
+  const anuladas = filas.filter((f) => f.estado === 'anulada').length
+  const [movimientos, setMovimientos] = useState<Reserva | null>(null)
+  // Una anulada con dinero recibido siempre se ve: falta definir qué pasa con ese dinero.
+  const lista = verAnuladas ? filas : filas.filter((f) => f.estado !== 'anulada' || f.pagado > 0)
+  const destino = (r: Reserva) => (can('cotizaciones.crear') ? `/venta?cotizacion=${r.cotizacionId}` : `/reservas?codigo=${r.codigo}`)
+  return (
+    <div className="grid gap-3">
+      {anuladas > 0 && <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={verAnuladas} onChange={(e) => setVerAnuladas(e.target.checked)} />Mostrar anuladas ({anuladas})</label>}
+      {lista.length === 0 ? <div className="module-empty"><p className="text-sm text-muted-foreground">No hay solicitudes de reserva en tu alcance.</p></div> : (
+        <div className="dashboard-card !p-0 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-muted text-[11px] text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium">Cliente</th>
+                <th className="px-2 py-2 text-left font-medium">Departamento</th>
+                <th className="px-2 py-2 text-left font-medium">Código</th>
+                <th className="px-2 py-2 text-right font-medium">Acordado</th>
+                <th className="px-2 py-2 text-right font-medium">Pagado</th>
+                <th className="px-2 py-2 text-right font-medium">Saldo pendiente</th>
+                <th className="px-2 py-2 text-left font-medium">Estado</th>
+                <th className="px-4 py-2 text-right font-medium">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lista.map((f) => (
+                <tr key={f.reserva.id} className="border-t border-border align-top">
+                  <td className="px-4 py-2 font-medium">{f.reserva.clienteNombre}</td>
+                  <td className="px-2 py-2">{d.departamentos.get(f.reserva.unidad) ?? f.reserva.unidad}</td>
+                  <td className="px-2 py-2">{f.reserva.codigo}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.acordado)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.pagado)}{f.estado === 'por_verificar' && <div className="text-[11px] text-muted-foreground">reportado, sin confirmar</div>}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.saldo)}</td>
+                  <td className="px-2 py-2"><Pastilla texto={ESTADO_FILA[f.estado].label} tono={ESTADO_FILA[f.estado].tono} />{f.vencida && <span className="ml-1"><Pastilla texto="Vencida" tono="bg-rose-50 text-rose-700 ring-rose-200" /></span>}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex justify-end gap-1.5">
+                      {f.estado === 'pendiente_pago' && (can('reservas.solicitar') || can('cobranzas.registrar')) && <Button size="xs" variant="outline" onClick={() => setPago(f.reserva)}><FileCheck2 />Registrar pago</Button>}
+                      {(f.estado !== 'pendiente_pago' || d.comprobantes.some((c) => c.reservaId === f.reserva.id)) && (f.estado !== 'anulada' || d.comprobantes.some((c) => c.reservaId === f.reserva.id)) && <Button size="xs" variant={f.estado === 'por_verificar' ? 'default' : 'outline'} onClick={() => setRevision(f.reserva)}>{f.estado === 'por_verificar' ? 'Revisar pago' : 'Ver pago'}</Button>}
+                      {f.estado === 'anulada' && f.pagado > 0 && (can('cobranzas.registrar') || can('ventas.desistimiento_con_dinero') || d.movimientos.some((m) => m.reservaId === f.reserva.id)) && <Button size="xs" variant="outline" onClick={() => setMovimientos(f.reserva)}>Devolución o retención</Button>}
+                      <Button size="xs" variant="outline" asChild><Link to={destino(f.reserva)} aria-label={`Ver reserva ${f.reserva.codigo}`}>Ver reserva</Link></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground">Una solicitud no es un ingreso ni una cuenta por cobrar contractual: el cronograma se vuelve exigible al firmar el contrato. Registrar un pago no lo confirma; Finanzas verifica el ingreso.</p>
+      <RegistrarPagoDialog reserva={pago} onClose={() => setPago(null)}
+        onConfirm={(p) => { const r = pago!; setPago(null); void ejecutar(() => reportarPagoReserva(datos, almacenPagos(conexion), r.id, p), `Pago de ${r.codigo} registrado · pendiente de verificación de Finanzas`) }} />
+      {movimientos && <MovimientosReserva reserva={movimientos} movimientos={d.movimientos.filter((m) => m.reservaId === movimientos.id)} datos={datos} almacen={almacenPagos(conexion)} ejecutar={ejecutar} onClose={() => setMovimientos(null)} />}
+      {revision && (() => {
+        const propios = d.comprobantes.filter((c) => c.reservaId === revision.id)
+        const reportado = propios.find((c) => c.estado === 'reportado')
+        const enRevision: PagoEnRevision = {
+          tipo: 'reserva', id: revision.id, titulo: `Pago de ${revision.codigo} · ${revision.clienteNombre}`, monto: revision.montoRecibido ?? revision.montoReserva, referencia: revision.comprobante ?? '', fecha: hoyGuayaquil(),
+          pendiente: revision.estado === 'solicitada' && !!revision.comprobante, propio: revision.creadaPor.id === actor.id || reportado?.cargadoPor === actor.id,
+        }
+        return <RevisionPago pago={enRevision} comprobantes={propios} recibo={d.recibos.find((v) => v.reservaId === revision.id) ?? null} datos={datos} almacen={almacenPagos(conexion)} ejecutar={ejecutar} onClose={() => setRevision(null)} />
+      })()}
+    </div>
   )
 }
 
@@ -202,12 +298,20 @@ type Pedir = { titulo: string; boton: string; destructivo?: boolean; accion: (mo
 
 function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenContrato; d: api.DatosCobranza; datos: Datos; ejecutar: Ejecutar; error: string | null; aviso: string | null; onClose: () => void }) {
   const { can, actor } = useSession()
+  const conexion = useConexion()
+  const [revisar, setRevisar] = useState<string | null>(null)
+  const pagoRevisado = revisar ? d.pagos.find((p) => p.id === revisar) ?? null : null
+  // El pago copiado de la reserva conserva el recibo que se emitió al confirmarla.
+  const reciboDe = (p: { id: string; referencia: string }) => d.recibos.find((v) => v.pagoId === p.id)
+    ?? d.recibos.find((v) => v.reservaId !== null && v.reservaId === d.reservaDeContrato.get(r.contrato.id) && v.referencia === p.referencia) ?? null
   const c = r.contrato
   const pagos = d.pagos.filter((p) => p.contratoId === c.id)
   const gestiones = d.gestiones.filter((g) => g.contratoId === c.id)
   const compromisos = d.compromisos.filter((k) => k.contratoId === c.id)
   const [pedir, setPedir] = useState<Pedir | null>(null)
-  const [pago, setPago] = useState({ monto: '', fecha: hoyGuayaquil(), referencia: '', comprobante: '' })
+  const [pago, setPago] = useState({ monto: '', fecha: hoyGuayaquil(), banco: '', referencia: '' })
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [enviandoPago, setEnviandoPago] = useState(false)
   const [gestion, setGestion] = useState({ tipo: 'llamada', descripcion: '', numero: '' })
   const [comp, setComp] = useState({ monto: '', fecha: '', numero: '', motivo: '' })
   const [repro, setRepro] = useState({ numero: '', fecha: '', motivo: '' })
@@ -272,10 +376,8 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenC
                     <Pastilla texto={ESTADO_PAGO[p.estado].label} tono={ESTADO_PAGO[p.estado].tono} />
                     {p.motivo && <span className="text-[11px] text-muted-foreground">{p.motivo}</span>}
                     <span className="ml-auto flex gap-1.5">
-                      {p.estado === 'registrado' && can('cobranzas.verificar') && p.registradoPor !== actor.id && <>
-                        <Button size="sm" onClick={() => setPedir({ titulo: `Confirmar el pago ${p.referencia}`, boton: 'Confirmar ingreso', ok: 'Pago confirmado', accion: (m) => api.verificarPago(datos, p.id, true, m) })}>Confirmar</Button>
-                        <Button size="sm" variant="outline" onClick={() => setPedir({ titulo: `Rechazar el comprobante ${p.referencia}`, boton: 'Rechazar', destructivo: true, ok: 'Comprobante rechazado', accion: (m) => api.verificarPago(datos, p.id, false, m) })}>Rechazar</Button>
-                      </>}
+                      {(p.estado === 'registrado' ? can('cobranzas.verificar') || p.registradoPor === actor.id : !!reciboDe(p) || d.comprobantes.some((k) => k.pagoId === p.id)) &&
+                        <Button size="sm" variant={p.estado === 'registrado' && p.registradoPor !== actor.id ? 'default' : 'outline'} onClick={() => setRevisar(p.id)}>{p.estado === 'registrado' ? 'Revisar pago' : 'Ver pago'}</Button>}
                       {p.estado === 'registrado' && p.registradoPor === actor.id && <span className="text-[11px] text-muted-foreground">Lo verifica otra persona</span>}
                       {(p.estado === 'registrado' || p.estado === 'verificado') && can('cobranzas.verificar') &&
                         <Button size="sm" variant="ghost" onClick={() => setPedir({ titulo: `Anular el pago ${p.referencia}`, boton: 'Anular pago', destructivo: true, ok: 'Pago anulado', accion: (m) => api.anularPago(datos, p.id, m) })}>Anular</Button>}
@@ -289,10 +391,12 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenC
                 <div className="grid gap-1"><Label htmlFor="pg-monto" className="text-[11px]">Monto (USD)</Label><Input id="pg-monto" className="h-8" inputMode="decimal" value={pago.monto} onChange={(e) => setPago({ ...pago, monto: e.target.value })} /></div>
                 <div className="grid gap-1"><Label htmlFor="pg-fecha" className="text-[11px]">Fecha</Label><Input id="pg-fecha" className="h-8" type="date" max={hoyGuayaquil()} value={pago.fecha} onChange={(e) => setPago({ ...pago, fecha: e.target.value })} /></div>
                 <div className="grid gap-1"><Label htmlFor="pg-ref" className="text-[11px]">Referencia</Label><Input id="pg-ref" className="h-8" value={pago.referencia} onChange={(e) => setPago({ ...pago, referencia: e.target.value })} /></div>
-                <div className="grid gap-1"><Label htmlFor="pg-comp" className="text-[11px]">Comprobante (enlace)</Label><Input id="pg-comp" className="h-8" value={pago.comprobante} onChange={(e) => setPago({ ...pago, comprobante: e.target.value })} /></div>
-                <div className="flex items-end"><Button size="sm" className="w-full" disabled={!(num(pago.monto) > 0) || pago.referencia.trim().length < 3}
-                  onClick={() => void ejecutar(() => api.registrarPago(datos, c.id, num(pago.monto), pago.fecha, pago.referencia.trim(), pago.comprobante.trim() || null), 'Pago registrado: queda por verificar')
-                    .then((ok) => { if (ok) setPago({ monto: '', fecha: hoyGuayaquil(), referencia: '', comprobante: '' }) })}>Registrar pago</Button></div>
+                <div className="grid gap-1"><Label htmlFor="pg-banco" className="text-[11px]">Banco</Label><Input id="pg-banco" className="h-8" value={pago.banco} onChange={(e) => setPago({ ...pago, banco: e.target.value })} /></div>
+                <div className="grid gap-1"><Label htmlFor="pg-comp" className="text-[11px]">Foto o PDF *</Label><Input id="pg-comp" className="h-8" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} /></div>
+                <div className="flex items-end sm:col-span-5 sm:justify-end"><Button size="sm" disabled={!(num(pago.monto) > 0) || pago.referencia.trim().length < 3 || pago.banco.trim().length < 2 || !archivo || !!errorArchivo(archivo) || enviandoPago}
+                  onClick={() => { setEnviandoPago(true); void ejecutar(() => reportarPagoContrato(datos, almacenPagos(conexion), c.id, { monto: num(pago.monto), fecha: pago.fecha, banco: pago.banco.trim(), referencia: pago.referencia.trim(), archivo: archivo! }), 'Pago registrado: queda por verificar')
+                    .then((ok) => { setEnviandoPago(false); if (ok) { setPago({ monto: '', fecha: hoyGuayaquil(), banco: '', referencia: '' }); setArchivo(null) } }) }}>Registrar pago</Button></div>
+                <div className="sm:col-span-5 empty:hidden"><FieldError>{errorArchivo(archivo)}</FieldError></div>
                 <p className="text-[11px] text-muted-foreground sm:col-span-5">Un pago se aplica a las cuotas en orden y puede cubrir varias. No cuenta como cobrado hasta que otra persona lo confirme. El excedente queda como saldo a favor.</p>
               </div>
             )}
@@ -364,6 +468,10 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenC
           )}
         </div>
         {pedir && <MotivoDialog p={pedir} onClose={() => setPedir(null)} onEnviar={(m) => ejecutar(() => pedir.accion(m), pedir.ok)} />}
+        {pagoRevisado && (
+          <RevisionPago pago={{ tipo: 'pago', id: pagoRevisado.id, titulo: `Pago ${pagoRevisado.referencia} · ${c.cliente}`, monto: pagoRevisado.monto, referencia: pagoRevisado.referencia, fecha: pagoRevisado.fecha, pendiente: pagoRevisado.estado === 'registrado', propio: pagoRevisado.registradoPor === actor.id }}
+            comprobantes={d.comprobantes.filter((k) => k.pagoId === pagoRevisado.id)} recibo={reciboDe(pagoRevisado)} datos={datos} almacen={almacenPagos(conexion)} ejecutar={ejecutar} onClose={() => setRevisar(null)} />
+        )}
       </SheetContent>
     </Sheet>
   )

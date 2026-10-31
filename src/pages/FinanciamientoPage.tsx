@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import * as XLSX from 'xlsx'
-import { AlertTriangle, Download, FileText, Landmark, Loader2, Plus, Scale, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Download, FileText, Landmark, Loader2, Plus, Scale, Trash2 } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { useConexion } from '@/app/auth'
 import { useSession } from '@/app/session'
@@ -10,15 +10,26 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { calcularEntrada, type EntradaCalculada } from '@/features/cobranza/entrada'
+import { clientesVisibles } from '@/features/clientes/service'
+import { useClientes } from '@/features/clientes/store'
+import type { EntradaCalculada } from '@/features/cobranza/entrada'
 import type { Datos } from '@/features/conexion/datos'
+import { ESTADOS_COTIZABLES } from '@/features/cotizaciones/cotizacion'
+import CuotasExtraordinarias, { filasAParam } from '@/features/financiamiento/components/CuotasExtraordinarias'
+import { textoCuotas } from '@/features/financiamiento/components/ResumenFinanciero'
+import { calcularCondiciones, type Calculo, type CondicionesFinanciamiento, type CreditoCondiciones } from '@/features/financiamiento/condiciones'
 import { simularHipoteca, type Amortizacion, type CondicionesManuales, type ProductoHipotecario, type Simulacion, type Tramo } from '@/features/financiamiento/hipoteca'
 import { descargarPdfIntegral } from '@/features/financiamiento/pdfIntegral'
-import { DESCUENTO_MAX, fmtFechaCorta, generarPlan, hoyGuayaquil, sumarMeses } from '@/features/financiamiento/plan'
+import { cronogramaPorMes, DESCUENTO_MAX, fmtFechaCorta, hoyGuayaquil, sumarMeses } from '@/features/financiamiento/plan'
 import UnitPicker from '@/features/inventario/components/UnitPicker'
 import { EstadoBadge, FieldError, pisoLabel } from '@/features/inventario/components/shared'
-import { fmtM2, fmtUsd, fmtUsd2 } from '@/features/inventario/pricing'
+import { estadoEfectivo } from '@/features/inventario/estados'
+import { fmtM2, fmtUsd, fmtUsd2, RESERVA_PREDETERMINADA } from '@/features/inventario/pricing'
+import type { PricingParams, Unit } from '@/features/inventario/types'
 import { useInventory } from '@/features/inventario/store'
+import { claveBorrador, claveSimulacion, guardarJson, leerBorrador, leerCondiciones } from '@/features/venta/borrador'
+import OperacionPanel from '@/features/venta/OperacionPanel'
+import { useOperacion } from '@/features/venta/useOperacion'
 import { cn } from '@/lib/utils'
 
 const numero = (s: string) => (s.trim() === '' ? null : Number(s.replace(',', '.')))
@@ -37,41 +48,251 @@ function aProducto(r: Record<string, unknown>): ProductoHipotecario {
   }
 }
 
+/* -------------------------------------------------------------- pantalla */
+
+/** Una sola pantalla de financiamiento. Con `operacion=1` trabaja sobre la operación de Atender cliente; sin ella, simula sin cliente. */
 export default function FinanciamientoPage() {
+  const [params] = useSearchParams()
+  return params.get('operacion') === '1' ? <OperacionFinanciamiento /> : <SimulacionFinanciamiento />
+}
+
+function OperacionFinanciamiento() {
+  const { actor, can } = useSession()
+  const hoy = hoyGuayaquil()
+  const [b, setB] = useState(() => leerBorrador(actor.id, hoy))
+  useEffect(() => guardarJson(claveBorrador(actor.id), b), [b, actor.id])
+  const op = useOperacion(b, setB, can('cotizaciones.descuento'))
+  const [credito, setCredito] = useState<Simulacion | null>(null)
+  const { cliente, unit, cotizacion, bloqueada, calc } = op
+  const nombreCliente = cliente?.nombre ?? cotizacion?.cliente.nombre ?? null
+
+  const confirmacion = cotizacion ? (
+    <p className="rounded-lg bg-muted px-3 py-2 text-xs">Plan de la cotización {cotizacion.numero} · versión <b>{calc.version}</b>. Para cambiarlo, crea una versión nueva desde el panel de operación.</p>
+  ) : op.confirmadoVigente ? (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+      <CheckIcon />
+      <span className="min-w-0 flex-1">Plan confirmado · versión <b>{calc.version}</b>. Ya puedes emitir la cotización.</span>
+      <Button size="xs" variant="outline" onClick={op.editarPlan}>Editar financiamiento</Button>
+    </div>
+  ) : (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button disabled={!calc.plan || !!op.bloqueoCalculo || !unit} onClick={op.confirmarPlan}><FileText />Usar este plan y continuar cotización</Button>
+        {!calc.plan && <span className="text-[11px] text-muted-foreground">Elige un departamento para calcular el plan.</span>}
+        {calc.plan && op.bloqueoCalculo && <span className="text-[11px] text-rose-700">Corrige el plan para confirmarlo.</span>}
+      </div>
+      {op.precioCambio && op.planConfirmado && calc.plan && (
+        <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          El precio del departamento cambió de {fmtUsd2(op.planConfirmado.precioFinal)} a {fmtUsd2(calc.plan.precioFinal)} desde que confirmaste el plan. Revisa las condiciones y confirma de nuevo.
+        </p>
+      )}
+      {op.planConfirmado && !op.confirmadoVigente && !op.precioCambio && (
+        <p role="status" className="text-[11px] text-amber-800">Cambiaste las condiciones desde la confirmación. Confirma el plan de nuevo para emitir.</p>
+      )}
+    </div>
+  )
+
+  return (
+    <>
+      <PageHeader eyebrow="Ventas · Financiamiento" title="Financiamiento de la operación"
+        subtitle={`${nombreCliente ?? 'Cliente pendiente'} · ${unit ? `Departamento ${unit.dpt}` : 'Departamento pendiente'}. Plan, operación y cotización en una sola pantalla.`}
+        actions={<>
+          {calc.entrada && unit && <Button variant="outline" size="sm" onClick={() => exportar(calc.entrada!, unit, op.condiciones.fecha, credito)}><Download />Excel</Button>}
+          <Button asChild variant="outline" size="sm"><Link to="/venta"><ArrowLeft />Atender cliente</Link></Button>
+        </>} />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid min-w-0 content-start gap-4">
+          {unit?.estado === 'por_confirmar' && <p className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800">Disponibilidad por confirmar: se puede cotizar, pero no reservar hasta que se confirme en Inventario.</p>}
+          {op.otraReserva && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md bg-yellow-50 px-3 py-2 text-[11px] text-yellow-900">
+              <span className="min-w-0 flex-1">Esta unidad ya tiene la solicitud {op.otraReserva.codigo}. No admite otra reserva.</span>
+              {op.otraReserva.cotizacionId && op.otraReserva.cotizacionId !== b.cotizacionId && <Button size="xs" variant="outline" onClick={() => op.retomar(op.otraReserva!.cotizacionId!)}>Continuar operación</Button>}
+            </div>
+          )}
+          <section className="dashboard-card grid gap-4 p-5" aria-label="Condiciones del plan">
+            <CondicionesForm unit={unit} params={op.inv.params} precioFinal={calc.plan?.precioFinal ?? null} valor={op.condiciones} soloLectura={bloqueada} reservaBloqueada={!!op.reserva} puedeDescontar={can('cotizaciones.descuento')}
+              onChange={(c) => setB((x) => ({ ...x, financiamiento: bloqueada ? { ...x.financiamiento, reserva: c.reserva } : c }))}
+              vigencia={{ valor: cotizacion ? String(cotizacion.vigenciaDias) : b.vigencia, onChange: (v) => setB((x) => ({ ...x, vigencia: v })) }}
+              observaciones={{ valor: cotizacion ? cotizacion.observaciones : b.observaciones, onChange: (v) => setB((x) => ({ ...x, observaciones: v })) }}
+              unitPicker={!bloqueada ? <UnitPicker id="fin-unidad" label="Departamento" units={op.inv.units} params={op.inv.params} value={op.codigo} onChange={(v) => setB((x) => ({ ...x, codigo: v, planConfirmado: null }))} permitidos={ESTADOS_COTIZABLES} soloPermitidos /> : null} />
+          </section>
+          <PanelFinanciamiento calc={calc} unit={unit} condiciones={op.condiciones} credito={credito} onSimulacion={setCredito}
+            onCredito={(c) => setB((x) => ({ ...x, financiamiento: { ...x.financiamiento, credito: c } }))} confirmacion={confirmacion} asesor={actor.nombre} />
+        </div>
+        <aside className="grid content-start gap-4 xl:sticky xl:top-4 xl:self-start">
+          <OperacionPanel op={op} />
+        </aside>
+      </div>
+    </>
+  )
+}
+
+function SimulacionFinanciamiento() {
   const { state } = useInventory()
   const { can, actor } = useSession()
-  const { remoto, datos } = useConexion()
+  const { state: cs } = useClientes()
   const [params, setParams] = useSearchParams()
+  const hoy = hoyGuayaquil()
   const codigo = params.get('unidad') ?? ''
-  const [fechaFirma, setFechaFirma] = useState(hoyGuayaquil())
-  const [descuento, setDescuento] = useState('0')
-  const [reservaTxt, setReservaTxt] = useState('')
-  const puedeDescontar = can('cotizaciones.descuento')
   const unit = state.units.find((u) => u.codigo === codigo)
+  const [cond, setCond] = useState(() => leerCondiciones(claveSimulacion(actor.id), hoy))
+  useEffect(() => guardarJson(claveSimulacion(actor.id), cond), [cond, actor.id])
+  const puedeDescontar = can('cotizaciones.descuento')
+  const calc = useMemo(() => calcularCondiciones(unit, state.params, cond, puedeDescontar), [unit, state.params, cond, puedeDescontar])
+  const [credito, setCredito] = useState<Simulacion | null>(null)
 
-  const base = useMemo(() => {
-    if (!unit) return { plan: null, error: null }
-    try {
-      return { plan: generarPlan(unit, state.params, { fechaReserva: fechaFirma, descuentoPct: puedeDescontar ? Number(descuento.replace(',', '.')) || 0 : 0 }), error: null }
-    } catch (e) {
-      return { plan: null, error: (e as Error).message }
-    }
-  }, [unit, state.params, fechaFirma, descuento, puedeDescontar])
-  const plan = base.plan
+  return (
+    <>
+      <PageHeader eyebrow="Ventas · Financiamiento" title="Simulador de financiamiento"
+        subtitle="Entrada del 20% a favor de Nuvarel y crédito hipotecario del 80% del comprador. Una simulación no crea deuda ni es una aprobación bancaria."
+        actions={calc.entrada && unit && <>
+          <Button variant="outline" size="sm" onClick={() => exportar(calc.entrada!, unit, cond.fecha, credito)}><Download />Excel</Button>
+          {can('cotizaciones.crear') && <Button size="sm" variant="outline" asChild><Link to={`/cotizaciones?unidad=${encodeURIComponent(codigo)}&fecha=${cond.fecha}${cond.extras.length && !calc.errorExtras ? `&extras=${filasAParam(cond.extras)}` : ''}`}><FileText />Crear cotización</Link></Button>}
+        </>} />
+      <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <div className="grid content-start gap-4">
+          <section className="dashboard-card grid content-start gap-4 p-5" aria-label="Datos de la simulación">
+            <CondicionesForm unit={unit} params={state.params} precioFinal={calc.plan?.precioFinal ?? null} valor={cond} onChange={setCond} puedeDescontar={puedeDescontar} vertical
+              unitPicker={<UnitPicker id="fin-unidad" units={state.units} params={state.params} value={codigo}
+                onChange={(c) => setParams((p) => { p.set('unidad', c); return p }, { replace: true })} />} />
+          </section>
+          {unit && can('cotizaciones.crear') && <VincularCliente unit={unit} condiciones={cond} clientes={clientesVisibles(cs.clientes, actor).filter((c) => c.etapa !== 'perdido')} />}
+        </div>
+        <PanelFinanciamiento calc={calc} unit={unit} condiciones={cond} credito={credito} onSimulacion={setCredito} onCredito={(c) => setCond((x) => ({ ...x, credito: c }))} confirmacion={null} asesor={actor.nombre} />
+      </div>
+    </>
+  )
+}
 
-  // Sin dato propio, la reserva propuesta es el 6% (el pago a la firma queda en cero); se puede bajar a 500, 600, 1.000…
-  const reserva = numero(reservaTxt) ?? plan?.reserva ?? 0
-  const entrada = useMemo(() => {
-    if (!plan || !unit) return { e: null as EntradaCalculada | null, error: null as string | null }
-    try {
-      return { e: calcularEntrada({ precioFinal: plan.precioFinal, reserva, meses: state.params.meses[unit.edificio] }), error: null }
-    } catch (err) {
-      return { e: null, error: (err as Error).message }
-    }
-  }, [plan, unit, reserva, state.params.meses])
+/** Vincula la simulación a una operación: conserva las condiciones y abre el mismo plan en la operación. */
+function VincularCliente({ unit, condiciones, clientes }: { unit: Unit; condiciones: CondicionesFinanciamiento; clientes: { id: string; nombre: string }[] }) {
+  const { actor } = useSession()
+  const navigate = useNavigate()
+  const [clienteId, setClienteId] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <section aria-label="Vincular a una operación" className="dashboard-card grid gap-3 p-5">
+      <h2 className="text-sm font-semibold">Usar esta simulación en una venta</h2>
+      <div className="grid gap-1.5">
+        <Label htmlFor="sim-cliente" className="text-xs">Cliente</Label>
+        <select id="sim-cliente" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
+          <option value="">Elige un cliente</option>
+          {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+        </select>
+      </div>
+      <FieldError>{error}</FieldError>
+      <Button size="sm" disabled={!clienteId} onClick={() => {
+        // Se guarda antes de cambiar de pantalla: la operación lee las condiciones al abrirse.
+        const hoy = hoyGuayaquil()
+        const previo = leerBorrador(actor.id, hoy)
+        if (previo.cotizacionId) { setError('Ya tienes abierta una operación con cotización. En Atender cliente, elige «Atender a otro cliente».'); return }
+        guardarJson(claveBorrador(actor.id), { ...previo, clienteId, codigo: unit.codigo, financiamiento: condiciones, planConfirmado: null })
+        navigate('/financiamiento?operacion=1')
+      }}>Vincular y abrir la operación</Button>
+    </section>
+  )
+}
 
+/* ---------------------------------------------------- condiciones del plan */
+
+interface CondicionesProps {
+  unit: Unit | undefined
+  params: PricingParams
+  valor: CondicionesFinanciamiento
+  onChange: (c: CondicionesFinanciamiento) => void
+  puedeDescontar: boolean
+  soloLectura?: boolean
+  reservaBloqueada?: boolean
+  vertical?: boolean
+  precioFinal: number | null
+  vigencia?: { valor: string; onChange: (v: string) => void }
+  observaciones?: { valor: string; onChange: (v: string) => void }
+  unitPicker: ReactNode
+}
+
+function CondicionesForm({ unit, params, valor, onChange, puedeDescontar, soloLectura = false, reservaBloqueada = soloLectura, vertical = false, precioFinal, vigencia, observaciones, unitPicker }: CondicionesProps) {
+  const set = <K extends keyof CondicionesFinanciamiento>(k: K, v: CondicionesFinanciamiento[K]) => onChange({ ...valor, [k]: v })
+  return (
+    <div className={cn('grid gap-4', !vertical && 'sm:grid-cols-2 xl:grid-cols-4')}>
+      <div className={cn(!vertical && 'xl:col-span-1', 'grid content-start gap-3')}>{unitPicker}</div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="fin-firma" className="text-xs">Fecha de firma</Label>
+        <Input id="fin-firma" type="date" value={valor.fecha} disabled={soloLectura} onChange={(e) => set('fecha', e.target.value)} className="h-9" />
+        <p className="text-[11px] text-muted-foreground">Las cuotas de entrada se cuentan desde esta fecha.</p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="fin-reserva" className="text-xs">Reserva (USD)</Label>
+        <Input id="fin-reserva" inputMode="decimal" value={valor.reserva ?? ''} disabled={reservaBloqueada} placeholder={String(params.reservaPredeterminada ?? RESERVA_PREDETERMINADA)} onChange={(e) => set('reserva', e.target.value === '' ? null : e.target.value)} className="h-9" />
+        <p className="text-[11px] text-muted-foreground">Monto que paga el cliente al reservar. Se acredita al pago a la firma del 6 %; no se cobra dos veces.</p>
+      </div>
+      {puedeDescontar ? (
+        <div className="grid gap-1.5">
+          <Label htmlFor="fin-desc" className="text-xs">Descuento autorizado (%)</Label>
+          <Input id="fin-desc" inputMode="decimal" value={valor.descuento} disabled={soloLectura} onChange={(e) => set('descuento', e.target.value)} className="h-9" />
+          <p className="text-[11px] text-muted-foreground">Máximo técnico {DESCUENTO_MAX}%. Úsalo solo con autorización.</p>
+        </div>
+      ) : <p className="self-end rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">Los descuentos los autoriza gerencia.</p>}
+      {vigencia && (
+        <div className="grid gap-1.5">
+          <Label htmlFor="ve-vigencia" className="text-xs">Vigencia de la cotización (días)</Label>
+          <Input id="ve-vigencia" inputMode="numeric" className="h-9" disabled={soloLectura} value={vigencia.valor} onChange={(e) => vigencia.onChange(e.target.value)} />
+        </div>
+      )}
+      {observaciones && (
+        <div className="grid gap-1.5 sm:col-span-2 xl:col-span-4">
+          <Label htmlFor="ve-obs" className="text-xs">Observaciones para el cliente</Label>
+          <textarea id="ve-obs" rows={2} disabled={soloLectura} value={observaciones.valor} onChange={(e) => observaciones.onChange(e.target.value)} className="rounded-md border border-border bg-white p-2 text-sm" />
+        </div>
+      )}
+      {unit && (
+        <div className={cn('rounded-lg border border-border p-3 text-xs', !vertical && 'sm:col-span-2 xl:col-span-4')}>
+          <div className="flex items-center justify-between gap-2"><b>Departamento {unit.dpt}</b><EstadoBadge estado={estadoEfectivo(unit)} /></div>
+          <p className="mt-1 text-muted-foreground">Edificio {unit.edificio} · {pisoLabel(unit.piso)} · {unit.tipologia} · {fmtM2(unit.areaM2 + unit.bodegaM2)}</p>
+          {precioFinal !== null && <p className="mt-2 text-sm font-semibold text-primary">Precio final {fmtUsd(precioFinal)}</p>}
+        </div>
+      )}
+      {unit && (
+        <div className={cn('grid gap-2', !vertical && 'sm:col-span-2 xl:col-span-4')}>
+          <CuotasExtraordinarias filas={valor.extras} onChange={(f) => set('extras', f)} meses={params.meses[unit.edificio]} fechaBase={valor.fecha} soloLectura={soloLectura} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ------------------------------------------------ resumen y cálculos */
+
+function exportar(e: EntradaCalculada, unit: Unit, fecha: string, credito: Simulacion | null) {
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(e.partidas.map((p, i) => ({
+    'N.º': i, Concepto: p.concepto, Fecha: p.tipo === 'reserva' ? 'Al reservar' : p.tipo === 'firma' ? fmtFechaCorta(fecha) : p.mes ? fmtFechaCorta(sumarMeses(fecha, p.mes)) : 'A la entrega',
+    'Monto (USD)': p.monto,
+  }))), 'Entrada 20%')
+  if (credito) {
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(credito.tabla.map((r) => ({
+      'N.º': r.n, Capital: r.capital, Interés: r.interes, Desgravamen: r.desgravamen ?? 'Sin dato', Incendio: r.incendio ?? 'Sin dato', Cuota: r.cuota, Saldo: r.saldo,
+    }))), 'Crédito 80%')
+  }
+  XLSX.writeFile(wb, `AMURA_financiamiento_${unit.dpt}_${fecha}.xlsx`)
+}
+
+interface PanelProps {
+  calc: Calculo
+  unit: Unit | undefined
+  condiciones: CondicionesFinanciamiento
+  onCredito: (c: CreditoCondiciones) => void
+  credito: Simulacion | null
+  onSimulacion: (s: Simulacion | null) => void
+  confirmacion: ReactNode
+  asesor: string
+}
+
+function PanelFinanciamiento({ calc, unit, condiciones, onCredito, credito, onSimulacion, confirmacion, asesor }: PanelProps) {
+  const { remoto, datos } = useConexion()
+  const { can } = useSession()
   const [productos, setProductos] = useState<ProductoHipotecario[]>([])
   const [errorCatalogo, setErrorCatalogo] = useState<string | null>(null)
+  const [catalogo, setCatalogo] = useState(false)
   const cargarCatalogo = useCallback(async () => {
     if (!remoto || !datos) return
     try {
@@ -84,85 +305,54 @@ export default function FinanciamientoPage() {
   }, [remoto, datos])
   useEffect(() => { void cargarCatalogo() }, [cargarCatalogo])
 
-  const [credito, setCredito] = useState<Simulacion | null>(null)
+  const { plan, entrada: e } = calc
+  const fecha = condiciones.fecha
+  const errores = [calc.error, calc.errorExtras, calc.errorReserva].filter(Boolean) as string[]
 
-  function exportar() {
-    if (!entrada.e || !unit || !plan) return
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(entrada.e.partidas.map((p, i) => ({
-      'N.º': i, Concepto: p.concepto, Fecha: p.tipo === 'reserva' ? 'Al reservar' : p.tipo === 'firma' ? fmtFechaCorta(fechaFirma) : p.tipo === 'cuota' ? fmtFechaCorta(sumarMeses(fechaFirma, i - 1)) : 'A la entrega',
-      'Monto (USD)': p.monto,
-    }))), 'Entrada 20%')
-    if (credito) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(credito.tabla.map((r) => ({
-        'N.º': r.n, Capital: r.capital, Interés: r.interes, Desgravamen: r.desgravamen ?? 'Sin dato', Incendio: r.incendio ?? 'Sin dato', Cuota: r.cuota, Saldo: r.saldo,
-      }))), 'Crédito 80%')
-    }
-    XLSX.writeFile(wb, `AMURA_financiamiento_${unit.dpt}_${fechaFirma}.xlsx`)
-  }
-
-  return (
-    <>
-      <PageHeader eyebrow="Ventas · Financiamiento" title="Simulador de financiamiento"
-        subtitle="Entrada del 20% a favor de Nuvarel y crédito hipotecario del 80% del comprador. Una simulación no crea deuda ni es una aprobación bancaria."
-        actions={entrada.e && <>
-          <Button variant="outline" size="sm" onClick={exportar}><Download />Excel</Button>
-          {can('cotizaciones.crear') && <Button size="sm" variant="outline" asChild><Link to={`/cotizaciones?unidad=${encodeURIComponent(codigo)}&fecha=${fechaFirma}`}><FileText />Crear cotización</Link></Button>}
-        </>} />
-
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
-        <section className="dashboard-card p-5 grid content-start gap-4" aria-label="Datos de la simulación">
-          <UnitPicker id="fin-unidad" units={state.units} params={state.params} value={codigo}
-            onChange={(c) => setParams((p) => { p.set('unidad', c); return p }, { replace: true })} />
-          <div className="grid gap-1.5">
-            <Label htmlFor="fin-firma" className="text-xs">Fecha de firma</Label>
-            <Input id="fin-firma" type="date" value={fechaFirma} onChange={(e) => setFechaFirma(e.target.value)} className="h-9" />
-            <p className="text-[11px] text-muted-foreground">Las cuotas de entrada se cuentan desde esta fecha.</p>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="fin-reserva" className="text-xs">Reserva (USD)</Label>
-            <Input id="fin-reserva" inputMode="decimal" value={reservaTxt} placeholder={plan ? String(plan.reserva) : ''} onChange={(e) => setReservaTxt(e.target.value)} className="h-9" />
-            <p className="text-[11px] text-muted-foreground">Monto que paga el cliente al reservar. Se acredita al 6% de la firma; no se cobra dos veces.</p>
-          </div>
-          {puedeDescontar ? (
-            <div className="grid gap-1.5">
-              <Label htmlFor="fin-desc" className="text-xs">Descuento autorizado (%)</Label>
-              <Input id="fin-desc" inputMode="decimal" value={descuento} onChange={(e) => setDescuento(e.target.value)} className="h-9" />
-              <p className="text-[11px] text-muted-foreground">Máximo técnico {DESCUENTO_MAX}%. Úsalo solo con autorización.</p>
-            </div>
-          ) : <p className="rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">Los descuentos los autoriza gerencia.</p>}
-          {unit && (
-            <div className="rounded-lg border border-border p-3 text-xs">
-              <div className="flex items-center justify-between gap-2"><b>Departamento {unit.dpt}</b><EstadoBadge estado={unit.estado} /></div>
-              <p className="mt-1 text-muted-foreground">Edificio {unit.edificio} · {pisoLabel(unit.piso)} · {unit.tipologia} · {fmtM2(unit.areaM2 + unit.bodegaM2)}</p>
-              {plan && <p className="mt-2 text-sm font-semibold text-primary">Precio final {fmtUsd(plan.precioFinal)}</p>}
-            </div>
-          )}
-          <FieldError>{base.error ?? entrada.error}</FieldError>
-        </section>
-
-        {!plan || !entrada.e || !unit ? (
-          <div className="module-empty"><h2 className="text-lg font-semibold">Selecciona un departamento</h2><p className="mt-2 text-sm text-muted-foreground">Verás la entrada del 20%, el crédito hipotecario del 80% y podrás generar la cotización integral.</p></div>
-        ) : (
-          <Tabs defaultValue="entrada" className="min-w-0">
-            <TabsList className="mb-3 max-w-full justify-start overflow-x-auto">
-              <TabsTrigger value="entrada">1. Entrada del 20%</TabsTrigger>
-              <TabsTrigger value="credito">2. Crédito hipotecario 80%</TabsTrigger>
-              <TabsTrigger value="pdf">3. Cotización integral</TabsTrigger>
-            </TabsList>
-            <TabsContent value="entrada" className="min-w-0"><Entrada e={entrada.e} fechaFirma={fechaFirma} /></TabsContent>
-            <TabsContent value="credito" className="min-w-0">
-              <Credito precio={plan.precioFinal} entrada={entrada.e.entradaTotal} productos={productos} remoto={remoto} errorCatalogo={errorCatalogo}
-                puedeCatalogo={can('financiamiento.catalogo')} datos={datos} onCatalogo={cargarCatalogo} onSimulacion={setCredito} />
-            </TabsContent>
-            <TabsContent value="pdf" className="min-w-0">
-              <Integral unit={unit} precio={plan.precioFinal} fechaFirma={fechaFirma} entrada={entrada.e} credito={credito} asesor={actor.nombre}
-                datos={remoto ? datos : null} />
-            </TabsContent>
-          </Tabs>
-        )}
+  if (!plan || !e || !unit) {
+    return (
+      <div className="grid content-start gap-4">
+        {plan && unit
+          ? <>{confirmacion}<div className="module-empty"><h2 className="text-lg font-semibold">Corrige las condiciones del plan</h2><p className="mt-2 text-sm text-muted-foreground">Con estos valores no se puede calcular la entrada.</p></div></>
+          : <div className="module-empty"><h2 className="text-lg font-semibold">Selecciona un departamento</h2><p className="mt-2 text-sm text-muted-foreground">Verás la entrada del 20%, el crédito hipotecario del 80% y podrás generar la cotización integral.</p></div>}
+        <FieldError>{errores.join(' ')}</FieldError>
       </div>
-    </>
+    )
+  }
+  const cuotas = e.partidas.filter((p) => p.tipo === 'cuota').length
+  return (
+    <div className="grid min-w-0 content-start gap-4">
+      <section aria-label="Resumen financiero" className="grid gap-3">
+        <h2 className="text-sm font-semibold">Resumen del plan</h2>
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+          <Caja titulo="Valor total del departamento" valor={fmtUsd2(plan.precioFinal)} detalle={plan.descuentoPct > 0 ? `Incluye descuento de ${plan.descuentoPct} %` : `Precio ${fmtUsd(plan.precioLista)} sin descuento`} />
+          <Caja titulo="Reserva y pago a la firma" valor={fmtUsd2(calc.reserva)} detalle={`Pago adicional a la firma ${fmtUsd2(e.pagoFirma)}`} />
+          <Caja titulo="Entrada del 20 %" valor={fmtUsd2(e.entradaTotal)} detalle="A favor de Nuvarel" destacado />
+          <Caja titulo="Cuotas ordinarias y extraordinarias" valor={fmtUsd2(e.saldoCuotas)} detalle={`${cuotas} cuotas de ${fmtUsd2(e.cuotaMensual)}${e.extraordinarias.length ? ` + ${e.extraordinarias.length} extraordinarias` : ''}`} />
+          <Caja titulo="Saldo del 80 % para crédito" valor={fmtUsd2(e.saldoEntrega)} detalle="Crédito hipotecario" />
+        </div>
+        {confirmacion}
+        <FieldError>{errores.join(' ')}</FieldError>
+      </section>
+
+      <Tabs defaultValue="entrada" className="min-w-0">
+        <TabsList className="mb-3 max-w-full justify-start overflow-x-auto overflow-y-hidden">
+          <TabsTrigger value="entrada">1. Entrada del 20%</TabsTrigger>
+          <TabsTrigger value="credito">2. Crédito hipotecario 80%</TabsTrigger>
+          <TabsTrigger value="pdf">3. Cotización integral</TabsTrigger>
+        </TabsList>
+        <TabsContent value="entrada" className="min-w-0"><Entrada e={e} fechaFirma={fecha} /></TabsContent>
+        <TabsContent value="credito" className="min-w-0">
+          <Credito valor={condiciones.credito} onChange={onCredito} precio={plan.precioFinal} entrada={e.entradaTotal}
+            productos={productos} remoto={remoto} errorCatalogo={errorCatalogo} puedeCatalogo={can('financiamiento.catalogo')} datos={datos}
+            onSimulacion={onSimulacion} onAbrirCatalogo={() => setCatalogo(true)} />
+        </TabsContent>
+        <TabsContent value="pdf" className="min-w-0">
+          <Integral unit={unit} precio={plan.precioFinal} fechaFirma={fecha} entrada={e} credito={credito} asesor={asesor} datos={remoto ? datos : null} />
+        </TabsContent>
+      </Tabs>
+      {catalogo && datos && <CatalogoDialog datos={datos} productos={productos} onClose={() => setCatalogo(false)} onGuardado={cargarCatalogo} />}
+    </div>
   )
 }
 
@@ -170,12 +360,13 @@ export default function FinanciamientoPage() {
 
 function Entrada({ e, fechaFirma }: { e: EntradaCalculada; fechaFirma: string }) {
   const cuotas = e.partidas.filter((p) => p.tipo === 'cuota')
+  const meses = cronogramaPorMes({ meses: cuotas.length, cuotaMensual: e.cuotaMensual, ultimaCuota: e.ultimaCuota, extraordinarias: e.extraordinarias }, fechaFirma)
   return (
     <div className="grid gap-4">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Caja titulo="Entrada total (20%)" valor={fmtUsd2(e.entradaTotal)} detalle="A favor de Nuvarel" destacado />
         <Caja titulo="Pago adicional a la firma" valor={fmtUsd2(e.pagoFirma)} detalle={`Completa el 6% (${fmtUsd2(e.acumuladoFirma)}) · ${fmtFechaCorta(fechaFirma)}`} />
-        <Caja titulo={`Cuotas de entrada`} valor={`${cuotas.length} × ${fmtUsd2(e.cuotaMensual)}`} detalle={`Total ${fmtUsd2(e.saldoCuotas)}`} />
+        <Caja titulo={`Cuotas de entrada`} valor={textoCuotas({ meses: cuotas.length, cuotaMensual: e.cuotaMensual, ultimaCuota: e.ultimaCuota })} detalle={e.extraordinarias.length ? `Más ${e.extraordinarias.length} extraordinarias · total ${fmtUsd2(e.saldoCuotas)}` : `Total ${fmtUsd2(e.saldoCuotas)}`} />
         <Caja titulo="Saldo contra entrega (80%)" valor={fmtUsd2(e.saldoEntrega)} detalle="Normalmente con crédito hipotecario" />
       </div>
       <section className="dashboard-card !p-0 overflow-hidden" aria-labelledby="crono">
@@ -186,21 +377,32 @@ function Entrada({ e, fechaFirma }: { e: EntradaCalculada; fechaFirma: string })
         <div className="max-h-[480px] overflow-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground">
-              <tr><th className="px-4 py-2 text-left font-medium">Concepto</th><th className="px-2 py-2 text-left font-medium">Fecha</th><th className="px-4 py-2 text-right font-medium">Monto</th></tr>
+              <tr>
+                <th className="px-4 py-2 text-left font-medium">Concepto</th>
+                <th className="px-2 py-2 text-left font-medium">Fecha</th>
+                <th className="px-2 py-2 text-right font-medium">Cuota mensual</th>
+                <th className="px-2 py-2 text-right font-medium">Extraordinaria</th>
+                <th className="px-4 py-2 text-right font-medium">Total del mes</th>
+              </tr>
             </thead>
             <tbody>
-              {e.partidas.map((p, i) => (
-                <tr key={i} className={cn('border-t border-border', p.tipo !== 'cuota' && 'bg-secondary/40 font-medium')}>
-                  <td className="px-4 py-1.5">{p.concepto}</td>
-                  <td className="px-2 py-1.5 tabular-nums">{p.tipo === 'reserva' ? 'Al reservar' : p.tipo === 'firma' ? fmtFechaCorta(fechaFirma) : p.tipo === 'cuota' ? fmtFechaCorta(sumarMeses(fechaFirma, i - 1)) : 'A la entrega'}</td>
-                  <td className="px-4 py-1.5 text-right tabular-nums">{fmtUsd2(p.monto)}</td>
-                </tr>
-              ))}
+              {e.partidas.filter((p) => p.tipo !== 'extraordinaria').map((p, i) => {
+                const extra = p.mes ? meses[p.mes - 1].extraordinaria : 0
+                return (
+                  <tr key={i} className={cn('border-t border-border', (p.tipo !== 'cuota' || extra > 0) && 'bg-secondary/40 font-medium')}>
+                    <td className="px-4 py-1.5">{p.concepto}</td>
+                    <td className="px-2 py-1.5 tabular-nums">{p.tipo === 'reserva' ? 'Al reservar' : p.tipo === 'firma' ? fmtFechaCorta(fechaFirma) : p.mes ? fmtFechaCorta(sumarMeses(fechaFirma, p.mes)) : 'A la entrega'}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{p.tipo === 'cuota' ? fmtUsd2(p.monto) : ''}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{extra > 0 ? fmtUsd2(extra) : ''}</td>
+                    <td className="px-4 py-1.5 text-right tabular-nums">{fmtUsd2(p.monto + extra)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </section>
-      <p className="text-[11px] text-muted-foreground">La reserva se acredita al 6% pagado a la firma. La última cuota ajusta los centavos para que el total sea exacto.</p>
+      <p className="text-[11px] text-muted-foreground">La reserva se acredita al pago a la firma del 6 %. La última cuota ajusta los centavos para que el total sea exacto.</p>
     </div>
   )
 }
@@ -208,6 +410,8 @@ function Entrada({ e, fechaFirma }: { e: EntradaCalculada; fechaFirma: string })
 /* ------------------------------------------------- 2. crédito hipotecario 80% */
 
 interface CreditoProps {
+  valor: CreditoCondiciones
+  onChange: (c: CreditoCondiciones) => void
   precio: number
   entrada: number
   productos: ProductoHipotecario[]
@@ -215,40 +419,29 @@ interface CreditoProps {
   errorCatalogo: string | null
   puedeCatalogo: boolean
   datos: Datos | null
-  onCatalogo: () => Promise<void>
   onSimulacion: (s: Simulacion | null) => void
+  onAbrirCatalogo: () => void
 }
 
-function Credito({ precio, entrada, productos, remoto, errorCatalogo, puedeCatalogo, datos, onCatalogo, onSimulacion }: CreditoProps) {
-  const [productoId, setProductoId] = useState('manual')
-  const [anios, setAnios] = useState('20')
-  const [meses, setMeses] = useState('0')
-  const [amortizacion, setAmortizacion] = useState<Amortizacion>('francesa')
-  const [tasa, setTasa] = useState('')
-  const [tasaEs, setTasaEs] = useState<'nominal' | 'efectiva'>('nominal')
-  const [tipoTasa, setTipoTasa] = useState<'fija' | 'variable'>('fija')
-  const [desgravamen, setDesgravamen] = useState('')
-  const [incendio, setIncendio] = useState('')
-  const [gastos, setGastos] = useState('')
-  const [avaluo, setAvaluo] = useState('')
+function Credito({ valor, onChange, precio, entrada, productos, remoto, errorCatalogo, puedeCatalogo, datos, onSimulacion, onAbrirCatalogo }: CreditoProps) {
   const [todas, setTodas] = useState(false)
   const [comparar, setComparar] = useState<Simulacion[]>([])
-  const [catalogo, setCatalogo] = useState(false)
+  const set = <K extends keyof CreditoCondiciones>(k: K) => (v: CreditoCondiciones[K]) => onChange({ ...valor, [k]: v })
 
-  const producto = productos.find((p) => p.id === productoId) ?? null
-  const plazoMeses = (Number(anios) || 0) * 12 + (Number(meses) || 0)
+  const producto = productos.find((p) => p.id === valor.productoId) ?? null
+  const plazoMeses = (Number(valor.anios) || 0) * 12 + (Number(valor.meses) || 0)
   const sim = useMemo(() => {
     try {
       const manual: CondicionesManuales | null = producto ? null : (() => {
-        const t = numero(tasa)
+        const t = numero(valor.tasa)
         if (t === null) throw new Error('Ingresa la tasa del escenario manual o elige un producto del catálogo.')
-        return { tasa: t, tasaEs, tipoTasa, desgravamenPctMensual: numero(desgravamen), incendioPctAnual: numero(incendio), gastosFijos: numero(gastos), avaluo: numero(avaluo) }
+        return { tasa: t, tasaEs: valor.tasaEs, tipoTasa: valor.tipoTasa, desgravamenPctMensual: numero(valor.desgravamen), incendioPctAnual: numero(valor.incendio), gastosFijos: numero(valor.gastos), avaluo: numero(valor.avaluo) }
       })()
-      return { s: simularHipoteca({ precio, entrada, plazoMeses, amortizacion, producto, manual }), error: null }
+      return { s: simularHipoteca({ precio, entrada, plazoMeses, amortizacion: valor.amortizacion, producto, manual }), error: null }
     } catch (e) {
       return { s: null, error: (e as Error).message }
     }
-  }, [producto, tasa, tasaEs, tipoTasa, desgravamen, incendio, gastos, avaluo, precio, entrada, plazoMeses, amortizacion])
+  }, [producto, valor, precio, entrada, plazoMeses])
   useEffect(() => { onSimulacion(sim.s) }, [sim.s, onSimulacion])
   const s = sim.s
 
@@ -258,7 +451,7 @@ function Credito({ precio, entrada, productos, remoto, errorCatalogo, puedeCatal
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="grid gap-1.5 sm:col-span-2">
             <Label htmlFor="cr-prod" className="text-xs">Banco o BIESS y producto</Label>
-            <select id="cr-prod" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={productoId} onChange={(e) => setProductoId(e.target.value)}>
+            <select id="cr-prod" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={valor.productoId} onChange={(e) => set('productoId')(e.target.value)}>
               <option value="manual">Escenario manual (tasa y plazo personalizados)</option>
               {productos.map((p) => <option key={p.id} value={p.id}>{p.entidad} · {p.producto} (v{p.version})</option>)}
             </select>
@@ -268,12 +461,12 @@ function Credito({ precio, entrada, productos, remoto, errorCatalogo, puedeCatal
             {errorCatalogo && <p className="text-[11px] text-rose-700">{errorCatalogo}</p>}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="grid gap-1.5"><Label htmlFor="cr-anios" className="text-xs">Plazo (años)</Label><Input id="cr-anios" inputMode="numeric" value={anios} onChange={(e) => setAnios(e.target.value)} className="h-9" /></div>
-            <div className="grid gap-1.5"><Label htmlFor="cr-meses" className="text-xs">+ meses</Label><Input id="cr-meses" inputMode="numeric" value={meses} onChange={(e) => setMeses(e.target.value)} className="h-9" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="cr-anios" className="text-xs">Plazo (años)</Label><Input id="cr-anios" inputMode="numeric" value={valor.anios} onChange={(e) => set('anios')(e.target.value)} className="h-9" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="cr-meses" className="text-xs">+ meses</Label><Input id="cr-meses" inputMode="numeric" value={valor.meses} onChange={(e) => set('meses')(e.target.value)} className="h-9" /></div>
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="cr-amort" className="text-xs">Amortización</Label>
-            <select id="cr-amort" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={amortizacion} onChange={(e) => setAmortizacion(e.target.value as Amortizacion)}>
+            <select id="cr-amort" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={valor.amortizacion} onChange={(e) => set('amortizacion')(e.target.value as Amortizacion)}>
               <option value="francesa">Francesa (cuota fija)</option>
               <option value="alemana">Alemana (capital fijo)</option>
             </select>
@@ -281,24 +474,24 @@ function Credito({ precio, entrada, productos, remoto, errorCatalogo, puedeCatal
         </div>
         {!producto && (
           <div className="grid gap-3 rounded-lg border border-dashed border-border p-3 sm:grid-cols-3 xl:grid-cols-7">
-            <div className="grid gap-1.5"><Label htmlFor="cr-tasa" className="text-xs">Tasa anual (%)</Label><Input id="cr-tasa" inputMode="decimal" value={tasa} onChange={(e) => setTasa(e.target.value)} className="h-9" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="cr-tasa" className="text-xs">Tasa anual (%)</Label><Input id="cr-tasa" inputMode="decimal" value={valor.tasa} onChange={(e) => set('tasa')(e.target.value)} className="h-9" /></div>
             <div className="grid gap-1.5">
               <Label htmlFor="cr-tasa-es" className="text-xs">La tasa es</Label>
-              <select id="cr-tasa-es" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={tasaEs} onChange={(e) => setTasaEs(e.target.value as 'nominal' | 'efectiva')}><option value="nominal">Nominal</option><option value="efectiva">Efectiva</option></select>
+              <select id="cr-tasa-es" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={valor.tasaEs} onChange={(e) => set('tasaEs')(e.target.value as 'nominal' | 'efectiva')}><option value="nominal">Nominal</option><option value="efectiva">Efectiva</option></select>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="cr-tipo" className="text-xs">Tipo</Label>
-              <select id="cr-tipo" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={tipoTasa} onChange={(e) => setTipoTasa(e.target.value as 'fija' | 'variable')}><option value="fija">Fija</option><option value="variable">Variable</option></select>
+              <select id="cr-tipo" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={valor.tipoTasa} onChange={(e) => set('tipoTasa')(e.target.value as 'fija' | 'variable')}><option value="fija">Fija</option><option value="variable">Variable</option></select>
             </div>
-            <div className="grid gap-1.5"><Label htmlFor="cr-desg" className="text-xs">Desgravamen % mensual</Label><Input id="cr-desg" inputMode="decimal" placeholder="Sin dato" value={desgravamen} onChange={(e) => setDesgravamen(e.target.value)} className="h-9" /></div>
-            <div className="grid gap-1.5"><Label htmlFor="cr-inc" className="text-xs">Incendio % anual</Label><Input id="cr-inc" inputMode="decimal" placeholder="Sin dato" value={incendio} onChange={(e) => setIncendio(e.target.value)} className="h-9" /></div>
-            <div className="grid gap-1.5"><Label htmlFor="cr-gastos" className="text-xs">Gastos (USD)</Label><Input id="cr-gastos" inputMode="decimal" placeholder="Sin dato" value={gastos} onChange={(e) => setGastos(e.target.value)} className="h-9" /></div>
-            <div className="grid gap-1.5"><Label htmlFor="cr-avaluo" className="text-xs">Avalúo (USD)</Label><Input id="cr-avaluo" inputMode="decimal" placeholder="Sin dato" value={avaluo} onChange={(e) => setAvaluo(e.target.value)} className="h-9" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="cr-desg" className="text-xs">Desgravamen % mensual</Label><Input id="cr-desg" inputMode="decimal" placeholder="Sin dato" value={valor.desgravamen} onChange={(e) => set('desgravamen')(e.target.value)} className="h-9" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="cr-inc" className="text-xs">Incendio % anual</Label><Input id="cr-inc" inputMode="decimal" placeholder="Sin dato" value={valor.incendio} onChange={(e) => set('incendio')(e.target.value)} className="h-9" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="cr-gastos" className="text-xs">Gastos (USD)</Label><Input id="cr-gastos" inputMode="decimal" placeholder="Sin dato" value={valor.gastos} onChange={(e) => set('gastos')(e.target.value)} className="h-9" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="cr-avaluo" className="text-xs">Avalúo (USD)</Label><Input id="cr-avaluo" inputMode="decimal" placeholder="Sin dato" value={valor.avaluo} onChange={(e) => set('avaluo')(e.target.value)} className="h-9" /></div>
           </div>
         )}
         <FieldError>{sim.error}</FieldError>
         {puedeCatalogo && remoto && datos && (
-          <div className="flex justify-end"><Button size="sm" variant="outline" onClick={() => setCatalogo(true)}><Landmark />Catálogo bancario</Button></div>
+          <div className="flex justify-end"><Button size="sm" variant="outline" onClick={onAbrirCatalogo}><Landmark />Catálogo bancario</Button></div>
         )}
       </section>
 
@@ -381,7 +574,6 @@ function Credito({ precio, entrada, productos, remoto, errorCatalogo, puedeCatal
           </section>
         </>
       )}
-      {catalogo && datos && <CatalogoDialog datos={datos} productos={productos} onClose={() => setCatalogo(false)} onGuardado={onCatalogo} />}
     </div>
   )
 }
@@ -536,4 +728,8 @@ function Caja({ titulo, valor, detalle, destacado }: { titulo: string; valor: st
       <div className="mt-0.5 text-[11px] text-muted-foreground">{detalle}</div>
     </div>
   )
+}
+
+function CheckIcon() {
+  return <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">✓</span>
 }

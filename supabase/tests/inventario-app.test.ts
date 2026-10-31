@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
@@ -29,12 +31,12 @@ describe('inventario conectado a Supabase', () => {
   it('cambiar el estado guarda en la base con motivo y queda en el historial', async () => {
     const datos = datosPglite(db, admin)
     const prev = await cargarInventario(datos)
-    const next = cambiarEstado(prev, 'E1-PB-A1', 'disponible', 'Disponibilidad confirmada por comité', actorAdmin())
+    const next = cambiarEstado(prev, 'E1-PB-A1', 'bloqueado', 'Retención por comité', actorAdmin())
     await persistirCambios(datos, prev, next)
     const fila = (await db.query<{ estado: string }>(`select estado from public.inventory_units where codigo = 'E1-PB-A1'`)).rows[0]
-    expect(fila.estado).toBe('disponible')
-    const h = await db.query(`select motivo from public.inventory_status_history where codigo = 'E1-PB-A1'`)
-    expect(h.rows[0]).toEqual({ motivo: 'Disponibilidad confirmada por comité' })
+    expect(fila.estado).toBe('bloqueado')
+    const h = await db.query<{ motivo: string }>(`select motivo from public.inventory_status_history where codigo = 'E1-PB-A1' order by fecha desc limit 1`)
+    expect(h.rows[0]).toEqual({ motivo: 'Retención por comité' })
   })
 
   it('cambiar un precio guarda el valor nuevo y el registro de precios', async () => {
@@ -60,10 +62,12 @@ describe('inventario conectado a Supabase', () => {
   it('parámetros de pago se guardan con validación y auditoría', async () => {
     const datos = datosPglite(db, admin)
     const prev = await cargarInventario(datos)
-    const next = actualizarParametros(prev, { ...prev.params, reservaPct: 7, cuotasPct: 13 }, 'Ajuste aprobado en comité', actorAdmin())
+    const next = actualizarParametros(prev, { ...prev.params, patioUsdM2: 240 }, 'Ajuste aprobado en comité', actorAdmin())
     await persistirCambios(datos, prev, next)
-    const p = (await db.query<{ reserva_pct: string; cuotas_pct: string }>(`select reserva_pct, cuotas_pct from public.pricing_params where id = 1`)).rows[0]
-    expect(p).toEqual({ reserva_pct: '7.00', cuotas_pct: '13.00' })
+    const p = (await db.query<{ patio_usd_m2: string }>(`select patio_usd_m2 from public.pricing_params where id = 1`)).rows[0]
+    expect(p).toEqual({ patio_usd_m2: '240.00' })
+    // La entrada es política fija: 6 % + 14 %.
+    await expect(datos.rpc('inventario_actualizar_parametros', { p_patio: 240, p_reserva: 7, p_cuotas: 13, p_meses_e1: 30, p_meses_e2: 42, p_motivo: 'Cambio fuera de política' })).rejects.toThrow()
     await expect(datos.rpc('inventario_actualizar_parametros', { p_patio: 230, p_reserva: 60, p_cuotas: 60, p_meses_e1: 30, p_meses_e2: 42, p_motivo: 'Prueba de validación' })).rejects.toThrow(/superar el 100%/)
   })
 

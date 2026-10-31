@@ -166,7 +166,7 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
                     <SelectTrigger aria-label="Departamento a cotizar" className="h-8 min-w-40 text-xs"><SelectValue placeholder="Departamento" /></SelectTrigger>
                     <SelectContent>{unidades.map((u) => <SelectItem key={u!.codigo} value={u!.codigo}>{u!.dpt} · {u!.tipologia}</SelectItem>)}</SelectContent>
                   </Select>
-                  <Button size="sm" asChild><Link to={`/cotizaciones?cliente=${c.id}&unidad=${cod}`}><FileText />Preparar cotización</Link></Button>
+                  <Button size="sm" asChild><Link to={`/venta?cliente=${c.id}&unidad=${cod}`}><FileText />Preparar cotización</Link></Button>
                   <Button size="sm" variant="outline" asChild><Link to={`/financiamiento?unidad=${cod}`}><Landmark />Simular financiamiento</Link></Button>
                 </div>
               </>

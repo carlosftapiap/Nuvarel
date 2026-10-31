@@ -41,6 +41,9 @@ export function useCotizaciones() {
     }
   }, [datos])
   useRefresco(recargar, conectado)
+  // Una cotización se arma con su unidad: si el inventario llegó después, se vuelve a leer.
+  const hayUnidades = inv.units.length > 0
+  useEffect(() => { if (conectado && hayUnidades) void recargar() }, [conectado, hayUnidades, recargar])
   const agregar = useCallback((c: Cotizacion) => setLista((l) => [c, ...l]), [])
   const emitir = useCallback(async (input: EmitirInput) => {
     const c = await emitirCotizacion(datos!, input, units.current)

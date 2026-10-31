@@ -11,6 +11,7 @@ export const CATALOGO = [
   ] },
   { modulo: 'Inventario', permisos: [
     ['inventario.ver', 'Ver inventario'],
+    ['inventario.tecnico', 'Ver información técnica, sin precios'],
     ['inventario.exportar', 'Exportar a Excel'],
     ['inventario.importar', 'Importar desde Excel'],
     ['inventario.cambiar_estado', 'Cambiar estados comerciales'],
@@ -50,6 +51,15 @@ export const CATALOGO = [
     ['ventas.preparar', 'Preparar documentos'],
     ['ventas.formalizar', 'Revisar y formalizar'],
     ['ventas.desistimiento', 'Registrar desistimientos de su alcance'],
+    ['ventas.desistimiento_autorizar', 'Autorizar anulación de reservas aprobadas sin dinero'],
+    ['ventas.desistimiento_con_dinero', 'Autorizar anulación de reservas con dinero recibido'],
+    ['ventas.plantillas_ver', 'Consultar plantillas contractuales y sus versiones'],
+    ['ventas.plantillas', 'Crear y editar borradores de plantillas, subir modelos Word y configurar la entidad vendedora'],
+    ['ventas.plantillas_aprobar', 'Aprobar y retirar plantillas contractuales'],
+    ['ventas.documentos_ver', 'Consultar y descargar documentos contractuales'],
+    ['ventas.documentos_generar', 'Generar documentos contractuales desde plantillas aprobadas'],
+    ['ventas.documentos_emitir', 'Autorizar la emisión definitiva de documentos contractuales'],
+    ['ventas.datos_comprador', 'Completar y corregir datos legales de compradores, compradores adicionales y apoderados'],
   ] },
   { modulo: 'Cobranzas', permisos: [
     ['cobranzas.ver', 'Consultar cobranzas'],
@@ -59,7 +69,8 @@ export const CATALOGO = [
   { modulo: 'Comisiones', permisos: [
     ['comisiones.ver_propias', 'Ver sus comisiones'],
     ['comisiones.calcular', 'Calcular y revisar'],
-    ['comisiones.aprobar', 'Aprobar y liquidar'],
+    ['comisiones.aprobar', 'Aprobar y habilitar liquidación'],
+    ['comisiones.finanzas', 'Registrar honorario recibido y confirmar pagos'],
   ] },
   { modulo: 'Corredores', permisos: [
     ['corredores.ver', 'Consultar aliados'],
@@ -83,12 +94,23 @@ export const CATALOGO = [
     ['plan.exportar', 'Exportar a Excel'],
     ['plan.reportes', 'Consultar reportes del plan'],
   ] },
+  { modulo: 'Avance de obra', permisos: [
+    ['obra.resumen', 'Consultar el resumen de avances oficiales (validados)'],
+    ['obra.ver', 'Consultar cronograma, actividades, avances y evidencias'],
+    ['obra.editar', 'Crear, editar y reorganizar actividades, fechas, responsables y dependencias'],
+    ['obra.avance', 'Registrar avances, controles técnicos y cargar evidencias'],
+    ['obra.validar', 'Validar avances, ponderaciones y cronogramas'],
+    ['obra.documentos', 'Consultar informes, actas, planos y reportes técnicos'],
+    ['obra.importar', 'Importar el cronograma desde Excel'],
+    ['obra.exportar', 'Exportar el cronograma y los reportes'],
+  ] },
   { modulo: 'Configuración', permisos: [
     ['config.usuarios', 'Administrar usuarios'],
     ['config.roles', 'Administrar roles y permisos'],
     ['config.equipos', 'Administrar equipos'],
     ['config.auditoria', 'Consultar auditoría'],
     ['config.cobros', 'Definir quién recibe los pagos (NUVAREL, JARVAL o fiduciaria)'],
+    ['config.multimedia', 'Administrar fotografías y videos del proyecto'],
   ] },
 ] as const
 
@@ -100,9 +122,9 @@ export const ETIQUETA_PERMISO = Object.fromEntries(CATALOGO.flatMap((m) => m.per
 
 export type TipoAlcance = 'propio' | 'equipo' | 'empresa'
 export const ALCANCES: Record<TipoAlcance, string> = {
-  propio: 'Sus clientes y operaciones',
-  equipo: 'Su equipo (y equipos que supervisa)',
-  empresa: 'Toda la empresa',
+  propio: 'Propios',
+  equipo: 'Equipo asignado',
+  empresa: 'Todo el proyecto',
 }
 
 export interface PlantillaRol {
@@ -120,7 +142,7 @@ const PLAN_SUPERVISION: Permiso[] = [...BASE_PLAN, 'plan.editar', 'plan.asignar'
 const BASE_VENTA: Permiso[] = [
   'dashboard.ver', 'inventario.ver', 'precios.ver', 'financiamiento.simular',
   'clientes.ver', 'clientes.editar', 'cotizaciones.ver', 'cotizaciones.crear',
-  'reservas.ver', 'reservas.solicitar', 'ventas.desistimiento', 'comisiones.ver_propias', 'recursos.ver',
+  'reservas.ver', 'reservas.solicitar', 'ventas.ver', 'ventas.desistimiento', 'cobranzas.ver', 'comisiones.ver_propias', 'recursos.ver', 'obra.resumen',
 ]
 
 /** Perfiles iniciales. Son plantillas: el administrador puede editarlas o crear otras. */
@@ -132,39 +154,64 @@ export const PLANTILLAS_ROL: PlantillaRol[] = [
     permisos: [
       ...BASE_VENTA, 'reportes.ver', 'reportes.exportar', 'inventario.exportar', 'inventario.importar', 'inventario.cambiar_estado',
       'inventario.editar_precios', 'precios.competencia', 'precios.proponer', 'clientes.asignar', 'clientes.exportar',
-      'cotizaciones.descuento', 'reservas.confirmar', 'reservas.anular', 'ventas.ver',
-      'cobranzas.ver', 'comisiones.calcular', 'corredores.ver', 'config.auditoria',
-      ...PLAN_SUPERVISION, 'plan.importar',
+      'cotizaciones.descuento', 'reservas.confirmar', 'reservas.anular', 'ventas.desistimiento_autorizar', 'ventas.desistimiento_con_dinero',
+      'ventas.plantillas_ver', 'ventas.documentos_ver', 'ventas.documentos_emitir',
+      'comisiones.calcular', 'comisiones.aprobar', 'corredores.ver', 'corredores.gestionar', 'config.auditoria',
+      ...PLAN_SUPERVISION, 'plan.importar', 'obra.ver', 'obra.validar', 'obra.documentos', 'obra.exportar',
     ],
   },
   {
     id: 'supervisor', nombre: 'Supervisor', descripcion: 'Seguimiento y asignación dentro de su equipo (p. ej. líder de corredores)', alcance: 'equipo',
-    permisos: [...BASE_VENTA, 'reportes.ver', 'inventario.exportar', 'precios.competencia', 'clientes.asignar', 'ventas.ver', ...PLAN_SUPERVISION],
+    permisos: [...BASE_VENTA, 'reportes.ver', 'inventario.exportar', 'precios.competencia', 'clientes.asignar', 'corredores.ver', 'ventas.desistimiento_autorizar', ...PLAN_SUPERVISION],
   },
   { id: 'asesor', nombre: 'Vendedor', descripcion: 'Clientes, cotizaciones y solicitudes de reserva propias', alcance: 'propio', permisos: [...BASE_VENTA, 'inventario.exportar', 'precios.competencia', ...BASE_PLAN] },
-  { id: 'corredor', nombre: 'Corredor externo', descripcion: 'Sus clientes y operaciones autorizadas', alcance: 'propio', permisos: [...BASE_VENTA] },
+  { id: 'corredor', nombre: 'Corredor', descripcion: 'Sus clientes y operaciones autorizadas', alcance: 'propio', permisos: [...BASE_VENTA] },
   {
     id: 'finanzas', nombre: 'Finanzas', descripcion: 'Verificación de ingresos y cobranzas', alcance: 'empresa',
     permisos: [
       'dashboard.ver', 'reportes.ver', 'reportes.exportar', 'inventario.ver', 'clientes.ver', 'cotizaciones.ver',
-      'reservas.ver', 'reservas.verificar_pago', 'ventas.ver', 'cobranzas.ver', 'cobranzas.registrar', 'cobranzas.verificar',
-      ...BASE_PLAN,
+      'reservas.ver', 'reservas.verificar_pago', 'ventas.ver', 'cobranzas.ver', 'cobranzas.registrar', 'cobranzas.verificar', 'comisiones.finanzas',
+      ...BASE_PLAN, 'obra.resumen', 'obra.ver', 'obra.exportar', 'ventas.documentos_ver',
     ],
   },
   {
-    id: 'legal', nombre: 'Legal / Operaciones', descripcion: 'Contratos, documentos y formalización', alcance: 'empresa',
-    permisos: ['dashboard.ver', 'inventario.ver', 'clientes.ver', 'cotizaciones.ver', 'reservas.ver', 'ventas.ver', 'ventas.preparar', 'ventas.formalizar', 'recursos.ver', 'recursos.cargar', ...BASE_PLAN],
+    id: 'legal', nombre: 'Legal', descripcion: 'Contratos, documentos y formalización', alcance: 'empresa',
+    permisos: ['dashboard.ver', 'inventario.ver', 'clientes.ver', 'cotizaciones.ver', 'reservas.ver', 'ventas.ver', 'ventas.preparar', 'ventas.formalizar', 'recursos.ver', 'recursos.cargar', ...BASE_PLAN, 'obra.resumen', 'obra.documentos',
+      'ventas.plantillas_ver', 'ventas.plantillas', 'ventas.plantillas_aprobar', 'ventas.documentos_ver', 'ventas.documentos_generar', 'ventas.datos_comprador'],
   },
+  { id: 'constructor', nombre: 'Constructor', descripcion: 'Información técnica del proyecto y avance de obra, sin datos comerciales', alcance: 'empresa', permisos: ['inventario.tecnico', 'obra.resumen', 'obra.ver', 'obra.editar', 'obra.avance', 'obra.documentos', 'obra.importar', 'obra.exportar'] },
   {
     // Punto de partida de solo consulta; el administrador ajusta sus permisos en Configuración.
     id: 'jarval', nombre: 'JARVAL (consulta)', descripcion: 'Promotor: consulta según los permisos asignados', alcance: 'empresa',
-    permisos: ['dashboard.ver', 'reportes.ver', 'inventario.ver', 'reservas.ver', 'ventas.ver', 'cobranzas.ver', 'plan.ver', 'plan.reportes'],
+    permisos: ['dashboard.ver', 'reportes.ver', 'inventario.ver', 'reservas.ver', 'ventas.ver', 'cobranzas.ver', 'plan.ver', 'plan.reportes', 'obra.resumen', 'obra.exportar'],
   },
 ]
 
 const PLANTILLA = Object.fromEntries(PLANTILLAS_ROL.map((p) => [p.id, p])) as Record<string, PlantillaRol | undefined>
 
 /** Etiquetas de los perfiles iniciales (los roles personalizados muestran su propio nombre). */
+/** Cómo se agrupan los permisos en la matriz de Configuración. Crear y editar son un solo permiso en la mayoría de módulos. */
+export type AccionPermiso = 'ver' | 'crear' | 'aprobar' | 'anular' | 'otras'
+export const ACCIONES: Record<AccionPermiso, string> = { ver: 'Ver', crear: 'Crear y editar', aprobar: 'Aprobar', anular: 'Anular', otras: 'Otras' }
+export const ACCION_PERMISO: Record<Permiso, AccionPermiso> = {
+  'dashboard.ver': 'ver', 'reportes.ver': 'ver', 'reportes.exportar': 'otras',
+  'inventario.ver': 'ver', 'inventario.tecnico': 'ver', 'inventario.exportar': 'otras', 'inventario.importar': 'crear', 'inventario.cambiar_estado': 'crear', 'inventario.editar_precios': 'crear', 'inventario.parametros': 'crear',
+  'precios.ver': 'ver', 'precios.competencia': 'ver', 'precios.proponer': 'crear', 'precios.aprobar': 'aprobar',
+  'financiamiento.simular': 'ver', 'financiamiento.catalogo': 'crear',
+  'clientes.ver': 'ver', 'clientes.editar': 'crear', 'clientes.asignar': 'crear', 'clientes.exportar': 'otras',
+  'cotizaciones.ver': 'ver', 'cotizaciones.crear': 'crear', 'cotizaciones.descuento': 'aprobar',
+  'reservas.ver': 'ver', 'reservas.solicitar': 'crear', 'reservas.verificar_pago': 'aprobar', 'reservas.confirmar': 'aprobar', 'reservas.anular': 'anular',
+  'ventas.ver': 'ver', 'ventas.preparar': 'crear', 'ventas.formalizar': 'aprobar', 'ventas.desistimiento': 'anular', 'ventas.desistimiento_autorizar': 'aprobar', 'ventas.desistimiento_con_dinero': 'aprobar',
+  'ventas.plantillas_ver': 'ver', 'ventas.plantillas': 'crear', 'ventas.plantillas_aprobar': 'aprobar', 'ventas.documentos_ver': 'ver', 'ventas.documentos_generar': 'crear', 'ventas.documentos_emitir': 'aprobar', 'ventas.datos_comprador': 'crear',
+  'cobranzas.ver': 'ver', 'cobranzas.registrar': 'crear', 'cobranzas.verificar': 'aprobar',
+  'comisiones.ver_propias': 'ver', 'comisiones.calcular': 'crear', 'comisiones.aprobar': 'aprobar', 'comisiones.finanzas': 'aprobar',
+  'corredores.ver': 'ver', 'corredores.gestionar': 'crear',
+  'recursos.ver': 'ver', 'recursos.cargar': 'crear', 'recursos.publicar': 'aprobar',
+  'plan.ver': 'ver', 'plan.reportes': 'ver', 'plan.editar': 'crear', 'plan.asignar': 'crear', 'plan.avance': 'crear', 'plan.reprogramar': 'crear', 'plan.alcance': 'crear', 'plan.dependencias': 'crear', 'plan.cerrar': 'anular', 'plan.importar': 'otras', 'plan.exportar': 'otras',
+  'obra.resumen': 'ver', 'obra.ver': 'ver', 'obra.editar': 'crear', 'obra.avance': 'crear', 'obra.validar': 'aprobar', 'obra.documentos': 'ver', 'obra.importar': 'otras', 'obra.exportar': 'otras',
+  'config.usuarios': 'crear', 'config.roles': 'crear', 'config.equipos': 'crear', 'config.auditoria': 'ver', 'config.cobros': 'crear', 'config.multimedia': 'crear',
+}
+
 export const ROLES: Record<string, { label: string; descripcion: string }> = Object.fromEntries(
   PLANTILLAS_ROL.map((p) => [p.id, { label: p.nombre, descripcion: p.descripcion }]),
 )

@@ -41,7 +41,7 @@ export async function crearDb(opts: { hasta?: string } = {}) {
   return db
 }
 
-/** Crea una cuenta y su perfil (como lo haría la función invitar-usuario) y la deja activa. */
+/** Crea una cuenta y su perfil (como lo hace la función crear-usuario) y la deja activa. */
 export async function crearUsuario(db: PGlite, nombre: string, rol: string, extra: { equipo?: string; supervisor?: string; alcance?: string } = {}) {
   const { rows } = await db.query<{ id: string }>('select gen_random_uuid() as id')
   const id = rows[0].id
@@ -51,6 +51,11 @@ export async function crearUsuario(db: PGlite, nombre: string, rol: string, extr
     `insert into public.profiles (id, nombre, email, estado, rol_id, alcance, supervisor_id, equipo_id) values ($1, $2, $3, 'activo', $4, $5, $6, $7)`,
     [id, nombre, email, rol, extra.alcance ?? null, extra.supervisor ?? null, extra.equipo ?? null],
   )
+  // Un corredor también es un perfil comercial, con el mismo identificador, como lo deja la migración de Corredores.
+  if (rol === 'corredor') {
+    const { rows } = await db.query<{ t: string | null }>(`select to_regclass('public.corredores')::text as t`)
+    if (rows[0].t) await db.query(`insert into public.corredores (id, nombre, usuario_id, estado) values ($1, $2, $1, 'activo') on conflict (id) do nothing`, [id, nombre])
+  }
   return id
 }
 

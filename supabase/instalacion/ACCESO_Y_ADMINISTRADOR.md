@@ -52,9 +52,9 @@ Esperado: `Carlos Tapia · activo · administrador` y `permisos_del_rol = permis
 Desde **Configuración → Usuarios** (solo quien tiene `config.usuarios`):
 
 - **Habilitar**: para una cuenta creada en *Authentication → Users*; se elige nombre, rol y motivo.
-- **Invitar usuario**: envía un correo para que la persona defina su contraseña. Requiere desplegar la función del servidor:
-  `supabase functions deploy invitar-usuario` y `supabase secrets set APP_ORIGIN=https://<tu dominio>`.
-  La clave `service_role` la provee Supabase dentro de la función; nunca va al navegador. La persona invitada queda *Pendiente de activación* hasta que un administrador la active.
-- **Cambiar rol**, **Activar / Desactivar** y **Recuperar clave**, siempre con motivo y auditoría.
+- **Crear usuario**: el administrador asigna contraseña inicial, rol, alcance y equipo; la cuenta queda activa sin correo. Requiere desplegar la función del servidor:
+  `supabase functions deploy crear-usuario`.
+  La clave `service_role` la provee Supabase dentro de la función; nunca va al navegador. 
+- **Modificar acceso**, **Activar / Desactivar**, **Cambiar contraseña** y **Recuperar clave**, siempre con motivo y auditoría.
 
 Reglas que aplica la base de datos (no solo la pantalla): nadie se crea un perfil ni cambia su propio rol o estado; nadie concede un rol con permisos que no tiene; desactivar quita el acceso a los datos de inmediato y conserva el historial.

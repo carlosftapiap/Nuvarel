@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { AMURA_UNITS_SEED } from '../data/amura-units'
-import { aplicarPorcentaje, calcularPrecio, DEFAULT_PARAMS, totalVenta } from '../pricing'
-import { createInitialState } from '../service'
+import { aplicarPorcentaje, calcularPrecio, totalVenta } from '../pricing'
 import LISTA_PDF from './fixtures/lista-precios-base-2026-10-28.json'
+import { AMURA_UNITS_SEED } from '@/features/inventario/__tests__/datos/amura-units'
+import { DEFAULT_PARAMS } from '@/features/inventario/__tests__/fixtures'
+import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 
 type FilaPdf = { areaM2: number; bodegaM2: number; patioM2: number; usdM2Mostrado: number; precioVenta: number; reserva: number; cuota: number; contraEntrega: number }
 const PDF = LISTA_PDF as Record<string, FilaPdf>
@@ -34,8 +35,8 @@ describe('inventario semilla', () => {
     }
   })
 
-  it('arranca con disponibilidad por confirmar (no se inventa disponibilidad)', () => {
-    expect(createInitialState().units.every((u) => u.estado === 'por_confirmar')).toBe(true)
+  it('arranca con todas las unidades disponibles', () => {
+    expect(createInitialState().units.every((u) => u.estado === 'disponible')).toBe(true)
   })
 })
 

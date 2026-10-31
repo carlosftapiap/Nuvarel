@@ -30,8 +30,21 @@ export interface ProximaActividad {
   fecha: string
 }
 
-export interface Cliente {
+/** Nombres y apellidos por separado. Vacíos en clientes antiguos hasta completar su ficha. */
+export interface NombresCliente {
+  primerNombre?: string
+  segundoNombre?: string
+  primerApellido?: string
+  segundoApellido?: string
+}
+
+/** Nombre completo con los campos que existan, en el orden de los documentos legales. */
+export const nombreCompleto = (n: NombresCliente) =>
+  [n.primerNombre, n.segundoNombre, n.primerApellido, n.segundoApellido].map((x) => (x ?? '').trim().replace(/\s+/g, ' ')).filter(Boolean).join(' ')
+
+export interface Cliente extends NombresCliente {
   id: string
+  /** Nombre completo: lo muestran todos los módulos. */
   nombre: string
   /** Cédula o RUC. */
   documento?: string

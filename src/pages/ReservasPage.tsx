@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, Clock, FileCheck2, Lock, ShieldCheck, XCircle } from 'lucide-react'
 import DatosLocalesAviso from '@/components/DatosLocalesAviso'
 import PageHeader from '@/components/PageHeader'
@@ -11,13 +11,15 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { fmtFechaCorta } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
-import { fmtUsd, fmtUsd2 } from '@/features/inventario/pricing'
+import { fmtUsd, fmtUsd2, leerMonto } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import { ESTADO_RESERVA, type EstadoReserva, type Reserva } from '@/features/reservas/model'
 import { reservasVisibles } from '@/features/reservas/service'
 import { useReservaFlujo } from '@/features/reservas/flujo'
+import RegistrarPagoDialog from '@/features/reservas/components/RegistrarPagoDialog'
 import DesistimientoDialog from '@/features/clientes/components/DesistimientoDialog'
-import { MOTIVOS_DESISTIMIENTO, marcarRevisado, type Desistimiento } from '@/features/clientes/desistimiento'
+import ReglasAnulacion from '@/features/clientes/components/ReglasAnulacion'
+import SolicitudesAnulacion from '@/features/clientes/components/SolicitudesAnulacion'
 import { useClientes } from '@/features/clientes/store'
 import { cn } from '@/lib/utils'
 
@@ -34,14 +36,18 @@ export default function ReservasPage() {
   const [anular, setAnular] = useState<Reserva | null>(null)
   const [aprobar, setAprobar] = useState<Reserva | null>(null)
   const [comprobante, setComprobante] = useState<Reserva | null>(null)
+  const [rechazo, setRechazo] = useState<Reserva | null>(null)
   const [desiste, setDesiste] = useState<Reserva | null>(null)
-  const [revisar, setRevisar] = useState<Desistimiento | null>(null)
-  const { desistimientos, hayDesistimientos, datos, state: clientes, recargar: recargarClientes } = useClientes()
-  const porRevisar = desistimientos.filter((d) => d.revision === 'pendiente')
-  const nombreCliente = (id: string) => clientes.clientes.find((c) => c.id === id)?.nombre ?? 'Cliente'
+  const { desistimientos, hayDesistimientos } = useClientes()
+  const pendiente = (r: Reserva) => desistimientos.some((d) => d.reservaId === r.id && d.estado === 'pendiente')
+  // Anular directo solo vale para una solicitud sin pago ni comprobante; el servidor lo vuelve a comprobar.
+  const anulableDirecto = (r: Reserva) => r.estado === 'solicitada' && !r.comprobante && r.montoRecibido === null
 
   const visibles = useMemo(() => reservasVisibles(flujo.res.reservas, actor), [flujo.res.reservas, actor])
-  const lista = visibles.filter((r) => filtro === 'todas' || r.estado === filtro)
+  // Desde Cobranzas se abre una reserva con ?codigo=.
+  const [params, setParams] = useSearchParams()
+  const codigo = params.get('codigo')
+  const lista = visibles.filter((r) => (codigo ? r.codigo === codigo : filtro === 'todas' || r.estado === filtro))
   const confirmadas = visibles.filter((r) => r.estado === 'confirmada')
   const solicitadas = visibles.filter((r) => r.estado === 'solicitada')
   const porAprobar = visibles.filter((r) => r.estado === 'pago_verificado')
@@ -70,20 +76,14 @@ export default function ReservasPage() {
       {aviso && <p role="status" className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"><CheckCircle2 className="size-4" />{aviso}</p>}
       <div className="mb-3"><FieldError>{error}</FieldError></div>
 
-      {can('cobranzas.verificar') && porRevisar.length > 0 && (
-        <section aria-labelledby="re-rev" className="dashboard-card mb-4 p-5">
-          <h2 id="re-rev" className="text-sm font-semibold">Desistimientos por revisar</h2>
-          <p className="mt-1 text-[11px] text-muted-foreground">Hubo dinero o un comprobante. La devolución o retención se resuelve según la política comercial; aquí solo queda constancia.</p>
-          <ul className="mt-2 grid gap-1.5">
-            {porRevisar.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
-                <b>{nombreCliente(d.clienteId)}</b><span className="text-muted-foreground">{d.codigoUnidad} · {MOTIVOS_DESISTIMIENTO[d.motivo]}</span>
-                {d.montoRecibido ? <span className="font-medium tabular-nums">{fmtUsd2(d.montoRecibido)}</span> : <span className="text-muted-foreground">Comprobante sin verificar</span>}
-                <Button size="xs" variant="outline" className="ml-auto" onClick={() => setRevisar(d)}>Marcar revisado</Button>
-              </li>
-            ))}
-          </ul>
-        </section>
+      {flujo.remoto && hayDesistimientos && (
+        <>
+          <SolicitudesAnulacion onDone={async (m) => { await flujo.recargar(); setAviso(m) }} />
+          <details className="dashboard-card mb-4 p-4">
+            <summary className="cursor-pointer text-xs font-semibold">¿Quién aprueba la anulación de una reserva y cómo funciona?</summary>
+            <div className="mt-3"><ReglasAnulacion /></div>
+          </details>
+        </>
       )}
 
       <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por estado">
@@ -95,11 +95,13 @@ export default function ReservasPage() {
         ))}
       </div>
 
+      {codigo && <p className="mb-3 flex items-center gap-2 text-xs">Mostrando {codigo}. <button type="button" className="text-primary hover:underline" onClick={() => setParams({}, { replace: true })}>Ver todas</button></p>}
+
       {visibles.length === 0 ? (
         <div className="module-empty">
           <h2 className="text-lg font-semibold">Sin reservas todavía</h2>
-          <p className="mt-2 max-w-md text-sm text-muted-foreground">Para solicitar una reserva, abre una cotización emitida para un cliente registrado y pulsa “Solicitar reserva”.</p>
-          <Button asChild className="mt-6"><Link to="/cotizaciones">Ir a Cotizaciones</Link></Button>
+          <p className="mt-2 max-w-md text-sm text-muted-foreground">Atiende al cliente, emite la cotización y solicita la reserva desde una sola pantalla.</p>
+          <Button asChild className="mt-6"><Link to="/venta">Atender cliente</Link></Button>
         </div>
       ) : (
         <div className="dashboard-card !p-0 overflow-x-auto">
@@ -126,17 +128,19 @@ export default function ReservasPage() {
                     <td className="px-2 py-2">{r.clienteNombre}</td>
                     <td className="px-2 py-2">{u?.dpt ?? r.unidad}<div className="text-[11px] text-muted-foreground">{u?.tipologia}</div></td>
                     <td className="px-2 py-2 text-right tabular-nums">{fmtUsd(r.precioAcordado)}{r.descuentoPct > 0 && <div className="text-[11px] text-muted-foreground">−{r.descuentoPct}%</div>}</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(r.estado === 'confirmada' ? r.montoRecibido! : r.montoReserva)}{r.estado === 'solicitada' && <div className="text-[11px] text-muted-foreground">por verificar</div>}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(r.montoReserva)}<div className="text-[11px] text-muted-foreground">{r.montoRecibido !== null ? `pagado ${fmtUsd2(r.montoRecibido)}` : r.estado === 'solicitada' ? 'acordado · por verificar' : 'acordado'}</div></td>
                     <td className={cn('px-2 py-2', vencida && 'font-medium text-rose-700')}>{fmtFechaCorta(r.vigenciaHasta)}{vencida && <div className="text-[11px]">Cotización vencida</div>}</td>
                     <td className="px-2 py-2"><span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', ESTADO_RESERVA[r.estado].tone)}>{ESTADO_RESERVA[r.estado].label}</span></td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex justify-end gap-1.5">
-                        {flujo.remoto && r.estado === 'solicitada' && !r.comprobante && can('reservas.solicitar') && <Button size="sm" variant="outline" onClick={() => setComprobante(r)}><FileCheck2 />Registrar comprobante</Button>}
+                        {flujo.remoto && r.estado === 'solicitada' && !r.comprobante && can('reservas.solicitar') && <Button size="sm" variant="outline" onClick={() => setComprobante(r)}><FileCheck2 />Registrar pago</Button>}
                         {flujo.remoto && r.estado === 'solicitada' && !r.comprobante && can('reservas.verificar_pago') && <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Clock className="size-3" />Falta el comprobante</span>}
                         {r.estado === 'solicitada' && can('reservas.verificar_pago') && (!flujo.remoto || !!r.comprobante) && <Button size="sm" onClick={() => setConfirmar(r)}><CheckCircle2 />Verificar pago</Button>}
+                        {flujo.remoto && r.estado === 'solicitada' && !!r.comprobante && can('reservas.verificar_pago') && <Button size="sm" variant="outline" onClick={() => setRechazo(r)}>Rechazar pago</Button>}
                         {r.estado === 'pago_verificado' && can('reservas.confirmar') && <Button size="sm" onClick={() => setAprobar(r)}><ShieldCheck />Aprobar</Button>}
-                        {flujo.remoto && hayDesistimientos && r.estado !== 'anulada' && can('ventas.desistimiento') && <Button size="sm" variant="outline" className="text-rose-700" onClick={() => setDesiste(r)}>Desistimiento</Button>}
-                        {r.estado !== 'anulada' && can('reservas.anular') && <Button size="sm" variant="outline" onClick={() => setAnular(r)}><XCircle />Anular</Button>}
+                        {pendiente(r) && <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800"><Clock className="size-3" />Anulación por autorizar</span>}
+                        {flujo.remoto && hayDesistimientos && r.estado !== 'anulada' && !pendiente(r) && can('ventas.desistimiento') && <Button size="sm" variant="outline" className="text-rose-700" onClick={() => setDesiste(r)}>Desistimiento</Button>}
+                        {r.estado !== 'anulada' && can('reservas.anular') && (!flujo.remoto || anulableDirecto(r)) && !pendiente(r) && <Button size="sm" variant="outline" onClick={() => setAnular(r)}><XCircle />Anular</Button>}
                         {r.estado === 'solicitada' && !can('reservas.verificar_pago') && <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Clock className="size-3" />Pendiente de verificación</span>}
                         {r.estado === 'confirmada' && <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Lock className="size-3" />Unidad bloqueada</span>}
                       </div>
@@ -155,12 +159,10 @@ export default function ReservasPage() {
         <DesistimientoDialog clienteId={desiste.clienteId} oportunidadId={desiste.oportunidadId ?? undefined} onClose={() => setDesiste(null)}
           onDone={async (m) => { await flujo.recargar(); setAviso(m) }} />
       )}
-      {revisar && datos && (
-        <RevisarDialog d={revisar} nombre={nombreCliente(revisar.clienteId)} onClose={() => setRevisar(null)}
-          onConfirm={async (nota) => { await marcarRevisado(datos, revisar.id, nota); await recargarClientes(); setAviso('Desistimiento marcado como revisado') }} />
-      )}
-      <ComprobanteDialog reserva={comprobante} onClose={() => setComprobante(null)}
-        onConfirm={(referencia, monto) => { void run(() => flujo.registrarComprobante(comprobante!, referencia, monto), `Comprobante de ${comprobante!.codigo} registrado · pendiente de verificación de Finanzas`); setComprobante(null) }} />
+      <RegistrarPagoDialog reserva={comprobante} onClose={() => setComprobante(null)}
+        onConfirm={(pago) => { void run(() => flujo.registrarPago(comprobante!, pago), `Pago de ${comprobante!.codigo} registrado · pendiente de verificación de Finanzas`); setComprobante(null) }} />
+      <RechazarPagoDialog reserva={rechazo} onClose={() => setRechazo(null)}
+        onConfirm={(motivo) => { void run(() => flujo.rechazarPago(rechazo!.id, motivo), `Pago de ${rechazo!.codigo} rechazado · la reserva vuelve a esperar el pago`); setRechazo(null) }} />
       <AprobarDialog reserva={aprobar} onClose={() => setAprobar(null)}
         onConfirm={(motivo) => { void run(() => flujo.aprobar(aprobar!.id, motivo), `Reserva ${aprobar!.codigo} aprobada · unidad bloqueada`); setAprobar(null) }} />
       <AnularDialog reserva={anular} onClose={() => setAnular(null)}
@@ -169,79 +171,22 @@ export default function ReservasPage() {
   )
 }
 
-function RevisarDialog({ d, nombre, onClose, onConfirm }: { d: Desistimiento; nombre: string; onClose: () => void; onConfirm: (nota: string) => Promise<void> }) {
-  const [nota, setNota] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Revisar desistimiento de {nombre}</DialogTitle>
-          <DialogDescription>Deja constancia de lo resuelto{d.montoRecibido ? ` sobre ${fmtUsd2(d.montoRecibido)}` : ''}. No registra pagos ni devoluciones.</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-1.5">
-          <Label htmlFor="rd-nota" className="text-xs">Resolución *</Label>
-          <Textarea id="rd-nota" rows={3} value={nota} onChange={(e) => setNota(e.target.value)} />
-          <FieldError>{error}</FieldError>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Volver</Button>
-          <Button disabled={nota.trim().length < 5} onClick={() => { setError(null); onConfirm(nota.trim()).then(onClose).catch((e: Error) => setError(e.message)) }}>Marcar revisado</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-/** El vendedor registra la evidencia del pago. No confirma nada: Finanzas verifica el ingreso real. */
-function ComprobanteDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | null; onClose: () => void; onConfirm: (referencia: string, monto: number | null) => void }) {
-  const [referencia, setReferencia] = useState('')
-  const [monto, setMonto] = useState('')
-  if (!reserva) return null
-  const cerrar = () => { setReferencia(''); setMonto(''); onClose() }
-  const montoNum = monto.trim() ? Number(monto.replace(/\./g, '').replace(',', '.')) : null
-  const listo = referencia.trim().length >= 3 && (montoNum === null || (Number.isFinite(montoNum) && montoNum > 0))
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) cerrar() }}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Registrar comprobante de {reserva.codigo}</DialogTitle>
-          <DialogDescription>{reserva.clienteNombre}. Finanzas verificará el ingreso en el banco; este registro no confirma el pago.</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor="rq-ref" className="text-xs">Número de transferencia o recibo *</Label>
-            <Input id="rq-ref" value={referencia} onChange={(e) => setReferencia(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="rq-monto" className="text-xs">Monto de la reserva (USD), si es menor a {fmtUsd2(reserva.montoReserva)}</Label>
-            <Input id="rq-monto" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder={String(reserva.montoReserva)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={cerrar}>Cancelar</Button>
-          <Button disabled={!listo} onClick={() => { onConfirm(referencia.trim(), montoNum); setReferencia(''); setMonto('') }}>Registrar</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function ConfirmarDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | null; onClose: () => void; onConfirm: (i: { comprobante: string; montoRecibido: number }) => void }) {
+function ConfirmarDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | null; onClose: () => void; onConfirm: (i: { comprobante: string; montoRecibido: number; verificadoBanco: boolean }) => void }) {
+  const [verificado, setVerificado] = useState(false)
   const [comprobante, setComprobante] = useState('')
   const [monto, setMonto] = useState('')
   const [error, setError] = useState<string | null>(null)
   // El comprobante que registró el vendedor es solo una referencia: Finanzas confirma la del banco.
   useEffect(() => { if (reserva?.comprobante) setComprobante(reserva.comprobante) }, [reserva])
   if (!reserva) return null
-  const montoNum = Number(monto.replace(/\./g, '').replace(',', '.'))
-  const listo = comprobante.trim().length >= 3 && Number.isFinite(montoNum) && montoNum > 0
+  const montoNum = leerMonto(monto) ?? NaN
+  const listo = comprobante.trim().length >= 3 && Number.isFinite(montoNum) && montoNum > 0 && verificado
   return (
     <Dialog open onOpenChange={(o) => { if (!o) { setComprobante(''); setMonto(''); setError(null); onClose() } }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Verificar pago de la reserva {reserva.codigo}</DialogTitle>
-          <DialogDescription>{reserva.clienteNombre} · Reserva acordada {fmtUsd2(reserva.montoReserva)} ({reserva.reservaPct}%). La unidad se bloquea cuando Gerencia apruebe la reserva.</DialogDescription>
+          <DialogDescription>{reserva.clienteNombre} · Reserva acordada {fmtUsd2(reserva.montoReserva)}, que se acredita al pago a la firma del {reserva.reservaPct} %. La unidad se bloquea cuando Gerencia apruebe la reserva.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1.5">
@@ -252,11 +197,35 @@ function ConfirmarDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | n
             <Label htmlFor="rc-monto" className="text-xs">Monto recibido (USD) *</Label>
             <Input id="rc-monto" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder={String(reserva.montoReserva)} />
           </div>
+          <label className="flex items-start gap-2 text-xs"><input type="checkbox" className="mt-0.5" checked={verificado} onChange={(e) => setVerificado(e.target.checked)} />Verifiqué el ingreso en la cuenta bancaria correspondiente</label>
           <FieldError>{error}</FieldError>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!listo} onClick={() => { try { onConfirm({ comprobante, montoRecibido: montoNum }); setComprobante(''); setMonto('') } catch (e) { setError((e as Error).message) } }}>Verificar ingreso</Button>
+          <Button disabled={!listo} onClick={() => { try { onConfirm({ comprobante, montoRecibido: montoNum, verificadoBanco: verificado }); setComprobante(''); setMonto(''); setVerificado(false) } catch (e) { setError((e as Error).message) } }}>Verificar ingreso</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function RechazarPagoDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | null; onClose: () => void; onConfirm: (motivo: string) => void }) {
+  const [motivo, setMotivo] = useState('')
+  if (!reserva) return null
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) { setMotivo(''); onClose() } }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Rechazar el pago de {reserva.codigo}</DialogTitle>
+          <DialogDescription>{reserva.clienteNombre}. El comprobante se conserva con el motivo y la reserva vuelve a esperar el pago.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-1.5">
+          <Label htmlFor="rp-motivo" className="text-xs">Motivo del rechazo *</Label>
+          <Textarea id="rp-motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Volver</Button>
+          <Button variant="destructive" disabled={motivo.trim().length < 5} onClick={() => { onConfirm(motivo.trim()); setMotivo('') }}>Rechazar pago</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

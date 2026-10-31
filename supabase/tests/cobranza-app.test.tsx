@@ -6,7 +6,7 @@ import { ConexionProvider } from '@/app/auth'
 import { SessionProvider } from '@/app/session'
 import type { Actor } from '@/features/inventario/types'
 import CobranzaPage from '@/pages/CobranzaPage'
-import { datosPglite } from './datos-pglite'
+import { almacenPrueba, archivoPrueba, datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
@@ -20,7 +20,7 @@ async function actorDe(id: string): Promise<Actor> {
 async function abrirComo(id: string) {
   const actor = await actorDe(id)
   return render(
-    <ConexionProvider value={{ remoto: true, datos: datosPglite(db, id), cuenta: null, salir: async () => {} }}>
+    <ConexionProvider value={{ remoto: true, datos: datosPglite(db, id), cuenta: null, salir: async () => {}, almacen: almacenPrueba }}>
       <SessionProvider actorRemoto={actor}><CobranzaPage /></SessionProvider>
     </ConexionProvider>,
   )
@@ -44,9 +44,9 @@ beforeAll(async () => {
   // Contrato firmado de prueba (precio 10.000): reserva 500 pagada, firma 100 y cuota 700 vencidas, cuota 700 por vencer, entrega 8.000.
   const cli = (await db.query<{ id: string }>(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Cliente Cobranza', '0990000030', 'whatsapp', $1, $1, $1) returning id`, [vera])).rows[0].id
   const q = (await db.query<{ id: string }>(`insert into public.quotes (numero, fecha, valida_hasta, codigo, cliente, asesor, descuento_pct, precio_lista, precio_final, plan, created_by, client_id)
-    values ('COT-CB-1', current_date, current_date + 30, 'E1-PB-A2', '{}', '{}', 0, 10000, 10000, '{}', $1, $2) returning id`, [vera, cli])).rows[0].id
+    values ('COT-CB-1', (now() at time zone 'America/Guayaquil')::date, (now() at time zone 'America/Guayaquil')::date + 30, 'E1-PB-A2', '{}', '{}', 0, 10000, 10000, '{}', $1, $2) returning id`, [vera, cli])).rows[0].id
   const r = (await db.query<{ id: string }>(`insert into public.reservations (codigo, client_id, codigo_unidad, quote_id, vigencia_hasta, precio_acordado, reserva_pct, monto_reserva, meses, cuota_mensual, estado, created_by)
-    values ('RES-CB-1', $1, 'E1-PB-A2', $2, current_date + 30, 10000, 6, 500, 2, 700, 'confirmada', $3) returning id`, [cli, q, vera])).rows[0].id
+    values ('RES-CB-1', $1, 'E1-PB-A2', $2, (now() at time zone 'America/Guayaquil')::date + 30, 10000, 6, 500, 2, 700, 'confirmada', $3) returning id`, [cli, q, vera])).rows[0].id
   contrato = (await db.query<{ id: string }>(`insert into public.contracts (codigo, reservation_id, client_id, codigo_unidad, precio, estado, fecha_contrato, created_by)
     values ('CON-CB-1', $1, $2, 'E1-PB-A2', 10000, 'firmado', '2026-08-01', $3) returning id`, [r, cli, admin])).rows[0].id
   await db.query(`insert into public.installments (contract_id, numero, concepto, vencimiento, monto) values
@@ -71,9 +71,11 @@ describe('Cobranza conectada a Supabase (Postgres real)', () => {
     fireEvent.click(await screen.findByText('Cliente Cobranza'))
     fireEvent.change(await screen.findByLabelText('Monto (USD)'), { target: { value: '300' } })
     fireEvent.change(screen.getByLabelText('Referencia'), { target: { value: 'TRF-UI-1' } })
+    fireEvent.change(screen.getByLabelText('Banco'), { target: { value: 'Banco Pichincha' } })
+    fireEvent.change(screen.getByLabelText(/Foto o PDF/), { target: { files: [archivoPrueba()] } })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar pago' }))
     expect(await screen.findByText('Pago registrado: queda por verificar')).toBeInTheDocument()
-    expect(await screen.findByText('Lo verifica otra persona')).toBeInTheDocument()
+    expect((await screen.findAllByText('Lo verifica otra persona')).length).toBeGreaterThan(0)
     expect((await db.query(`select estado from public.payments where referencia = 'TRF-UI-1'`)).rows[0]).toEqual({ estado: 'registrado' })
   })
 
@@ -81,9 +83,9 @@ describe('Cobranza conectada a Supabase (Postgres real)', () => {
     await abrirComo(admin)
     await abrirTab(/Cartera/)
     fireEvent.click(await screen.findByText('Cliente Cobranza'))
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }))
-    fireEvent.change(await screen.findByLabelText('Motivo *'), { target: { value: 'Ingreso visto en el banco' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar ingreso' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Revisar pago' }))
+    fireEvent.click(await screen.findByLabelText(/Verifiqué el ingreso/))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pago' }))
     expect(await screen.findByText(/Verificación de cobros deshabilitada/)).toBeInTheDocument()
     expect((await db.query(`select estado from public.payments where referencia = 'TRF-UI-1'`)).rows[0]).toEqual({ estado: 'registrado' })
   })
@@ -93,9 +95,9 @@ describe('Cobranza conectada a Supabase (Postgres real)', () => {
     await abrirComo(admin)
     await abrirTab(/Cartera/)
     fireEvent.click(await screen.findByText('Cliente Cobranza'))
-    fireEvent.click(await screen.findByRole('button', { name: 'Confirmar' }))
-    fireEvent.change(await screen.findByLabelText('Motivo *'), { target: { value: 'Ingreso visto en el banco' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar ingreso' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Revisar pago' }))
+    fireEvent.click(await screen.findByLabelText(/Verifiqué el ingreso/))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar pago' }))
     expect(await screen.findByText('Pago confirmado')).toBeInTheDocument()
     expect((await db.query(`select estado from public.payments where referencia = 'TRF-UI-1'`)).rows[0]).toEqual({ estado: 'verificado' })
     // 500 reserva + 300: cubre la firma (100) y deja 200 aplicado a la cuota 1 → abono parcial.
@@ -112,8 +114,13 @@ describe('Cobranza conectada a Supabase (Postgres real)', () => {
     expect((await db.query(`select count(*)::int as n from public.cobranza_gestiones`)).rows[0]).toEqual({ n: 1 })
   })
 
-  it('una vendedora no tiene acceso a la cobranza', async () => {
-    await abrirComo(vera)
+  it('una vendedora consulta sin acciones de pago; quien no tiene el permiso no entra', async () => {
+    const r = await abrirComo(vera)
+    await screen.findByRole('tab', { name: /Cartera/ })
+    expect(screen.queryByText('Sin acceso a Cobranzas')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Registrar|Verificar|Conciliar/ })).not.toBeInTheDocument()
+    r.unmount()
+    await abrirComo(await crearUsuario(db, 'Omar Constructor', 'constructor'))
     expect(await screen.findByText('Sin acceso a Cobranzas')).toBeInTheDocument()
   })
 })

@@ -1,3 +1,4 @@
+import { RESERVA_PREDETERMINADA } from '@/features/inventario/pricing'
 import { assertCan, puedeVerDe } from '@/app/permissions'
 import type { Cotizacion } from '@/features/cotizaciones/cotizacion'
 import { marcarClienteReserva, liberarClienteReserva } from '@/features/clientes/service'
@@ -56,8 +57,10 @@ function buscar(res: ReservasState, id: string) {
 }
 
 /** Solicitud: no bloquea la unidad. Valida que la cotización esté vigente y la unidad sea reservable. */
-export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Estado {
+export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor, monto?: number): Estado {
   assertCan(actor, 'reservas.solicitar')
+  const montoReserva = monto ?? Math.min(RESERVA_PREDETERMINADA, cot.plan.reserva)
+  if (!(montoReserva > 0) || montoReserva > cot.plan.reserva) throw new ReservaError(`La reserva debe ser mayor a cero y no superar el 6 % (USD ${usd(cot.plan.reserva)}).`)
   if (!cot.clienteId) throw new ReservaError('La cotización no está vinculada a un cliente registrado. Vincúlala desde Cotizaciones.')
   const hoy = hoyGuayaquil()
   if (cot.validaHasta < hoy) throw new ReservaError(`La cotización ${cot.numero} venció el ${cot.validaHasta}. Emite una nueva cotización.`)
@@ -82,7 +85,7 @@ export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Esta
     precioAcordado: cot.plan.precioFinal,
     descuentoPct: cot.plan.descuentoPct,
     reservaPct: cot.plan.reservaPct,
-    montoReserva: cot.plan.reserva,
+    montoReserva,
     meses: cot.plan.meses,
     cuotaMensual: cot.plan.cuotaMensual,
     estado: 'solicitada',
@@ -95,7 +98,7 @@ export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor): Esta
     motivoAnulacion: '',
     creadaPor: { id: actor.id, nombre: actor.nombre, rol: actor.rol },
     creadaEn: nowIso(),
-    historial: [hist(actor, `Solicitud desde ${cot.numero} · reserva USD ${usd(cot.plan.reserva)} · precio USD ${usd(cot.plan.precioFinal)}`)],
+    historial: [hist(actor, `Solicitud desde ${cot.numero} · reserva acordada USD ${usd(montoReserva)} · precio USD ${usd(cot.plan.precioFinal)}`)],
   }
   return { ...e, res: { ...e.res, reservas: [r, ...e.res.reservas] } }
 }

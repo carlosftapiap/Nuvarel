@@ -7,12 +7,14 @@ import {
   FileSignature,
   FolderOpen,
   GanttChart,
+  HardHat,
   LayoutDashboard,
   Settings,
   SquareKanban,
   Users,
   Wallet,
   Handshake,
+  ShoppingBag,
   Landmark,
   Tags,
   type LucideIcon,
@@ -44,11 +46,18 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Ventas',
     items: [
-      { to: '/inventario', label: 'Inventario', icon: Building2, permisos: ['inventario.ver'] },
+      { to: '/venta', label: 'Atender cliente', icon: ShoppingBag, permisos: ['cotizaciones.crear'] },
+      { to: '/inventario', label: 'Inventario', icon: Building2, permisos: ['inventario.ver', 'inventario.tecnico'] },
       { to: '/financiamiento', label: 'Financiamiento', icon: Landmark, permisos: ['financiamiento.simular'] },
       { to: '/precios', label: 'Precios', icon: Tags, permisos: ['precios.ver'] },
       { to: '/cotizaciones', label: 'Cotizaciones', icon: Calculator, permisos: ['cotizaciones.crear', 'cotizaciones.ver'] },
       { to: '/clientes', label: 'Clientes', icon: Users, permisos: ['clientes.ver'] },
+    ],
+  },
+  {
+    label: 'Construcción',
+    items: [
+      { to: '/obra', label: 'Avance de obra', icon: HardHat, permisos: ['obra.resumen', 'obra.ver'] },
     ],
   },
   {
@@ -64,7 +73,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Finanzas',
     items: [
       { to: '/cobranzas', label: 'Cobranzas', icon: Wallet, permisos: ['cobranzas.ver'] },
-      { to: '/comisiones', label: 'Comisiones', icon: BadgePercent, permisos: ['comisiones.ver_propias', 'comisiones.calcular'] },
+      { to: '/comisiones', label: 'Comisiones', icon: BadgePercent, permisos: ['comisiones.ver_propias', 'comisiones.calcular', 'comisiones.aprobar', 'comisiones.finanzas'] },
       { to: '/reportes', label: 'Reportes', icon: ChartColumn, permisos: ['reportes.ver'] },
     ],
   },
@@ -72,7 +81,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Sistema',
     items: [
       { to: '/recursos', label: 'Centro de recursos', icon: FolderOpen, permisos: ['recursos.ver'] },
-      { to: '/configuracion', label: 'Configuración', icon: Settings, permisos: ['config.usuarios', 'config.roles', 'config.equipos', 'config.auditoria'] },
+      { to: '/configuracion', label: 'Configuración', icon: Settings, permisos: ['config.usuarios', 'config.roles', 'config.equipos', 'config.auditoria', 'config.multimedia'] },
     ],
   },
 ]

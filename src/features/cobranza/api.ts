@@ -1,4 +1,7 @@
 import type { Datos } from '@/features/conexion/datos'
+import type { Reserva } from '@/features/reservas/model'
+import { cargarComprobantes, cargarMovimientos, cargarRecibos, type Comprobante, type Movimiento, type Recibo } from './comprobantes'
+import { cargarReservas } from '@/features/reservas/remoto'
 import type { ContratoFila, CuotaFila, PagoFila } from './tablero'
 
 /** Acceso a datos de cobranza. Lecturas con RLS; las escrituras son funciones del servidor con permiso, motivo y auditoría. */
@@ -17,10 +20,25 @@ export interface DatosCobranza {
   compromisos: Compromiso[]
   alertas: Alerta[]
   nombres: Map<string, string>
+  /** null: este perfil no consulta reservas. Son solicitudes y reservas: no son ingresos ni cartera contractual. */
+  reservas: Reserva[] | null
+  /** Reservas con un contrato que no está anulado. */
+  reservasConContrato: Set<string>
+  /** Contratos que no están anulados. */
+  contratosVigentes: Set<string>
+  /** Código de unidad → número de departamento. */
+  departamentos: Map<string, string>
+  comprobantes: Comprobante[]
+  recibos: Recibo[]
+  movimientos: Movimiento[]
+  /** undefined: no se pudo leer. null: sin definir. */
+  receptor: string | null | undefined
+  /** Contrato → reserva de la que salió: el pago copiado de la reserva usa su recibo. */
+  reservaDeContrato: Map<string, string>
 }
 
 export async function cargarCobranza(d: Datos): Promise<DatosCobranza> {
-  const [contratos, cuotas, pagos, gestiones, compromisos, alertas, clientes, personas, oportunidades] = await Promise.all([
+  const [contratos, cuotas, pagos, gestiones, compromisos, alertas, clientes, personas, oportunidades, reservas, unidades, comprobantes, recibos, movimientos, ajustes] = await Promise.all([
     d.select('contracts', { orden: [{ columna: 'codigo' }] }),
     d.select('installments', { orden: [{ columna: 'numero' }] }),
     d.select('payments', { orden: [{ columna: 'registrado_en', asc: false }] }),
@@ -30,12 +48,28 @@ export async function cargarCobranza(d: Datos): Promise<DatosCobranza> {
     d.select('clients'),
     d.select('profiles'),
     d.select('opportunities'),
+    cargarReservas(d).then((r) => r.reservas).catch(() => null),
+    d.select('inventory_units').catch(() => [] as Fila[]),
+    cargarComprobantes(d),
+    cargarRecibos(d),
+    cargarMovimientos(d),
+    d.select<Fila>('payment_settings', { filtros: { id: 1 } }).catch(() => [] as Fila[]),
   ])
   const nombres = new Map((personas as Fila[]).map((p) => [String(p.id), String(p.nombre)]))
   const cliente = new Map((clientes as Fila[]).map((c) => [String(c.id), String(c.nombre)]))
   const responsable = new Map((oportunidades as Fila[]).map((o) => [String(o.id), s(o.responsable_id)]))
+  const vigentes = (contratos as Fila[]).filter((c) => c.estado !== 'anulado')
   return {
     nombres,
+    reservas,
+    comprobantes,
+    recibos,
+    movimientos,
+    receptor: ajustes[0] ? s(ajustes[0].receptor) : undefined,
+    reservaDeContrato: new Map((contratos as Fila[]).map((c) => [String(c.id), String(c.reservation_id)])),
+    reservasConContrato: new Set(vigentes.map((c) => String(c.reservation_id))),
+    contratosVigentes: new Set(vigentes.map((c) => String(c.id))),
+    departamentos: new Map((unidades as Fila[]).map((u) => [String(u.codigo), String(u.dpt)])),
     contratos: (contratos as Fila[]).map((c) => {
       const r = responsable.get(String(c.opportunity_id)) ?? null
       return {
@@ -68,10 +102,6 @@ export async function cargarCobranza(d: Datos): Promise<DatosCobranza> {
   }
 }
 
-export const registrarPago = (d: Datos, contrato: string, monto: number, fecha: string, referencia: string, comprobante: string | null) =>
-  d.rpc<string>('cobranzas_registrar_pago', { p_contract: contrato, p_monto: monto, p_fecha: fecha, p_referencia: referencia, p_path: comprobante })
-export const verificarPago = (d: Datos, pago: string, aprobar: boolean, motivo: string) =>
-  d.rpc('cobranzas_verificar_pago', { p_payment: pago, p_aprobar: aprobar, p_motivo: motivo })
 export const anularPago = (d: Datos, pago: string, motivo: string) => d.rpc('cobranzas_anular_pago', { p_payment: pago, p_motivo: motivo })
 export const reprogramarCuota = (d: Datos, contrato: string, numero: number, fecha: string, motivo: string) =>
   d.rpc('cobranza_reprogramar_cuota', { p_contract: contrato, p_numero: numero, p_nuevo: fecha, p_motivo: motivo })

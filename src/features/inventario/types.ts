@@ -30,7 +30,18 @@ export type EstadoComercial =
   | 'vendido'
   | 'no_disponible'
 
+/** Solicitud de reserva en trámite. No cambia el estado guardado de la unidad. `cotizacionId` solo llega a quien tiene acceso a ese cliente. */
+export interface SolicitudActiva {
+  codigo: string
+  estado: string
+  vigenciaHasta: string | null
+  cotizacionId: string | null
+}
+
 export interface Unit extends UnitSeed {
+  solicitud?: SolicitudActiva | null
+  /** USD por m² de la lista base, guardado en la base: lo que restablece «Restablecer lista base». */
+  usdM2Lista: number
   estado: EstadoComercial
   /** Identificador de la reserva vinculada (lo asignará el módulo de Reservas). */
   reservaId: string | null
@@ -47,6 +58,8 @@ export interface PricingParams {
   reservaPct: number
   cuotasPct: number
   meses: Record<Edificio, number>
+  /** Propuesta inicial del monto de la reserva. Sin la migración, se usa RESERVA_PREDETERMINADA. */
+  reservaPredeterminada?: number
 }
 
 /** Identificador de rol (plantillas iniciales o roles creados en Configuración). */
@@ -125,6 +138,8 @@ export interface InventoryState {
   version: 1
   units: Unit[]
   params: PricingParams
+  /** Parámetros de la lista base guardados en la base. */
+  listaBase: PricingParams
   priceHistory: PriceHistoryEntry[]
   statusHistory: StatusHistoryEntry[]
   propuestas: PriceProposal[]

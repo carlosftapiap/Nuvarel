@@ -29,7 +29,7 @@ export interface Hito { id: string; hito: TipoHito; fecha: string; referencia: s
 export interface Cuota { numero: number; concepto: string; vencimiento: string | null; monto: number; pagado: number; pendiente: number; situacion: string }
 
 /** Condiciones de la cotización aceptada, tal como las fijó el servidor. */
-export interface Condiciones { precioLista: number; descuentoPct: number; reservaPct: number; reserva: number; cuotasTotal: number; meses: number; cuotaMensual: number; ultimaCuota: number; contraEntrega: number; entregaPct: number }
+export interface Condiciones { extraordinarias?: { mes: number; monto: number }[]; precioLista: number; descuentoPct: number; reservaPct: number; reserva: number; cuotasTotal: number; meses: number; cuotaMensual: number; ultimaCuota: number; contraEntrega: number; entregaPct: number }
 
 export interface Venta {
   id: string
