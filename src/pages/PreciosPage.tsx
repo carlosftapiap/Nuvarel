@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, Check, ExternalLink, X } from 'lucide-react'
+import { ArrowRight, Check, X } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { ROLES } from '@/app/permissions'
 import { useSession } from '@/app/session'
@@ -33,8 +33,7 @@ export default function PreciosPage() {
   return (
     <>
       <PageHeader eyebrow="Ventas · Precios" title="Precios dinámicos"
-        subtitle="Simula cambios de precio por m² o porcentuales sin alterar los precios oficiales hasta su aprobación."
-        actions={<Button variant="outline" size="sm" asChild><a href="/simulador/simulador_amura.html" target="_blank" rel="noopener"><ExternalLink />Simulador original</a></Button>} />
+        subtitle="Simula cambios de precio por m² o porcentuales sin alterar los precios oficiales hasta su aprobación." />
       <Tabs defaultValue="simulacion" className="min-w-0">
         <TabsList className="mb-3 max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="simulacion">Simulación</TabsTrigger>

@@ -104,7 +104,7 @@ describe('despliegue sobre el estado actual de producción', () => {
   it('con datos existentes, las migraciones pendientes terminan igual que una instalación limpia y no tocan los datos', async () => {
     const leer = (f: string) => fs.readFileSync(path.join(RAIZ, f), 'utf8')
     // Lo que falta en producción, en el orden del despliegue.
-    const PENDIENTES = ['20261030000000_plan_responsable_externo.sql', '20261031110000_datos_en_base.sql', '20261031120000_avance_obra.sql', '20261031130000_documentos_contractuales.sql', '20261031140000_reserva_predeterminada.sql', '20261031150000_reserva_atomica_disponibilidad.sql', '20261031160000_clientes_nombres.sql', '20261031170000_cuotas_extraordinarias.sql', '20261031180000_comprobantes_recibos.sql', '20261031190000_cobranzas_controles.sql', '20261031200000_storage_comprobantes.sql', '20261031210000_obra_avance_directo.sql', '20261031220000_multimedia_proyecto.sql']
+    const PENDIENTES = ['20261030000000_plan_responsable_externo.sql', '20261031110000_datos_en_base.sql', '20261031120000_avance_obra.sql', '20261031130000_documentos_contractuales.sql', '20261031140000_reserva_predeterminada.sql', '20261031150000_reserva_atomica_disponibilidad.sql', '20261031160000_clientes_nombres.sql', '20261031170000_cuotas_extraordinarias.sql', '20261031180000_comprobantes_recibos.sql', '20261031190000_cobranzas_controles.sql', '20261031200000_storage_comprobantes.sql', '20261031210000_obra_avance_directo.sql', '20261031220000_multimedia_proyecto.sql', '20261101000000_accesos_internos.sql']
     const prod = new PGlite()
     await prod.exec(STUB_SUPABASE)
     for (const f of fs.readdirSync(path.join(RAIZ, 'migrations')).filter((x) => x.endsWith('.sql')).sort()) {

@@ -35,6 +35,7 @@ Ejecuta el archivo completo en **SQL Editor**:
 - `migrations/20261031200000_storage_comprobantes.sql`: subida de comprobantes por operación, vínculo seguro del PDF del recibo y limpieza auditada de archivos sin vincular. No modifica datos ni archivos.
 - `migrations/20261031210000_obra_avance_directo.sql`: avance de obra sin segunda aprobación. **Cambia datos:** los avances pendientes de validar pasan a contar como avance actual, marcados como «Aprobación eliminada». La app publicada debe ser esta versión: las anteriores ya no podrán registrar avances.
 - `migrations/20261031220000_multimedia_proyecto.sql`: biblioteca de fotografías y videos, con versiones, bucket privado propio `multimedia-proyecto` y permiso `config.multimedia` solo para Administrador. Registra el material actual como versión 1. No cambia datos comerciales.
+- `migrations/20261101000000_accesos_internos.sql`: la configuración (emisor de recibos, receptor de pagos, roles, permisos, proyectos, equipos y porcentaje de comisión) deja de ser legible para cuentas sin perfil activo. No cambia datos.
 
 Vuelve a ejecutar `verificar_despliegue.sql`: no debe quedar ningún `FALTA`, `DISTINTO` ni `ADICIONAL`.
 

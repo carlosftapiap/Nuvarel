@@ -1,5 +1,6 @@
 // Lógica de crear-usuario, sin dependencias de Deno. Los permisos se verifican en la base, con la sesión de quien llama.
 // La contraseña solo pasa por Supabase Auth: no se guarda en AMURA ni llega a la auditoría.
+// Sin contraseña, el alta usa una aleatoria que nadie conoce: la persona define la suya con el enlace que recibe por correo.
 
 export interface Resultado { status: number; body: { id?: string; ok?: boolean; error?: string } }
 
@@ -14,7 +15,7 @@ export interface AdminAuth {
 }
 
 export type Peticion =
-  | { accion: 'crear'; nombre: string; email: string; password: string; rolId: string; alcance: string | null; equipoId: string | null; supervisorId: string | null; motivo: string }
+  | { accion: 'crear'; nombre: string; email: string; password?: string; rolId: string; alcance: string | null; equipoId: string | null; supervisorId: string | null; motivo: string }
   | { accion: 'clave'; usuarioId: string; password: string; motivo: string }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -22,8 +23,15 @@ export const CLAVE_MINIMA = 8
 const mal = (error: string, status = 400): Resultado => ({ status, body: { error } })
 const denegado = (m: string) => /permiso|conceder|más permisos/i.test(m)
 
+/** 192 bits aleatorios, con mayúscula, minúscula, número y símbolo para cumplir cualquier política de contraseñas. */
+function claveAleatoria() {
+  const b = crypto.getRandomValues(new Uint8Array(24))
+  return `Aa1!${[...b].map((x) => x.toString(16).padStart(2, '0')).join('')}`
+}
+
 export async function gestionarCuenta(p: Peticion, comoUsuario: ClienteUsuario, admin: AdminAuth): Promise<Resultado> {
-  if (!p.password || p.password.length < CLAVE_MINIMA) return mal(`La contraseña debe tener al menos ${CLAVE_MINIMA} caracteres`)
+  const exige = p.accion === 'clave' || p.password !== undefined
+  if (exige && (!p.password || p.password.length < CLAVE_MINIMA)) return mal(`La contraseña debe tener al menos ${CLAVE_MINIMA} caracteres`)
   if (!p.motivo || p.motivo.trim().length < 5) return mal('Motivo obligatorio')
 
   if (p.accion === 'clave') {
@@ -43,7 +51,7 @@ export async function gestionarCuenta(p: Peticion, comoUsuario: ClienteUsuario, 
   const { error: invalido } = await comoUsuario.rpc('config_validar_alta', args)
   if (invalido) return mal(invalido.message, denegado(invalido.message) ? 403 : 400)
 
-  const { data, error } = await admin.createUser({ email, password: p.password, email_confirm: true, user_metadata: { nombre: p.nombre.trim() } })
+  const { data, error } = await admin.createUser({ email, password: p.password ?? claveAleatoria(), email_confirm: true, user_metadata: { nombre: p.nombre.trim() } })
   if (error || !data.user) return mal(traducir(error?.message ?? 'No se pudo crear la cuenta'))
 
   const { error: errPerfil } = await comoUsuario.rpc('config_crear_perfil', { p_user: data.user.id, p_nombre: p.nombre, p_motivo: p.motivo, ...args })

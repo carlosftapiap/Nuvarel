@@ -45,7 +45,7 @@ Debe devolver cero filas.
    ```
 2. Despliega la función:
    ```
-   supabase functions deploy cobranza-diaria
+   supabase functions deploy cobranza-diaria --no-verify-jwt
    ```
 3. Programa la ejecución diaria a las 08:00 de Ecuador (13:00 UTC, sin horario de verano). Requiere las extensiones `pg_cron` y `pg_net` activadas en **Database → Extensions**. Reemplaza `<proyecto>` y `<CRON_SECRET>` (guárdalo en Vault, no en el texto del comando):
    ```sql

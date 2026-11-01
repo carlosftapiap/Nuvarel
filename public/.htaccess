@@ -1,5 +1,13 @@
 # AMURA en A2 Hosting (Apache): fuerza HTTPS y entrega index.html en toda ruta de la aplicación.
 Options -MultiViews -Indexes
+<FilesMatch "^\.(env|git)|\.(sql|log|bak|map)$">
+  Require all denied
+</FilesMatch>
+<IfModule mod_mime.c>
+  AddType image/webp .webp
+  AddType font/woff2 .woff2
+  AddType video/mp4 .mp4
+</IfModule>
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -8,6 +16,8 @@ Options -MultiViews -Indexes
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
+  # Un archivo que falta responde 404: no se sirve index.html en su lugar.
+  RewriteRule ^(assets|media|brand|fonts)/ - [R=404,L]
   RewriteRule ^ index.html [L]
 </IfModule>
 <IfModule mod_headers.c>
@@ -17,7 +27,7 @@ Options -MultiViews -Indexes
   <FilesMatch "\.html$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
-  <If "%{REQUEST_URI} =~ m#^/assets/#">
+  <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|css)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
-  </If>
+  </FilesMatch>
 </IfModule>
