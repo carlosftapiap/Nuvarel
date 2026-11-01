@@ -33,6 +33,7 @@ async function abrir(id: string) {
   )
 }
 const tarjeta = (t: string) => screen.getByText(t).parentElement!
+const irAIndicadores = async () => { await userEvent.setup().click(await screen.findByRole('tab', { name: 'Indicadores' })) }
 const irAReservas = async (user: ReturnType<typeof userEvent.setup>) => {
   const tab = await screen.findByRole('tab', { name: /^Reservas/ })
   await user.click(tab)
@@ -66,6 +67,7 @@ describe('Reservas dentro de Cobranzas', () => {
   it('una solicitud aparece desde que se crea, sin contarse como ingreso ni crear cartera', async () => {
     const user = userEvent.setup()
     const s = await abrir(finanzas)
+    await irAIndicadores()
     await screen.findByText('Reservas pendientes de pago')
     expect(within(tarjeta('Reservas pendientes de pago')).getByText('1')).toBeInTheDocument()
     expect(within(tarjeta('Reservas pendientes de pago')).getByText(/\$600,00 acordados/)).toBeInTheDocument()
@@ -105,7 +107,7 @@ describe('Reservas dentro de Cobranzas', () => {
     expect(within(filaNueva).getByText('Pago por verificar')).toBeInTheDocument()
     expect(within(filaNueva).getByText(/reportado, sin confirmar/)).toBeInTheDocument()
     expect(await conteo('payments')).toBe(0)
-    await user.click(screen.getByRole('tab', { name: 'Tablero' }))
+    await user.click(screen.getByRole('tab', { name: 'Indicadores' }))
     expect(within(await screen.findByText('Pagos pendientes de verificación').then((x) => x.parentElement!)).getByText('1')).toBeInTheDocument()
     expect(within(tarjeta('Reservas pendientes de pago')).getByText('0')).toBeInTheDocument()
     expect(within(tarjeta('Total recaudado')).getByText('$0,00')).toBeInTheDocument()
@@ -125,6 +127,7 @@ describe('Reservas dentro de Cobranzas', () => {
     const user = userEvent.setup()
     await rpc(finanzas, `select public.reservas_confirmar_pago($1, 700, $2::date, 'BAN-1', true, 'Ingreso confirmado')`, [reserva, hoyGuayaquil()])
     let s = await abrir(finanzas)
+    await irAIndicadores()
     await screen.findByText('Total recaudado')
     expect(within(tarjeta('Total recaudado')).getByText('$700,00')).toBeInTheDocument()
     expect(within(tarjeta('Pagos pendientes de verificación')).getByText('0')).toBeInTheDocument()
@@ -139,6 +142,7 @@ describe('Reservas dentro de Cobranzas', () => {
     await rpc(legal, `select public.contratos_crear($1, $2::date, 'Contrato de la reserva')`, [reserva, hoyGuayaquil()])
     expect(await conteo('payments')).toBe(1)
     s = await abrir(finanzas)
+    await irAIndicadores()
     await screen.findByText('Total recaudado')
     expect(within(tarjeta('Total recaudado')).getByText('$700,00')).toBeInTheDocument()
     await irAReservas(user)

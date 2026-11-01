@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, CloudOff, FileCheck2, Loader2, Lock, RefreshCw, X } from 'lucide-react'
+import { CheckCircle2, CloudOff, Download, FileCheck2, Loader2, Lock, Plus, RefreshCw, Search, X } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
 import { useConexion } from '@/app/auth'
 import { useSession } from '@/app/session'
@@ -13,14 +13,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import type { Datos } from '@/features/conexion/datos'
 import * as api from '@/features/cobranza/api'
+import type { Recibo } from '@/features/cobranza/comprobantes'
 import { ESTADO_FILA, filaReserva, indicadoresReservas, type FilaReserva } from '@/features/cobranza/reservas'
 import { useRefresco } from '@/features/conexion/refresco'
 import MovimientosReserva from '@/features/cobranza/components/MovimientosReserva'
+import RegistrarPagoCuota from '@/features/cobranza/components/RegistrarPagoCuota'
 import RevisionPago, { type PagoEnRevision } from '@/features/cobranza/components/RevisionPago'
-import { almacenPagos, errorArchivo, reportarPagoContrato, reportarPagoReserva } from '@/features/cobranza/comprobantes'
+import { almacenPagos, descargarRecibo, reportarPagoContrato, reportarPagoReserva, type DatosPago } from '@/features/cobranza/comprobantes'
 import RegistrarPagoDialog from '@/features/reservas/components/RegistrarPagoDialog'
 import type { Reserva } from '@/features/reservas/model'
-import { calcularTablero, SITUACION, TRAMOS_MORA, type ResumenContrato } from '@/features/cobranza/tablero'
+import { calcularTablero, esProxima, filasCuotas, SITUACION, TRAMOS_MORA, type FiltroCuotas, type ResumenContrato } from '@/features/cobranza/tablero'
 import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2 } from '@/features/inventario/pricing'
@@ -67,8 +69,13 @@ function Cobranza({ datos }: { datos: Datos }) {
   const [aviso, setAviso] = useState<string | null>(null)
   // Desde Ventas se puede abrir un contrato con ?contrato=<id>.
   const [seleccion, setSeleccion] = useState<string | null>(() => new URLSearchParams(window.location.search).get('contrato'))
-  const [edificio, setEdificio] = useState('todos')
-  const [responsable, setResponsable] = useState('todos')
+  const [filtro, setFiltro] = useState<FiltroCuotas>('pendientes')
+  const [busqueda, setBusqueda] = useState('')
+  const [verTodas, setVerTodas] = useState(false)
+  const [registrar, setRegistrar] = useState<{ contrato: string | null } | null>(null)
+  const [revisar, setRevisar] = useState<string | null>(null)
+  const { can, actor } = useSession()
+  const conexion = useConexion()
   const hoy = hoyGuayaquil()
 
   const cargar = useCallback(async () => {
@@ -88,29 +95,117 @@ function Cobranza({ datos }: { datos: Datos }) {
   const indicadores = useMemo(() => (d ? indicadoresReservas(filasReservas, d.pagos, d.contratosVigentes, d.movimientos) : null), [d, filasReservas])
   if (!d || !tablero || !indicadores) return error ? <FieldError>{error}</FieldError> : <p className="p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 inline size-4 animate-spin" />Cargando cobranza…</p>
 
-  const responsables = [...new Set(tablero.contratos.map((r) => r.contrato.responsable))].sort()
-  const cartera = tablero.contratos.filter((r) => (edificio === 'todos' || String(r.contrato.edificio) === edificio) && (responsable === 'todos' || r.contrato.responsable === responsable))
   const elegido = tablero.contratos.find((r) => r.contrato.id === seleccion) ?? null
+  const departamento = (unidad: string) => d.departamentos.get(unidad) ?? unidad
+  const firmados = tablero.contratos.filter((r) => r.contrato.estado === 'firmado')
+  const entradas = firmados.flatMap((r) => r.cuotas.filter((q) => q.esEntrada))
+  const vencidas = entradas.filter((q) => q.situacion === 'vencida').length
+  const proximas = entradas.filter(esProxima).length
+  const q = busqueda.trim().toLowerCase()
+  const filas = filasCuotas(tablero.contratos, filtro).filter(({ r }) => !q || `${r.contrato.cliente} ${departamento(r.contrato.unidad)} ${r.contrato.responsable}`.toLowerCase().includes(q))
+  const visibles = verTodas ? filas : filas.slice(0, 100)
+  const porVerificar = d.pagos.filter((p) => p.estado === 'registrado' && d.contratosVigentes.has(p.contratoId))
+  const nombreDe = (contratoId: string) => tablero.contratos.find((r) => r.contrato.id === contratoId)?.contrato
+  const pagoRevisado = revisar ? d.pagos.find((p) => p.id === revisar) ?? null : null
+  // El pago copiado de la reserva conserva el recibo que se emitió al confirmarla.
+  const reciboDe = (p: { id: string; contratoId: string; referencia: string }) => d.recibos.find((v) => v.pagoId === p.id)
+    ?? d.recibos.find((v) => v.reservaId !== null && v.reservaId === d.reservaDeContrato.get(p.contratoId) && v.referencia === p.referencia) ?? null
+  const guardarPago = async (contratoId: string, pago: DatosPago) => {
+    await reportarPagoContrato(datos, almacenPagos(conexion), contratoId, pago)
+    setError(null); setAviso('Pago registrado: queda por verificar')
+    await cargar()
+  }
+  const elegir = (f: FiltroCuotas) => { setFiltro(f); setVerTodas(false) }
 
   return (
     <>
-      <PageHeader eyebrow="Finanzas · Cobranzas" title="Cobranza de la entrada (20%)"
-        subtitle={`Cuentas por cobrar de Nuvarel. Fecha de corte ${fmtFechaCorta(hoy)} (hora de Ecuador). El crédito hipotecario del comprador no es cartera de Nuvarel.`}
-        actions={<Button variant="outline" size="sm" onClick={() => { setError(null); setAviso(null); void cargar() }}><RefreshCw />Actualizar</Button>} />
+      <PageHeader eyebrow="Finanzas · Cobranzas" title="Cobranzas"
+        subtitle={`Entrada del 20 %. Fecha de corte ${fmtFechaCorta(hoy)}. Las reservas y el crédito bancario del 80 % se llevan aparte.`}
+        actions={<>
+          <Button variant="outline" size="sm" onClick={() => { setError(null); setAviso(null); void cargar() }}><RefreshCw />Actualizar</Button>
+          {can('cobranzas.registrar') && <Button size="sm" onClick={() => { setError(null); setAviso(null); setRegistrar({ contrato: null }) }}><Plus />Registrar pago</Button>}
+        </>} />
       {aviso && !elegido && <p role="status" className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"><CheckCircle2 className="size-4" />{aviso}</p>}
       {!elegido && <div className="mb-3"><FieldError>{error}</FieldError></div>}
       {d.receptor !== undefined && d.receptor !== 'NUVAREL' && <p role="alert" className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">No se pueden confirmar pagos: el receptor configurado es {d.receptor ?? 'ninguno'} y el recibo se emite a nombre de NUVAREL. Debe resolverse en Configuración.</p>}
       {indicadores.vencidas > 0 && <p role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{indicadores.vencidas === 1 ? 'Hay 1 reserva vencida' : `Hay ${indicadores.vencidas} reservas vencidas`} sin resolver. No se anulan automáticamente y siguen bloqueando su unidad.</p>}
 
-      <Tabs defaultValue="tablero" className="min-w-0">
-        <TabsList className="mb-3">
-          <TabsTrigger value="tablero">Tablero</TabsTrigger>
+      <Tabs defaultValue="cuotas" className="min-w-0">
+        <TabsList className="mb-3 max-w-full justify-start overflow-x-auto overflow-y-hidden">
+          <TabsTrigger value="cuotas">Cuotas</TabsTrigger>
           {d.reservas && <TabsTrigger value="reservas">Reservas ({filasReservas.filter((f) => f.estado !== 'anulada').length})</TabsTrigger>}
-          <TabsTrigger value="cartera">Cartera ({tablero.contratos.length})</TabsTrigger>
           <TabsTrigger value="alertas">Alertas ({d.alertas.filter((a) => a.estado === 'pendiente').length})</TabsTrigger>
+          <TabsTrigger value="indicadores">Indicadores</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tablero" className="grid gap-4">
+        <TabsContent value="cuotas" className="grid gap-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4" role="group" aria-label="Resumen de cobranzas">
+            <Kpi t="Total cobrado" v={fmtUsd2(tablero.cobrado)} d="Solo pagos confirmados" />
+            <Kpi t="Saldo pendiente" v={fmtUsd2(tablero.saldo)} d="Incluye lo vencido y lo próximo" destacado onClick={() => elegir('pendientes')} activo={filtro === 'pendientes'} />
+            <Kpi t="Valores vencidos" v={fmtUsd2(tablero.vencido)} d={vencidas === 1 ? '1 cuota vencida' : `${vencidas} cuotas vencidas`} tone={tablero.vencido ? 'text-rose-700' : undefined} onClick={() => elegir('vencidas')} activo={filtro === 'vencidas'} />
+            <Kpi t="Próximos vencimientos" v={fmtUsd2(Math.round((tablero.venceHoy + tablero.porVencer) * 100) / 100)} d={`${proximas === 1 ? '1 cuota' : `${proximas} cuotas`} en los próximos 7 días`} tone={proximas ? 'text-amber-700' : undefined} onClick={() => elegir('proximas')} activo={filtro === 'proximas'} />
+          </div>
+
+          {porVerificar.length > 0 && (
+            <section aria-labelledby="co-verificar" className="dashboard-card p-4">
+              <h2 id="co-verificar" className="text-sm font-semibold">Pagos por verificar ({porVerificar.length})</h2>
+              <p className="text-[11px] text-muted-foreground">Aún no cuentan como cobrados. Los confirma una persona distinta de quien los registró.</p>
+              <ul className="mt-2 grid gap-1.5 text-xs">
+                {porVerificar.map((p) => {
+                  const k = nombreDe(p.contratoId)
+                  const propio = p.registradoPor === actor.id
+                  return (
+                    <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2">
+                      <span className="min-w-0 flex-1"><b>{k?.cliente}</b> · Dpto. {k ? departamento(k.unidad) : ''} · {fmtUsd2(p.monto)} · {fmtFechaCorta(p.fecha)}</span>
+                      {propio && <span className="text-[11px] text-muted-foreground">Lo verifica otra persona</span>}
+                      {(can('cobranzas.verificar') || propio) && <Button size="xs" variant={propio ? 'outline' : 'default'} onClick={() => { setError(null); setAviso(null); setRevisar(p.id) }}>{propio ? 'Ver pago' : 'Revisar pago'}</Button>}
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <div className="relative min-w-56 flex-1 sm:max-w-sm">
+              <Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" aria-hidden="true" />
+              <Input aria-label="Buscar cliente o departamento" className="h-8 pl-8" placeholder="Buscar cliente o departamento" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
+            </div>
+            <select aria-label="Mostrar" className="h-8 rounded-md border border-border bg-white px-2 text-xs" value={filtro} onChange={(e) => elegir(e.target.value as FiltroCuotas)}>
+              <option value="pendientes">Pendientes</option><option value="vencidas">Vencidas</option><option value="proximas">Próximas a vencer</option><option value="pagadas">Pagadas</option><option value="todas">Todas</option>
+            </select>
+          </div>
+
+          {filas.length === 0 ? <div className="module-empty"><p className="text-sm text-muted-foreground">{tablero.contratos.length ? 'No hay cuotas con este filtro.' : 'Todavía no hay contratos en tu alcance.'}</p></div> : (
+            <div className="dashboard-card !p-0 overflow-x-auto">
+              <table className="w-full min-w-[820px] text-xs">
+                <thead className="bg-muted text-[11px] text-muted-foreground">
+                  <tr><th className="px-4 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Departamento</th><th className="px-2 py-2 text-left font-medium">Cuota</th><th className="px-2 py-2 text-left font-medium">Vencimiento</th><th className="px-2 py-2 text-right font-medium">Valor</th><th className="px-2 py-2 text-right font-medium">Pagado</th><th className="px-2 py-2 text-right font-medium">Saldo</th><th className="px-4 py-2 text-left font-medium">Estado</th></tr>
+                </thead>
+                <tbody>
+                  {visibles.map(({ r, q: c }) => (
+                    <tr key={`${r.contrato.id}-${c.numero}`} className="cursor-pointer border-t border-border hover:bg-muted/40" onClick={() => { setError(null); setAviso(null); setSeleccion(r.contrato.id) }}>
+                      <td className="px-4 py-2"><button type="button" className="font-medium hover:underline" onClick={(e) => { e.stopPropagation(); setError(null); setAviso(null); setSeleccion(r.contrato.id) }}>{r.contrato.cliente}</button></td>
+                      <td className="px-2 py-2">{departamento(r.contrato.unidad)}</td>
+                      <td className="px-2 py-2">{c.concepto}</td>
+                      <td className="px-2 py-2 tabular-nums">{fmtFechaCorta(c.vencimiento)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(c.monto)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(c.pagado)}</td>
+                      <td className="px-2 py-2 text-right font-medium tabular-nums">{fmtUsd2(c.saldo)}</td>
+                      <td className="px-4 py-2">
+                        <Pastilla texto={r.contrato.estado === 'firmado' ? SITUACION[c.situacion].label : c.situacion === 'pagada' ? 'Pagada' : 'No exigible'} tono={r.contrato.estado === 'firmado' ? SITUACION[c.situacion].tono : 'bg-slate-50 text-slate-600 ring-slate-200'} />
+                        {c.parcial && <span className="ml-1"><Pastilla texto="Abono parcial" tono="bg-sky-50 text-sky-800 ring-sky-200" /></span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filas.length > visibles.length && <div className="border-t border-border p-2 text-center"><Button size="sm" variant="ghost" onClick={() => setVerTodas(true)}>Ver las {filas.length} cuotas</Button></div>}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="indicadores" className="grid gap-4">
           <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Reservas y recaudación">
             {d.reservas && <Kpi t="Reservas pendientes de pago" v={String(indicadores.pendientes.cantidad)} d={`${fmtUsd2(indicadores.pendientes.acordado)} acordados · aún no es ingreso`} tone={indicadores.pendientes.cantidad ? 'text-amber-700' : undefined} />}
             <Kpi t="Pagos pendientes de verificación" v={String(indicadores.porVerificar.cantidad)} d={`${fmtUsd2(indicadores.porVerificar.monto)} reportados · Finanzas no los ha confirmado`} tone={indicadores.porVerificar.cantidad ? 'text-amber-700' : undefined} />
@@ -149,40 +244,6 @@ function Cobranza({ datos }: { datos: Datos }) {
           </div>
         </TabsContent>
 
-        <TabsContent value="cartera" className="grid gap-3">
-          <div className="flex flex-wrap gap-2">
-            <select aria-label="Edificio" className="h-8 rounded-md border border-border bg-white px-2 text-xs" value={edificio} onChange={(e) => setEdificio(e.target.value)}>
-              <option value="todos">Todos los edificios</option><option value="1">Edificio 1</option><option value="2">Edificio 2</option>
-            </select>
-            <select aria-label="Responsable" className="h-8 rounded-md border border-border bg-white px-2 text-xs" value={responsable} onChange={(e) => setResponsable(e.target.value)}>
-              <option value="todos">Todos los responsables</option>{responsables.map((r) => <option key={r}>{r}</option>)}
-            </select>
-          </div>
-          {cartera.length === 0 ? <div className="module-empty"><p className="text-sm text-muted-foreground">No hay contratos en tu alcance.</p></div> : (
-            <div className="dashboard-card !p-0 overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="bg-muted text-[11px] text-muted-foreground">
-                  <tr><th className="px-4 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Unidad</th><th className="px-2 py-2 text-left font-medium">Responsable</th><th className="px-2 py-2 text-left font-medium">Contrato</th><th className="px-2 py-2 text-right font-medium">Saldo entrada</th><th className="px-2 py-2 text-right font-medium">Vencido</th><th className="px-2 py-2 text-left font-medium">Próxima cuota</th><th className="px-4 py-2 text-right font-medium">Atraso</th></tr>
-                </thead>
-                <tbody>
-                  {cartera.map((r) => (
-                    <tr key={r.contrato.id} className="cursor-pointer border-t border-border hover:bg-muted/40" onClick={() => setSeleccion(r.contrato.id)}>
-                      <td className="px-4 py-2 font-medium">{r.contrato.cliente}</td>
-                      <td className="px-2 py-2">{r.contrato.unidad}</td>
-                      <td className="px-2 py-2">{r.contrato.responsable}</td>
-                      <td className="px-2 py-2">{r.contrato.codigo} · {r.contrato.estado === 'firmado' ? 'Firmado' : 'Borrador (no exigible)'}</td>
-                      <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(r.saldoEntrada)}</td>
-                      <td className={cn('px-2 py-2 text-right tabular-nums', r.vencido > 0 && 'font-medium text-rose-700')}>{fmtUsd2(r.vencido)}</td>
-                      <td className="px-2 py-2">{r.proxima ? `${r.proxima.concepto} · ${fmtFechaCorta(r.proxima.vencimiento)}` : '—'}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{r.diasAtraso ? `${r.diasAtraso} d` : '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </TabsContent>
-
         {d.reservas && (
           <TabsContent value="reservas">
             <ReservasCobranza filas={filasReservas} d={d} datos={datos} ejecutar={ejecutar} />
@@ -194,7 +255,12 @@ function Cobranza({ datos }: { datos: Datos }) {
         </TabsContent>
       </Tabs>
 
-      {elegido && <Detalle r={elegido} d={d} datos={datos} ejecutar={ejecutar} error={error} aviso={aviso} onClose={() => setSeleccion(null)} />}
+      {elegido && <Detalle r={elegido} d={d} datos={datos} ejecutar={ejecutar} error={error} aviso={aviso} departamento={departamento(elegido.contrato.unidad)} reciboDe={reciboDe} onRevisar={setRevisar} onRegistrar={() => { setError(null); setAviso(null); setRegistrar({ contrato: elegido.contrato.id }) }} onClose={() => setSeleccion(null)} />}
+      {registrar && <RegistrarPagoCuota contratos={tablero.contratos} inicial={registrar.contrato} departamento={departamento} onGuardar={guardarPago} onClose={() => setRegistrar(null)} />}
+      {pagoRevisado && (
+        <RevisionPago pago={{ tipo: 'pago', id: pagoRevisado.id, titulo: `Pago ${pagoRevisado.referencia} · ${nombreDe(pagoRevisado.contratoId)?.cliente ?? ''}`, monto: pagoRevisado.monto, referencia: pagoRevisado.referencia, fecha: pagoRevisado.fecha, pendiente: pagoRevisado.estado === 'registrado', propio: pagoRevisado.registradoPor === actor.id }}
+          comprobantes={d.comprobantes.filter((k) => k.pagoId === pagoRevisado.id)} recibo={reciboDe(pagoRevisado)} datos={datos} almacen={almacenPagos(conexion)} ejecutar={ejecutar} onClose={() => setRevisar(null)} />
+      )}
     </>
   )
 }
@@ -296,22 +362,14 @@ function Alertas({ alertas }: { alertas: api.Alerta[] }) {
 type Ejecutar = (fn: () => Promise<unknown>, ok: string) => Promise<boolean>
 type Pedir = { titulo: string; boton: string; destructivo?: boolean; accion: (motivo: string) => Promise<unknown>; ok: string }
 
-function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenContrato; d: api.DatosCobranza; datos: Datos; ejecutar: Ejecutar; error: string | null; aviso: string | null; onClose: () => void }) {
+function Detalle({ r, d, datos, ejecutar, error, aviso, departamento, reciboDe, onRevisar, onRegistrar, onClose }: { r: ResumenContrato; d: api.DatosCobranza; datos: Datos; ejecutar: Ejecutar; error: string | null; aviso: string | null; departamento: string; reciboDe: (p: { id: string; contratoId: string; referencia: string }) => Recibo | null; onRevisar: (id: string) => void; onRegistrar: () => void; onClose: () => void }) {
   const { can, actor } = useSession()
   const conexion = useConexion()
-  const [revisar, setRevisar] = useState<string | null>(null)
-  const pagoRevisado = revisar ? d.pagos.find((p) => p.id === revisar) ?? null : null
-  // El pago copiado de la reserva conserva el recibo que se emitió al confirmarla.
-  const reciboDe = (p: { id: string; referencia: string }) => d.recibos.find((v) => v.pagoId === p.id)
-    ?? d.recibos.find((v) => v.reservaId !== null && v.reservaId === d.reservaDeContrato.get(r.contrato.id) && v.referencia === p.referencia) ?? null
   const c = r.contrato
   const pagos = d.pagos.filter((p) => p.contratoId === c.id)
   const gestiones = d.gestiones.filter((g) => g.contratoId === c.id)
   const compromisos = d.compromisos.filter((k) => k.contratoId === c.id)
   const [pedir, setPedir] = useState<Pedir | null>(null)
-  const [pago, setPago] = useState({ monto: '', fecha: hoyGuayaquil(), banco: '', referencia: '' })
-  const [archivo, setArchivo] = useState<File | null>(null)
-  const [enviandoPago, setEnviandoPago] = useState(false)
   const [gestion, setGestion] = useState({ tipo: 'llamada', descripcion: '', numero: '' })
   const [comp, setComp] = useState({ monto: '', fecha: '', numero: '', motivo: '' })
   const [repro, setRepro] = useState({ numero: '', fecha: '', motivo: '' })
@@ -323,7 +381,7 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenC
         <SheetHeader className="sticky top-0 z-10 border-b border-border bg-white px-5 py-4">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <SheetTitle className="text-base">{c.cliente} · {c.unidad}</SheetTitle>
+              <SheetTitle className="text-base">{c.cliente} · Dpto. {departamento}</SheetTitle>
               <SheetDescription>{c.codigo} · {c.estado === 'firmado' ? 'Firmado: cronograma exigible' : 'Borrador: aún no exigible'} · Responsable {c.responsable}</SheetDescription>
             </div>
             <button type="button" aria-label="Cerrar" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
@@ -340,7 +398,7 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenC
           </div>
 
           <section>
-            <h3 className="mb-2 text-xs font-semibold">Cuotas de la entrada</h3>
+            <h3 className="mb-2 text-xs font-semibold">Cronograma de la entrada del 20 %</h3>
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-xs">
                 <thead className="bg-muted text-[11px] text-muted-foreground"><tr><th className="px-3 py-1.5 text-left font-medium">Cuota</th><th className="px-2 py-1.5 text-left font-medium">Vencimiento</th><th className="px-2 py-1.5 text-right font-medium">Monto</th><th className="px-2 py-1.5 text-right font-medium">Aplicado</th><th className="px-2 py-1.5 text-right font-medium">Saldo</th><th className="px-3 py-1.5 text-left font-medium">Estado</th></tr></thead>
@@ -366,7 +424,10 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenC
           </section>
 
           <section>
-            <h3 className="mb-2 text-xs font-semibold">Pagos</h3>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold">Pagos</h3>
+              {can('cobranzas.registrar') && <Button size="sm" onClick={onRegistrar}><Plus />Registrar pago</Button>}
+            </div>
             {pagos.length === 0 ? <p className="text-xs text-muted-foreground">Sin pagos registrados.</p> : (
               <ul className="grid gap-1.5 text-xs">
                 {pagos.map((p) => (
@@ -376,32 +437,33 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenC
                     <Pastilla texto={ESTADO_PAGO[p.estado].label} tono={ESTADO_PAGO[p.estado].tono} />
                     {p.motivo && <span className="text-[11px] text-muted-foreground">{p.motivo}</span>}
                     <span className="ml-auto flex gap-1.5">
+                      {reciboDe(p) && p.estado === 'verificado' && <Button size="sm" variant="outline" onClick={() => void descargarRecibo(almacenPagos(conexion), reciboDe(p)!).catch(() => {})}><Download />Recibo {reciboDe(p)!.numero}</Button>}
                       {(p.estado === 'registrado' ? can('cobranzas.verificar') || p.registradoPor === actor.id : !!reciboDe(p) || d.comprobantes.some((k) => k.pagoId === p.id)) &&
-                        <Button size="sm" variant={p.estado === 'registrado' && p.registradoPor !== actor.id ? 'default' : 'outline'} onClick={() => setRevisar(p.id)}>{p.estado === 'registrado' ? 'Revisar pago' : 'Ver pago'}</Button>}
+                        <Button size="sm" variant={p.estado === 'registrado' && p.registradoPor !== actor.id ? 'default' : 'outline'} onClick={() => onRevisar(p.id)}>{p.estado === 'registrado' ? 'Revisar pago' : 'Ver pago'}</Button>}
                       {p.estado === 'registrado' && p.registradoPor === actor.id && <span className="text-[11px] text-muted-foreground">Lo verifica otra persona</span>}
-                      {(p.estado === 'registrado' || p.estado === 'verificado') && can('cobranzas.verificar') &&
-                        <Button size="sm" variant="ghost" onClick={() => setPedir({ titulo: `Anular el pago ${p.referencia}`, boton: 'Anular pago', destructivo: true, ok: 'Pago anulado', accion: (m) => api.anularPago(datos, p.id, m) })}>Anular</Button>}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-            {can('cobranzas.registrar') && (
-              <div className="mt-3 grid gap-2 rounded-lg border border-dashed border-border p-3 sm:grid-cols-5">
-                <div className="grid gap-1"><Label htmlFor="pg-monto" className="text-[11px]">Monto (USD)</Label><Input id="pg-monto" className="h-8" inputMode="decimal" value={pago.monto} onChange={(e) => setPago({ ...pago, monto: e.target.value })} /></div>
-                <div className="grid gap-1"><Label htmlFor="pg-fecha" className="text-[11px]">Fecha</Label><Input id="pg-fecha" className="h-8" type="date" max={hoyGuayaquil()} value={pago.fecha} onChange={(e) => setPago({ ...pago, fecha: e.target.value })} /></div>
-                <div className="grid gap-1"><Label htmlFor="pg-ref" className="text-[11px]">Referencia</Label><Input id="pg-ref" className="h-8" value={pago.referencia} onChange={(e) => setPago({ ...pago, referencia: e.target.value })} /></div>
-                <div className="grid gap-1"><Label htmlFor="pg-banco" className="text-[11px]">Banco</Label><Input id="pg-banco" className="h-8" value={pago.banco} onChange={(e) => setPago({ ...pago, banco: e.target.value })} /></div>
-                <div className="grid gap-1"><Label htmlFor="pg-comp" className="text-[11px]">Foto o PDF *</Label><Input id="pg-comp" className="h-8" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} /></div>
-                <div className="flex items-end sm:col-span-5 sm:justify-end"><Button size="sm" disabled={!(num(pago.monto) > 0) || pago.referencia.trim().length < 3 || pago.banco.trim().length < 2 || !archivo || !!errorArchivo(archivo) || enviandoPago}
-                  onClick={() => { setEnviandoPago(true); void ejecutar(() => reportarPagoContrato(datos, almacenPagos(conexion), c.id, { monto: num(pago.monto), fecha: pago.fecha, banco: pago.banco.trim(), referencia: pago.referencia.trim(), archivo: archivo! }), 'Pago registrado: queda por verificar')
-                    .then((ok) => { setEnviandoPago(false); if (ok) { setPago({ monto: '', fecha: hoyGuayaquil(), banco: '', referencia: '' }); setArchivo(null) } }) }}>Registrar pago</Button></div>
-                <div className="sm:col-span-5 empty:hidden"><FieldError>{errorArchivo(archivo)}</FieldError></div>
-                <p className="text-[11px] text-muted-foreground sm:col-span-5">Un pago se aplica a las cuotas en orden y puede cubrir varias. No cuenta como cobrado hasta que otra persona lo confirme. El excedente queda como saldo a favor.</p>
-              </div>
-            )}
           </section>
 
+          <details className="rounded-lg border border-border px-4 py-3">
+            <summary className="cursor-pointer text-xs font-semibold">Seguimiento y correcciones</summary>
+            <div className="mt-3 grid gap-5">
+          {can('cobranzas.verificar') && pagos.some((p) => p.estado === 'registrado' || p.estado === 'verificado') && (
+            <section>
+              <h3 className="mb-2 text-xs font-semibold">Anular un pago</h3>
+              <ul className="grid gap-1.5 text-xs">
+                {pagos.filter((p) => p.estado === 'registrado' || p.estado === 'verificado').map((p) => (
+                  <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5">
+                    <span className="min-w-0 flex-1 tabular-nums">{fmtUsd2(p.monto)} · ref. {p.referencia}</span>
+                    <Button size="sm" variant="ghost" onClick={() => setPedir({ titulo: `Anular el pago ${p.referencia}`, boton: 'Anular pago', destructivo: true, ok: 'Pago anulado', accion: (m) => api.anularPago(datos, p.id, m) })}>Anular</Button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section className="grid gap-4 md:grid-cols-2">
             <div>
               <h3 className="mb-2 text-xs font-semibold">Gestiones</h3>
@@ -466,12 +528,10 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, onClose }: { r: ResumenC
               <p className="mt-1 text-[11px] text-muted-foreground">Conserva la fecha original y los pagos; queda en auditoría con tu usuario y motivo.</p>
             </section>
           )}
+            </div>
+          </details>
         </div>
         {pedir && <MotivoDialog p={pedir} onClose={() => setPedir(null)} onEnviar={(m) => ejecutar(() => pedir.accion(m), pedir.ok)} />}
-        {pagoRevisado && (
-          <RevisionPago pago={{ tipo: 'pago', id: pagoRevisado.id, titulo: `Pago ${pagoRevisado.referencia} · ${c.cliente}`, monto: pagoRevisado.monto, referencia: pagoRevisado.referencia, fecha: pagoRevisado.fecha, pendiente: pagoRevisado.estado === 'registrado', propio: pagoRevisado.registradoPor === actor.id }}
-            comprobantes={d.comprobantes.filter((k) => k.pagoId === pagoRevisado.id)} recibo={reciboDe(pagoRevisado)} datos={datos} almacen={almacenPagos(conexion)} ejecutar={ejecutar} onClose={() => setRevisar(null)} />
-        )}
       </SheetContent>
     </Sheet>
   )
@@ -495,7 +555,9 @@ function MotivoDialog({ p, onClose, onEnviar }: { p: Pedir; onClose: () => void;
   )
 }
 
-function Kpi({ t, v, d, tone, destacado }: { t: string; v: string; d: string; tone?: string; destacado?: boolean }) {
+function Kpi({ t, v, d, tone, destacado, onClick, activo }: { t: string; v: string; d: string; tone?: string; destacado?: boolean; onClick?: () => void; activo?: boolean }) {
+  const contenido = <><div className="text-[11px] text-muted-foreground">{t}</div><div className={cn('mt-1 text-lg font-semibold tabular-nums tracking-tight', tone, destacado && 'text-primary')}>{v}</div><div className="mt-0.5 text-[11px] text-muted-foreground">{d}</div></>
+  if (onClick) return <button type="button" aria-pressed={activo} onClick={onClick} className={cn('dashboard-card !p-4 text-left hover:bg-muted/30', activo && 'ring-2 ring-primary/50')}>{contenido}</button>
   return (
     <div className={cn('dashboard-card !p-4', destacado && 'ring-1 ring-primary/30')}>
       <div className="text-[11px] text-muted-foreground">{t}</div>

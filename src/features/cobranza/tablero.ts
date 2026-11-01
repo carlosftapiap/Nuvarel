@@ -120,6 +120,36 @@ export function calcularTablero(contratos: ContratoFila[], cuotas: CuotaFila[], 
   }
 }
 
+/** Una fila por cuota de la entrada. El 80 % bancario no aparece: no es cartera de Nuvarel. */
+export interface FilaCuota { r: ResumenContrato; q: CuotaCalculada }
+export type FiltroCuotas = 'pendientes' | 'vencidas' | 'proximas' | 'pagadas' | 'todas'
+
+export const esProxima = (q: Pick<CuotaCalculada, 'situacion'>) => q.situacion === 'vence_hoy' || q.situacion === 'por_vencer'
+
+export function filasCuotas(contratos: ResumenContrato[], filtro: FiltroCuotas): FilaCuota[] {
+  const orden = (a: FilaCuota, b: FilaCuota) => (a.q.vencimiento ?? '').localeCompare(b.q.vencimiento ?? '') || a.r.contrato.cliente.localeCompare(b.r.contrato.cliente) || a.q.numero - b.q.numero
+  return contratos
+    // Un contrato en borrador aún no es exigible: solo se ve al pedir todas.
+    .filter((r) => filtro === 'todas' || r.contrato.estado === 'firmado')
+    .flatMap((r) => r.cuotas.filter((q) => q.esEntrada).map((q) => ({ r, q })))
+    .filter(({ q }) => filtro === 'todas' || (filtro === 'pagadas' ? q.situacion === 'pagada' : filtro === 'vencidas' ? q.situacion === 'vencida' : filtro === 'proximas' ? esProxima(q) : q.saldo > 0))
+    .sort(orden)
+}
+
+/** Cómo se repartiría un pago: en orden, igual que la base al confirmarlo. No guarda nada. */
+export function aplicacionPago(r: ResumenContrato, monto: number) {
+  let resto = cent(monto)
+  const cuotas: CuotaCalculada[] = []
+  let parcial = 0
+  for (const q of r.cuotas.filter((x) => x.esEntrada && x.saldo > 0)) {
+    if (resto <= 0) break
+    cuotas.push(q)
+    if (resto < q.saldo) parcial = cent(q.saldo - resto)
+    resto = cent(resto - q.saldo)
+  }
+  return { cuotas, parcial, excedente: Math.max(0, resto) }
+}
+
 export const SITUACION: Record<Situacion, { label: string; tono: string }> = {
   pagada: { label: 'Pagada', tono: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
   pendiente: { label: 'Pendiente', tono: 'bg-slate-50 text-slate-700 ring-slate-200' },
