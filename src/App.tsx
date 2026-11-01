@@ -71,6 +71,7 @@ function Modulos() {
 
           <Route path="corredores" element={<Suspense fallback={cargando}><CorredoresPage /></Suspense>} />
           <Route path="obra" element={<Suspense fallback={cargando}><ObraPage /></Suspense>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
           {placeholders.map((item) => (
             <Route
               key={item.to}
