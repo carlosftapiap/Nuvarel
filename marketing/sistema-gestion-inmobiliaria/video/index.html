@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Sistema de Gestión Inmobiliaria · comercial</title>
+<style>
+@font-face { font-family: Manrope; src: url('fuentes/manrope.woff2') format('woff2'); font-weight: 200 800; }
+@font-face { font-family: Geist; src: url('fuentes/geist.woff2') format('woff2'); font-weight: 100 900; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: #0b1324; }
+body { font-family: Geist, sans-serif; color: #fff; position: relative; }
+#fondo, #rejilla { position: absolute; inset: 0; }
+#rejilla { background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 80px 80px; }
+.capa { position: absolute; inset: 0; visibility: hidden; }
+.linea { display: block; }
+/* problema */
+#pregunta { position: absolute; left: 160px; right: 160px; top: 96px; font: 700 60px/1.18 Manrope; letter-spacing: -.02em; text-align: center; }
+.ficha { position: absolute; width: 300px; padding: 20px 24px; border-radius: 16px; background: #fff; color: #18243d; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+.ficha b { display: block; font: 700 25px Manrope; }
+.ficha span { display: block; margin-top: 4px; font-size: 19px; color: #5b6880; }
+.ficha i { display: block; width: 34px; height: 6px; border-radius: 3px; margin-bottom: 12px; }
+/* títulos */
+.centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 120px; }
+.nombre { font: 800 104px/1.06 Manrope; letter-spacing: -.035em; }
+.bajada { margin-top: 30px; font: 400 37px/1.3 Geist; color: #c6d2ea; max-width: 1300px; }
+.lema { margin-top: 34px; font: 600 42px/1.25 Manrope; color: #fff; }
+.cta { margin-top: 44px; padding: 22px 52px; border-radius: 999px; background: #3563f3; font: 700 38px Manrope; box-shadow: 0 16px 60px rgba(53,99,243,.6); }
+/* módulos */
+.texto { position: absolute; left: 76px; top: 0; bottom: 0; width: 520px; display: flex; flex-direction: column; justify-content: center; }
+.seccion { font: 700 21px Geist; letter-spacing: .14em; text-transform: uppercase; color: #7ea0ff; }
+.titulo { margin-top: 20px; font: 800 58px/1.1 Manrope; letter-spacing: -.025em; }
+.detalle { margin-top: 24px; font: 400 29px/1.36 Geist; color: #c6d2ea; }
+.equipo { position: absolute; left: 620px; top: 170px; width: 1240px; height: 740px; border-radius: 18px; background: #fff; box-shadow: 0 50px 120px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.12); overflow: hidden; }
+.barra { height: 42px; background: #eef1f7; display: flex; align-items: center; gap: 9px; padding-left: 18px; }
+.barra u { width: 13px; height: 13px; border-radius: 50%; background: #c9d1e0; }
+.vista { position: relative; width: 1240px; height: 698px; overflow: hidden; }
+.lienzo { position: absolute; left: 0; top: 0; width: 1240px; height: 698px; transform-origin: 0 0; }
+.lienzo img { width: 100%; height: 100%; display: block; }
+.tapa { position: absolute; background: #f5f7fb; color: #5b6880; font-family: Geist; display: flex; align-items: center; white-space: nowrap; }
+#nota { position: absolute; left: 76px; bottom: 44px; font-size: 21px; color: #92a1bd; }
+</style></head>
+<body>
+<div id="fondo"></div><div id="rejilla"></div>
+<div id="raiz"></div>
+<div id="nota">Proyecto demostrativo: AMURA · Datos ficticios</div>
+<script>
+const D = 60;
+const ESCENAS = [
+  { img: 'dashboard', a: 12, b: 18, sec: 'Una sola plataforma', t: 'Toda la operación, en una sola vista', d: 'Inventario, clientes, reservas, contratos y cobros en un mismo panel.', de: [0, 0, 1], a_: [0.16, 0.16, 0.84], tapa: true },
+  { img: 'inventario', a: 18, b: 22.5, sec: 'Control comercial', t: 'Conoce tu inventario', d: 'Cada departamento con su precio y su estado.', de: [0.15, 0.3, 0.7], a_: [0.15, 0.38, 0.62] },
+  { img: 'clientes', a: 22.5, b: 27, sec: 'Control comercial', t: 'Da seguimiento a cada oportunidad', d: 'Clientes, etapas y responsables a la vista.', de: [0.14, 0.1, 0.86], a_: [0.14, 0.22, 0.72] },
+  { img: 'venta', a: 27, b: 31, sec: 'Control comercial', t: 'Cotiza con un proceso claro', d: 'Cada vendedor sabe cuál es el siguiente paso.', de: [0.14, 0.08, 0.86], a_: [0.14, 0.14, 0.72] },
+  { img: 'reservas', a: 31, b: 35, sec: 'Control comercial', t: 'Reservas bajo control', d: 'Solicitud, verificación del pago y aprobación.', de: [0.14, 0.1, 0.86], a_: [0.14, 0.14, 0.86] },
+  { img: 'ventas', a: 35, b: 38.5, sec: 'Control comercial', t: 'Ventas y contratos', d: 'Del acuerdo al contrato firmado.', de: [0.14, 0.1, 0.86], a_: [0.14, 0.14, 0.86] },
+  { img: 'financiamiento', a: 38.5, b: 43.5, sec: 'Financiamiento y cobranzas', t: 'Organiza planes de pago', d: 'Entrada, cuotas y crédito hipotecario, con su cronograma.', de: [0.15, 0.1, 0.85], a_: [0.35, 0.2, 0.65] },
+  { img: 'cobranzas', a: 43.5, b: 48, sec: 'Financiamiento y cobranzas', t: 'Consulta el estado de las cobranzas', d: 'Pagos, saldos y cuotas en un solo lugar.', de: [0.14, 0.05, 0.86], a_: [0.14, 0.2, 0.8] },
+  { img: 'obra', a: 48, b: 52.5, sec: 'Control de proyecto', t: 'Visualiza el avance de obra', d: 'Avance por frente y por actividad.', de: [0.15, 0.1, 0.85], a_: [0.15, 0.15, 0.75] },
+  { img: 'plan', a: 52.5, b: 55.5, sec: 'Control de proyecto', t: 'Decide con información centralizada', d: 'Plan de implementación y seguimiento.', de: [0.14, 0.1, 0.86], a_: [0.14, 0.2, 0.72] },
+];
+const FICHAS = [
+  ['Clientes.xlsx', 'Hoja de cálculo', '#16a34a', 150, 370], ['Reservas_v3.xlsx', '¿Cuál es la última?', '#16a34a', 560, 470], ['Cobranzas.pdf', 'Enviado por correo', '#dc2626', 1000, 380],
+  ['Chat de ventas', 'Mensajes dispersos', '#22c55e', 1450, 470], ['Inventario', 'Otra planilla', '#16a34a', 300, 720], ['Avance de obra', 'Cuaderno de campo', '#d97706', 800, 760], ['Contratos', 'Carpeta compartida', '#3563f3', 1290, 750],
+];
+const raiz = document.getElementById('raiz');
+const el = (html) => { const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; };
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const out3 = (x) => 1 - (1 - x) ** 3;
+const suave = (x) => x * x * (3 - 2 * x);
+const hacer = (o, op, tx = 0, ty = 0, s = 1) => { o.style.opacity = op; o.style.transform = `translate(${tx}px,${ty}px) scale(${s})`; };
+const palabras = (txt, cl) => txt.split(' ').map((w) => `<span class="${cl}" style="display:inline-block;margin-right:.26em">${w}</span>`).join('');
+
+const problema = el(`<div class="capa"><div id="pregunta">${palabras('¿Tu constructora todavía administra clientes, departamentos, reservas y cobranzas en diferentes archivos y sistemas?', 'pp')}</div>${FICHAS.map((f) => `<div class="ficha"><i style="background:${f[2]}"></i><b>${f[0]}</b><span>${f[1]}</span></div>`).join('')}</div>`);
+raiz.append(problema);
+const titulo = el(`<div class="capa"><div class="centro"><div class="nombre" id="n1">Sistema de Gestión Inmobiliaria</div><div class="bajada" id="b1">Centraliza la operación de tus proyectos en una sola plataforma.</div></div></div>`);
+raiz.append(titulo);
+for (const e of ESCENAS) {
+  e.nodo = el(`<div class="capa"><div class="texto"><div class="seccion">${e.sec}</div><div class="titulo">${e.t}</div><div class="detalle">${e.d}</div></div>
+    <div class="equipo"><div class="barra"><u></u><u></u><u></u></div><div class="vista"><div class="lienzo"><img src="../recursos/pantallas/${e.img}.png">${e.tapa ? '<div class="tapa" style="left:16.6%;top:40.2%;width:20%;height:2.4%;font-size:10.5px">AMURA Apartments · proyecto demostrativo</div>' : ''}</div></div></div></div>`);
+  raiz.append(e.nodo);
+  e.txt = [...e.nodo.querySelector('.texto').children];
+  e.eq = e.nodo.querySelector('.equipo');
+  e.li = e.nodo.querySelector('.lienzo');
+}
+const cierre = el(`<div class="capa"><div class="centro"><div class="nombre" id="n2">Sistema de Gestión Inmobiliaria</div><div class="bajada" id="b2">Administra tus proyectos, clientes, ventas, financiamiento, cobranzas y avance de obra desde una sola plataforma.</div><div class="lema" id="l2">Más control. Mejores decisiones. Una sola plataforma.</div><div class="cta" id="c2">Solicita una demostración</div></div></div>`);
+raiz.append(cierre);
+const ver = (n, si) => { n.style.visibility = si ? 'visible' : 'hidden'; };
+const pp = [...problema.querySelectorAll('.pp')], fichas = [...problema.querySelectorAll('.ficha')];
+const nota = document.getElementById('nota'), fondo = document.getElementById('fondo');
+
+window.draw = (t) => {
+  // Fondo: la luz azul se desplaza despacio durante todo el comercial.
+  const lx = 30 + 40 * Math.sin(t / 9), ly = 40 + 25 * Math.cos(t / 7);
+  fondo.style.background = `radial-gradient(1100px 800px at ${lx}% ${ly}%, rgba(53,99,243,.34), transparent 70%), linear-gradient(135deg, #111c32, #0b1324)`;
+
+  // Problema: fichas dispersas que al final se reúnen en el centro.
+  ver(problema, t < 7.6);
+  if (t < 7.6) {
+    const reune = suave(prog(t, 6.1, 7.2));
+    pp.forEach((p, i) => { const q = out3(prog(t, 0.2 + i * 0.11, 0.7 + i * 0.11)); hacer(p, q * (1 - prog(t, 5.9, 6.5)), 0, (1 - q) * 26); });
+    fichas.forEach((f, i) => {
+      const [, , , x, y] = FICHAS[i];
+      const q = out3(prog(t, 1.5 + i * 0.3, 2.1 + i * 0.3));
+      const dx = 16 * Math.sin(t * 0.7 + i * 2), dy = 13 * Math.cos(t * 0.6 + i), r = (i % 2 ? -1 : 1) * (2 + i * 0.5) + 2.2 * Math.sin(t * 0.5 + i);
+      const fx = x + dx + (810 - x - dx) * reune, fy = y + dy + (480 - y - dy) * reune;
+      f.style.left = fx + 'px'; f.style.top = fy + 'px'; f.style.opacity = q * (1 - prog(t, 6.8, 7.3));
+      f.style.transform = `rotate(${r * (1 - reune)}deg) scale(${(0.85 + 0.15 * q) * (1 - 0.4 * reune)})`;
+    });
+  }
+
+  // Nombre del software.
+  ver(titulo, t >= 6.9 && t < 12.5);
+  if (t >= 6.9 && t < 12.5) {
+    const sale = 1 - prog(t, 11.7, 12.3);
+    const q = out3(prog(t, 7.0, 7.9));
+    hacer(titulo.querySelector('#n1'), q * sale, 0, (1 - q) * 40, 0.94 + 0.06 * q + 0.012 * prog(t, 7.9, 12));
+    const q2 = out3(prog(t, 7.9, 8.7));
+    hacer(titulo.querySelector('#b1'), q2 * sale, 0, (1 - q2) * 24);
+  }
+
+  // Módulos con sus pantallas reales.
+  for (const e of ESCENAS) {
+    const fin = e.b + 0.5, activa = t >= e.a && t < fin;
+    ver(e.nodo, activa);
+    if (!activa) continue;
+    const entra = out3(prog(t, e.a, e.a + 0.8)), sale = prog(t, e.b, fin);
+    e.nodo.style.opacity = 1 - sale;
+    e.txt.forEach((n, i) => { const q = out3(prog(t, e.a + 0.1 + i * 0.16, e.a + 0.8 + i * 0.16)); hacer(n, q, (1 - q) * -30); });
+    e.eq.style.transform = `perspective(2200px) translateX(${(1 - entra) * 260}px) rotateY(${(1 - entra) * -14 - 1.5}deg) scale(${0.95 + 0.05 * entra})`;
+    const u = suave(prog(t, e.a + 0.5, e.b + 0.4));
+    const [x0, y0, w0] = e.de, [x1, y1, w1] = e.a_;
+    const x = x0 + (x1 - x0) * u, y = y0 + (y1 - y0) * u, w = w0 + (w1 - w0) * u;
+    e.li.style.transform = `translate(${-x * 1240 / w}px, ${-y * 698 / w}px) scale(${1 / w})`;
+  }
+
+  // Cierre.
+  ver(cierre, t >= 55.4);
+  if (t >= 55.4) {
+    const q = out3(prog(t, 55.5, 56.3)); hacer(cierre.querySelector('#n2'), q, 0, (1 - q) * 36, 0.96 + 0.04 * q);
+    const q1 = out3(prog(t, 56.2, 56.9)); hacer(cierre.querySelector('#b2'), q1, 0, (1 - q1) * 20);
+    const q2 = out3(prog(t, 56.9, 57.6)); hacer(cierre.querySelector('#l2'), q2, 0, (1 - q2) * 20);
+    const q3 = out3(prog(t, 57.6, 58.3)); hacer(cierre.querySelector('#c2'), q3, 0, (1 - q3) * 20, 0.92 + 0.08 * q3 + 0.012 * Math.sin((t - 58.3) * 3) * prog(t, 58.3, 58.6));
+  }
+  nota.style.opacity = t < 12 ? 0 : 1;
+  // Fundido de entrada y de salida.
+  document.body.style.opacity = Math.min(prog(t, 0, 0.5), 1 - prog(t, 59.3, 60));
+};
+window.listo = Promise.all([document.fonts.load('800 60px Manrope'), document.fonts.load('400 30px Geist'), ...[...document.images].map((i) => i.decode())]).then(() => { draw(0); return true; });
+</script>
+</body></html>
