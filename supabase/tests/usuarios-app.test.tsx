@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { PGlite } from '@electric-sql/pglite'
 import { SessionProvider } from '@/app/session'
 import UsuariosRemoto from '@/features/config/remoto/UsuariosRemoto'
@@ -24,7 +24,7 @@ async function pantalla(acciones = { enviarRecuperacion: vi.fn(async () => {}), 
       <UsuariosRemoto datos={datosPglite(db, admin)} acciones={acciones} />
     </SessionProvider>,
   )
-  await screen.findByText(/cuentas en Supabase Authentication/)
+  await screen.findByRole('heading', { name: /\d+ usuarios/ })
   return acciones
 }
 
@@ -36,39 +36,43 @@ describe('Configuración · usuarios reales (Postgres con RLS)', () => {
     await pantalla()
     expect(within(fila('pendiente@empresa.test')).getByText('Sin perfil (sin acceso)')).toBeInTheDocument()
     expect(within(fila('Vera')).getByText('Activo')).toBeInTheDocument()
-    expect(within(fila('Carlos Tapia')).queryByRole('button', { name: 'Modificar acceso' })).toBeNull()
+    expect(within(fila('Carlos Tapia')).queryByRole('button', { name: 'Cambiar rol' })).toBeNull()
+    expect(within(fila('Carlos Tapia')).queryByRole('button', { name: 'Desactivar' })).toBeNull()
   })
 
-  it('cambia el rol con motivo y queda en la base de datos', async () => {
+  it('cambia el rol sin pasos de más y queda en la base y en la auditoría', async () => {
     await pantalla()
-    fireEvent.click(within(fila('Vera')).getByRole('button', { name: 'Modificar acceso' }))
+    fireEvent.click(within(fila('Vera')).getByRole('button', { name: 'Cambiar rol' }))
     fireEvent.change(screen.getByLabelText('Rol'), { target: { value: 'supervisor' } })
-    fireEvent.change(screen.getByLabelText('Motivo *'), { target: { value: 'Ascenso aprobado' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(await screen.findByText('Acceso de Vera actualizado')).toBeInTheDocument()
     expect((await db.query(`select rol_id from public.profiles where id = $1`, [vera])).rows[0]).toEqual({ rol_id: 'supervisor' })
+    const log = (await db.query<{ motivo: string; actor_id: string }>(`select motivo, actor_id from public.audit_log where entidad_id = $1 order by fecha desc limit 1`, [vera])).rows[0]
+    expect(log.motivo).toMatch(/Cambio de acceso/)
+    expect(log.actor_id).toBeTruthy()
   })
 
-  it('desactiva y habilita cuentas', async () => {
+  it('desactiva, vuelve a activar y habilita cuentas', async () => {
     await pantalla()
     fireEvent.click(within(fila('Vera')).getByRole('button', { name: 'Desactivar' }))
-    fireEvent.change(screen.getByLabelText('Motivo *'), { target: { value: 'Licencia temporal' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Desactivar' }))
     expect(await screen.findByText('Vera: acceso desactivado')).toBeInTheDocument()
+    expect((await db.query(`select estado from public.profiles where id = $1`, [vera])).rows[0]).toEqual({ estado: 'inactivo' })
+    await waitFor(() => expect(within(fila('Vera')).getByText('Desactivado')).toBeInTheDocument())
+    fireEvent.click(within(fila('Vera')).getByRole('button', { name: 'Activar' }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Activar' }))
+    expect(await screen.findByText('Vera: acceso activado')).toBeInTheDocument()
     fireEvent.click(within(fila('pendiente@empresa.test')).getByRole('button', { name: 'Habilitar' }))
-    fireEvent.change(screen.getByLabelText('Nombre visible'), { target: { value: 'Persona Nueva' } })
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Persona Nueva' } })
     fireEvent.change(screen.getByLabelText('Rol'), { target: { value: 'finanzas' } })
-    fireEvent.change(screen.getByLabelText('Motivo *'), { target: { value: 'Alta de Finanzas' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
     expect(await screen.findByText('Cuenta pendiente@empresa.test habilitada')).toBeInTheDocument()
-    const r = await db.query(`select p.nombre, p.rol_id, p.estado from public.profiles p join auth.users u on u.id = p.id where u.email = 'pendiente@empresa.test'`)
-    expect(r.rows[0]).toEqual({ nombre: 'Persona Nueva', rol_id: 'finanzas', estado: 'activo' })
   })
 
   it('envía la recuperación de contraseña de una cuenta', async () => {
     const acciones = await pantalla()
-    fireEvent.click(within(fila('Persona Nueva')).getByRole('button', { name: /Recuperar clave/ }))
-    expect(await screen.findByText('Se envió el enlace de recuperación a pendiente@empresa.test')).toBeInTheDocument()
+    fireEvent.click(within(fila('Persona Nueva')).getByRole('button', { name: /Enviar enlace de contraseña/ }))
+    expect(await screen.findByText('Se envió a pendiente@empresa.test el enlace para establecer su contraseña')).toBeInTheDocument()
     expect(acciones.enviarRecuperacion).toHaveBeenCalledWith('pendiente@empresa.test')
   })
 })

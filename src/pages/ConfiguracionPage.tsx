@@ -45,7 +45,7 @@ const accionesSupabase: AccionesCuenta = {
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` })
     if (error) throw new Error(error.message)
   },
-  crearUsuario: ({ nombre, email, password, rolId, alcance, equipoId, motivo }) => llamarCuentas({ accion: 'crear', nombre, email, password, rolId, alcance, equipoId, supervisorId: null, motivo }),
+  crearUsuario: ({ nombre, email, rolId }) => llamarCuentas({ accion: 'crear', nombre, email, rolId, alcance: null, equipoId: null, supervisorId: null, motivo: 'Alta de usuario desde Configuración' }),
   cambiarClave: ({ usuarioId, password, motivo }) => llamarCuentas({ accion: 'clave', usuarioId, password, motivo }),
 }
 
@@ -62,7 +62,7 @@ function ConfiguracionRemota() {
   const verUsuarios = can('config.usuarios') || can('config.equipos') || can('config.cobros')
   return (
     <>
-      <PageHeader eyebrow="Sistema · Configuración" title="Configuración" subtitle="Usuarios, roles y permisos, y auditoría. Cada cambio de acceso exige motivo y queda registrado." />
+      <PageHeader eyebrow="Sistema · Configuración" title="Configuración" subtitle="Usuarios, roles y permisos, y auditoría. Cada cambio de acceso queda registrado." />
       <Tabs defaultValue={verUsuarios ? 'usuarios' : can('config.roles') ? 'roles' : can('config.auditoria') ? 'auditoria' : 'multimedia'} className="min-w-0">
         <TabsList className="mb-3">
           {verUsuarios && <TabsTrigger value="usuarios">Usuarios</TabsTrigger>}

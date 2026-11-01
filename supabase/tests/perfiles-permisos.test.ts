@@ -197,6 +197,18 @@ describe('crear usuarios desde AMURA', () => {
     expect(a.createUser).not.toHaveBeenCalled()
   })
 
+  it('sin contraseña, crea la cuenta con una aleatoria larga y distinta cada vez', async () => {
+    const a = adminFalso()
+    const c = clienteDe(admin)
+    const base = alta({ email: 'sin.clave.1@amura.ec' }) as Extract<Peticion, { accion: 'crear' }>
+    const { password: _omitida, ...sinClave } = base
+    expect((await gestionarCuenta(sinClave, c, a)).status).toBe(200)
+    expect((await gestionarCuenta({ ...sinClave, email: 'sin.clave.2@amura.ec' }, c, a)).status).toBe(200)
+    const claves = (a.createUser as unknown as { mock: { calls: [{ password: string }][] } }).mock.calls.map((x) => x[0].password)
+    expect(claves[0].length).toBeGreaterThanOrEqual(40)
+    expect(claves[0]).not.toBe(claves[1])
+  })
+
   it('valida antes de crear: contraseña, correo, motivo, rol retirado o inexistente', async () => {
     const a = adminFalso()
     const c = clienteDe(admin)
