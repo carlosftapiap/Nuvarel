@@ -12,6 +12,7 @@ import type { Actor } from '@/features/inventario/types'
 import { ReservasProvider } from '@/features/reservas/store'
 import ClientesPage from '@/pages/ClientesPage'
 import CobranzaPage from '@/pages/CobranzaPage'
+import ConfiguracionPage from '@/pages/ConfiguracionPage'
 import CotizacionesPage from '@/pages/CotizacionesPage'
 import DashboardPage from '@/pages/DashboardPage'
 import FinanciamientoPage from '@/pages/FinanciamientoPage'
@@ -58,6 +59,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="reservas" element={<ReservasPage />} />
               <Route path="ventas" element={<VentasPage />} />
               <Route path="cobranzas" element={<CobranzaPage />} />
+              <Route path="configuracion" element={<ConfiguracionPage />} />
               <Route path="obra" element={<ObraPage />} />
               <Route path="plan" element={<PlanPage />} />
             </Route>
