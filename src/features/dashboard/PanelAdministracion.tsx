@@ -113,14 +113,14 @@ const SEV: Record<Severidad, { color: string; fondo: string; icono: LucideIcon; 
 }
 interface Pendiente { clave: string; titulo: string; detalle: string; to: string; sev: Severidad }
 
-function CentroAtencion({ items }: { items: Pendiente[] }) {
+function CentroAtencion({ items, ancho = false }: { items: Pendiente[]; ancho?: boolean }) {
   const [todos, setTodos] = useState(false)
   const urgentes = items.filter((i) => i.sev === 'urgente').length
   const visibles = todos ? items : items.slice(0, 5)
   return (
     <Bloque titulo="Centro de atención" etiqueta="Prioridades" color={COLOR.rosa} icono={BellRing}
       accion={<span className="text-xs font-semibold text-[#667085]">{pl(items.length, 'pendiente', 'pendientes')}{urgentes ? <span className="text-[#E11D48]"> · {pl(urgentes, 'urgente', 'urgentes')}</span> : null}</span>}>
-      <ul className="-mx-2 grid grid-cols-[minmax(0,1fr)] gap-0.5">
+      <ul className={cn('-mx-2 grid grid-cols-[minmax(0,1fr)] gap-0.5', ancho && 'xl:grid-cols-2 xl:gap-x-6')}>
         {visibles.map((a) => {
           const s = SEV[a.sev]
           return (
@@ -155,13 +155,15 @@ function AgendaHoy({ clientes, onAviso }: { clientes: Cliente[]; onAviso: (m: st
         {clientes.slice(0, 5).map((c) => {
           const u = urgencia(c)
           return (
-            <li key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2.5 first:pt-0 last:pb-0">
+            <li key={c.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
               <Avatar nombre={c.nombre} />
-              <div className="min-w-0 flex-1 basis-36">
-                <Link to={`/clientes?cliente=${c.id}`} className="block truncate text-[13.5px] font-semibold text-[#101828] hover:underline">{c.nombre}</Link>
-                <span className="block truncate text-xs text-[#667085]">{c.proxima ? `${TIPOS_ACTIVIDAD[c.proxima.tipo]} · ${c.proxima.descripcion}` : 'Sin próxima gestión'} · {c.asesor}</span>
+              <div className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-2">
+                  <Link to={`/clientes?cliente=${c.id}`} className="truncate text-[13.5px] font-semibold text-[#101828] hover:underline">{c.nombre}</Link>
+                  <Estado tono={u === 'vencida' ? 'peligro' : 'aviso'} className="h-5 px-2">{u === 'vencida' ? 'Vencida' : 'Hoy'}</Estado>
+                </span>
+                <span className="block truncate text-xs text-[#667085]">{c.proxima ? `${TIPOS_ACTIVIDAD[c.proxima.tipo]} · ${c.proxima.descripcion} · ${fmtFechaCorta(c.proxima.fecha)}` : 'Sin próxima gestión'} · {c.asesor}</span>
               </div>
-              <Estado tono={u === 'vencida' ? 'peligro' : 'aviso'}>{u === 'vencida' && c.proxima ? `Vencida ${fmtFechaCorta(c.proxima.fecha)}` : 'Hoy'}</Estado>
               <AccionesRapidas cliente={c} onMessage={onAviso} />
             </li>
           )
@@ -322,6 +324,21 @@ function LineasMes({ puntos, movil }: { puntos: Panel['meses']; movil: boolean }
     return () => ro.disconnect()
   }, [])
   const v = puntos.slice(movil ? -6 : -12)
+  if (v.length === 1) {
+    const [m] = v
+    const tope1 = Math.max(1, m.ventas, m.cobros)
+    return (
+      <div className="grid gap-3">
+        <p className="text-xs text-[#667085]">{nombreMes(m.mes)} · por ahora, el único mes con movimientos</p>
+        {[{ l: 'Ventas firmadas', v: m.ventas, color: '#2563EB' }, { l: 'Cobros confirmados', v: m.cobros, color: '#06B6D4' }].map((s) => (
+          <div key={s.l}>
+            <p className="mb-1 flex items-baseline justify-between text-[13px]"><span className="text-[#475467]">{s.l}</span><b className="tabular-nums text-[#101828]">{fmtUsd(s.v)}</b></p>
+            <div className="h-2.5 rounded-full bg-[#f2f4f7]"><div className="h-full rounded-full" style={{ width: `${Math.max(2, (s.v / tope1) * 100)}%`, background: s.color }} /></div>
+          </div>
+        ))}
+      </div>
+    )
+  }
   const W = ancho
   const H = movil ? 190 : 230
   const [izq, der, arriba, abajo] = [54, 12, 14, 28]
@@ -583,7 +600,7 @@ export default function PanelAdministracion() {
     return { key: `e${e}`, label: `Edificio ${e} · ${propias.length} unidades · ${fmtNum(propias.reduce((t, u) => t + u.areaM2, 0))} m²`, value: propias.reduce((t, u) => t + calcularPrecio(u, state.params).precioVenta, 0), color: e === 1 ? COLOR.azul : COLOR.verde, to: `/inventario?edificio=${e}` }
   })
 
-  const atencion = pendientes.length > 0 ? <CentroAtencion items={pendientes} /> : null
+  const atencion = pendientes.length > 0 ? <CentroAtencion items={pendientes} ancho={!movil && agenda.length === 0} /> : null
   const agendaBloque = agenda.length > 0 ? <AgendaHoy clientes={agenda} onAviso={setAviso} /> : null
   const alDia = !atencion && !agendaBloque
 
@@ -595,14 +612,14 @@ export default function PanelAdministracion() {
           <h1 className="mt-1 text-[24px] font-semibold leading-tight tracking-tight text-[#101828] sm:text-[26px]">Panorama del negocio</h1>
           <p className="mt-1 text-[13.5px] text-[#667085]">Lo que pide una decisión, el embudo, el inventario y la cobranza, con datos en vivo.</p>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
           <div role="group" aria-label="Filtrar por edificio" className="inline-flex rounded-xl bg-[#eef0f3] p-1">
             {FILTROS.map((f) => (
               <button key={f.param} type="button" aria-pressed={filtro === f.valor} onClick={() => fijarFiltro(f.param)}
                 className={cn('h-8 rounded-lg px-3 text-[13px] font-semibold transition', filtro === f.valor ? 'bg-white text-[#101828] shadow-xs' : 'text-[#475467] hover:text-[#101828]')}>{f.etiqueta}</button>
             ))}
           </div>
-          {can('cotizaciones.crear') && <Button asChild className="max-sm:ml-auto"><Link to="/venta"><Plus />Atender cliente</Link></Button>}
+          {can('cotizaciones.crear') && <Button asChild><Link to="/venta"><Plus /><span className="max-[420px]:sr-only">Atender cliente</span></Link></Button>}
         </div>
       </div>
       {filtro !== 'todos' && <p className="-mt-2 text-xs text-[#667085]">Filtra inventario, reservas, contratos y cobros. Clientes y cotizaciones se cuentan por su interés en el edificio.</p>}
