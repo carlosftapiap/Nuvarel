@@ -54,7 +54,7 @@ beforeAll(async () => {
   db = await crearDb()
   vera = await crearUsuario(db, 'Vera Vendedora', 'asesor')
   await db.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A2'`)
-  cliente = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Andrea Mora", "telefono": "0995556677", "email": "andrea@correo.com", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
+  cliente = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Andrea Mora", "telefono": "0995556677", "documento": "1725566770", "email": "andrea@correo.com", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
 }, 60_000)
 
 describe('Un solo Financiamiento para Atender cliente y el menú', () => {
@@ -74,8 +74,9 @@ describe('Un solo Financiamiento para Atender cliente y el menú', () => {
     expect(screen.getByRole('tab', { name: '2. Crédito hipotecario 80%' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '3. Cotización integral' })).toBeInTheDocument()
     const op = screen.getByRole('region', { name: 'Operación' })
-    for (const paso of ['Cotización', 'Solicitud', 'Pago registrado', 'Pago verificado', 'Aprobada', 'Documentos']) expect(within(op).getByText(paso)).toBeInTheDocument()
-    expect(within(op).getByText(/Siguiente paso/)).toBeInTheDocument()
+    const pasos = within(within(op).getByRole('list', { name: 'Pasos de la venta' })).getAllByRole('listitem')
+    expect(pasos.map((li) => li.querySelector('.font-medium')?.textContent)).toEqual(['Cliente', 'Departamento', 'Cotización', 'Reserva', 'Venta'])
+    expect(within(op).getByText(/Ahora te toca/)).toBeInTheDocument()
     expect(screen.getByText(/Andrea Mora · Departamento/)).toBeInTheDocument()
     expect(within(op).getByRole('button', { name: /Emitir cotización y descargar PDF/ })).toBeDisabled()
 
@@ -124,7 +125,11 @@ describe('Un solo Financiamiento para Atender cliente y el menú', () => {
     // Lo emitido queda identificado: la versión de la base es la que se confirmó.
     expect(screen.getByText(/Plan de la cotización COT-.* versión/)).toBeInTheDocument()
     expect(screen.queryByText(/plan distinto del confirmado/)).toBeNull()
-    expect(within(screen.getByRole('region', { name: 'Operación' })).getByRole('list', { name: 'Estado de la operación' }).querySelectorAll('.text-emerald-700')).toHaveLength(1)
+    // Emitida la cotización, la guía marca tres etapas terminadas, está en Reserva y destaca «Solicitar reserva».
+    const guia = within(screen.getByRole('region', { name: 'Operación' })).getByRole('list', { name: 'Pasos de la venta' })
+    expect(guia.querySelectorAll('.bg-emerald-600')).toHaveLength(3)
+    expect(guia.querySelector('[aria-current="step"]')?.textContent).toMatch(/Reserva/)
+    expect(screen.getByRole('button', { name: /Solicitar reserva/ }).closest('[data-guia="siguiente"]')).not.toBeNull()
     r.unmount()
   })
 

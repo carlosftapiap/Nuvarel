@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
-import { como, crearDb, crearUsuario } from './db'
+import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, carlos: string, cora: string
@@ -21,7 +21,7 @@ const unidadLibre = async () => (await uno<{ codigo: string }>(
 
 /** Venta por el flujo real, sin firmar. El ingreso de la reserva queda como primer pago verificado. */
 async function contratoBorrador(nombre: string) {
-  const c = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: `0${++n}`, origen: 'corredor', origen_detalle: 'Carlos Corredor' }), carlos])).id
+  const c = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'corredor', origen_detalle: 'Carlos Corredor' }), carlos])).id
   const op = (await rpc<{ id: string }>(carlos, `select public.oportunidades_crear($1, $2, null) as id`, [c, await unidadLibre()])).id
   const cot = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [cot])
@@ -34,7 +34,7 @@ async function contratoBorrador(nombre: string) {
   const k = await uno<{ codigo: string; precio: string }>(`select codigo, precio from public.contracts where id = $1`, [id])
   return { id, codigo: k.codigo, precio: Number(k.precio), cliente: c, reserva: r }
 }
-const firmar = (id: string) => rpc(legal, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'contrato.pdf')`, [id, hoy()])
+const firmar = async (id: string) => { await aprobarCumplimiento(db); return rpc(legal, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'contrato.pdf')`, [id, hoy()]) }
 async function ventaFirmada(nombre: string) {
   const v = await contratoBorrador(nombre)
   await firmar(v.id)
@@ -64,6 +64,8 @@ beforeAll(async () => {
   cora = await crearUsuario(db, 'Cora Corredora', 'corredor')
   await db.query(`update public.inventory_units set estado = 'disponible' where estado = 'por_confirmar'`)
   await rpc(admin, `select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`)
+  // Esquema anterior de dos tramos: sigue vigente para las comisiones creadas antes de la comisión del vendedor.
+  await db.query(`update public.comision_parametros set esquema = 'dos_tramos'`)
 }, 60_000)
 
 describe('cálculo y porcentaje histórico', () => {

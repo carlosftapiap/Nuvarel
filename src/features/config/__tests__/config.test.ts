@@ -29,7 +29,7 @@ describe('usuarios y alcance', () => {
   it('estado inicial: perfiles plantilla y un solo administrador, sin personas ficticias', () => {
     const d = directorioInicial()
     expect(d.usuarios).toHaveLength(1)
-    expect(d.roles.map((r) => r.id)).toEqual(['administrador', 'gerencia', 'supervisor', 'asesor', 'corredor', 'finanzas', 'legal', 'constructor', 'jarval'])
+    expect(d.roles.map((r) => r.id)).toEqual(['administrador', 'gerencia', 'supervisor', 'asesor', 'corredor', 'finanzas', 'legal', 'oficial_cumplimiento', 'constructor', 'jarval'])
   })
 
   it('los invitados no tienen acceso hasta activarse', () => {

@@ -20,7 +20,7 @@ export default function TablaActividades({ d, acts, onAbrir, onAvance, puedeAvan
   return (
     <div className="dashboard-card !p-0 overflow-x-auto">
       <table className="w-full min-w-[1080px] text-xs">
-        <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground">
+        <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
           <tr>
             <th className="px-3 py-2 text-left font-medium">Código</th>
             <th className="px-2 py-2 text-left font-medium">Actividad</th>
@@ -42,12 +42,12 @@ export default function TablaActividades({ d, acts, onAbrir, onAvance, puedeAvan
             const reprog = a.baseFin && a.planFin && a.baseFin !== a.planFin
             return (
               <tr key={a.id} className="cursor-pointer border-t border-border align-top hover:bg-muted/40" onClick={() => onAbrir(a)}>
-                <td className="px-3 py-2 font-mono font-semibold">{a.codigo}{a.tipo === 'hito' && <span className="ml-1 rounded bg-violet-50 px-1 text-[9px] font-sans text-violet-700">Hito</span>}</td>
+                <td className="px-3 py-2 font-mono font-semibold">{a.codigo}{a.tipo === 'hito' && <span className="ml-1 rounded bg-violet-50 px-1 text-xs font-sans text-violet-700">Hito</span>}</td>
                 <td className="max-w-80 px-2 py-2"><div className="line-clamp-2">{a.parentId ? '↳ ' : ''}{a.nombre}</div></td>
                 <td className="px-2 py-2 text-muted-foreground">{f ? `${f.codigo}` : <span className="italic">—</span>}</td>
                 <td className="max-w-44 px-2 py-2"><span className={a.responsableId ? '' : 'italic text-muted-foreground'}>{nombreResponsable(a, personas)}</span></td>
                 <td className="whitespace-nowrap px-2 py-2 tabular-nums">{fmtFecha(a.planInicio)}</td>
-                <td className="whitespace-nowrap px-2 py-2 tabular-nums">{fmtFecha(a.planFin)}{reprog && <div className="text-[10px] text-muted-foreground">base {fmtFecha(a.baseFin)}</div>}</td>
+                <td className="whitespace-nowrap px-2 py-2 tabular-nums">{fmtFecha(a.planFin)}{reprog && <div className="text-xs text-muted-foreground">base {fmtFecha(a.baseFin)}</div>}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{duracion(a.planInicio, a.planFin) ?? '—'}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{a.peso ?? <span className="italic text-muted-foreground">Pend.</span>}</td>
                 <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>

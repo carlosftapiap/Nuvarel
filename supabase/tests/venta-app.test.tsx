@@ -13,7 +13,7 @@ import { ReservasProvider } from '@/features/reservas/store'
 import FinanciamientoPage from '@/pages/FinanciamientoPage'
 import VentaPage from '@/pages/VentaPage'
 import { almacenPrueba, archivoPrueba, datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { cedulaPrueba, como, crearDb, crearUsuario } from './db'
 
 configure({ asyncUtilTimeout: 15_000 })
 
@@ -78,9 +78,8 @@ beforeAll(async () => {
   vera = await crearUsuario(db, 'Vera Vendedora', 'asesor')
   otro = await crearUsuario(db, 'Omar Vendedor', 'asesor')
   await db.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A2'`)
-  await db.query(`update public.inventory_units set estado = 'por_confirmar' where codigo = 'E1-PB-A3'`)
   await rpc(admin, `select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`)
-  andrea = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Andrea Mora", "telefono": "0995556677", "email": "andrea@correo.com", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
+  andrea = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Andrea Mora", "telefono": "0995556677", "documento": "1725566770", "email": "andrea@correo.com", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
 }, 60_000)
 
 describe('Atender cliente: de la cotización a la solicitud en una sola pantalla', () => {
@@ -142,24 +141,24 @@ describe('Atender cliente: de la cotización a la solicitud en una sola pantalla
     s.unmount()
   })
 
-  it('la reserva pagada de más se acredita al 6 % sin duplicarse; la unidad se bloquea solo al aprobar', async () => {
+  it('la reserva pagada de más se acredita al 6 % sin duplicarse; al verificar el pago se confirma y bloquea la unidad', async () => {
     const r = await reservaDe(andrea)
     await rpc(finanzas, `select public.reservas_confirmar_pago($1, 700, (now() at time zone 'America/Guayaquil')::date, 'BAN-1', true, 'Ingreso confirmado')`, [r.id])
-    expect(await reservaDe(andrea)).toMatchObject({ estado: 'pago_verificado', monto_reserva: '600.00', monto_recibido: '700.00', unidad: 'disponible' })
+    expect(await reservaDe(andrea)).toMatchObject({ estado: 'confirmada', monto_reserva: '600.00', monto_recibido: '700.00', unidad: 'reservado' })
     const s = await abrir(vera, `/venta?cotizacion=${(await uno<{ quote_id: string }>(`select quote_id from public.reservations where id = $1`, [r.id])).quote_id}`)
     const op = await screen.findByRole('region', { name: 'Operación' })
     await waitFor(() => expect(within(op).getByText('Monto pagado').nextSibling).toHaveTextContent('700'))
     expect(within(op).getByText('Monto acordado').nextSibling).toHaveTextContent('600')
-    expect(screen.getByText('Gerencia aprueba la reserva')).toBeInTheDocument()
+    // Sin excepciones no se espera a Gerencia: sigue Legal con el contrato.
+    expect(screen.getByText('Legal genera el contrato')).toBeInTheDocument()
+    expect(screen.queryByText(/Gerencia/)).toBeNull()
     expect(screen.queryByRole('button', { name: /Aprobar|Verificar/ })).toBeNull()
     s.unmount()
-    await rpc(gerente, `select public.reservas_aprobar($1, 'Condiciones revisadas')`, [r.id])
-    expect((await reservaDe(andrea)).unidad).toBe('reservado')
   })
 
-  it('no permite más del 6 %, ni reservar una unidad por confirmar', async () => {
+  it('no permite más del 6 %', async () => {
     const user = userEvent.setup()
-    const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Bruno Paz", "telefono": "0991112233", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
+    const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Bruno Paz", "telefono": "0991112233", "documento": "1721122339", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
     const s = await abrir(vera, `/venta?cliente=${cli}&unidad=E1-PB-A3`)
     const monto = await screen.findByLabelText(/Reserva \(USD\)/)
     await user.type(monto, '9999999')
@@ -169,15 +168,14 @@ describe('Atender cliente: de la cotización a la solicitud en una sola pantalla
     await user.type(monto, '600')
     await usarPlan(user)
     await emitirPdf(user)
-    expect(await screen.findByText('Confirmar la disponibilidad')).toBeInTheDocument()
-    expect(await boton(/^Solicitar reserva$/)).toBeDisabled()
+    expect(await boton(/^Solicitar reserva$/)).toBeEnabled()
     s.unmount()
   })
 
   it('una unidad con solicitud en trámite no admite otra reserva, tampoco de otro vendedor', async () => {
     await db.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A4'`)
     const emitir = async (u: string, nombre: string, tel: string) => {
-      const cli = (await como(db, u, () => db.query<{ id: string }>(`select public.clientes_crear(null, jsonb_build_object('nombre', $2::text, 'telefono', $3::text, 'origen', 'instagram'), $1) as id`, [u, nombre, tel]))).rows[0].id
+      const cli = (await como(db, u, () => db.query<{ id: string }>(`select public.clientes_crear(null, jsonb_build_object('nombre', $2::text, 'telefono', $3::text, 'documento', $4::text, 'origen', 'instagram'), $1) as id`, [u, nombre, tel, cedulaPrueba(Number(tel.slice(-6)))]))).rows[0].id
       const op = (await como(db, u, () => db.query<{ id: string }>(`select public.oportunidades_crear($1, 'E1-PB-A4', null) as id`, [cli]))).rows[0].id
       return (await como(db, u, () => db.query<{ id: string }>(`select public.cotizaciones_emitir($1, 0, 15, '') as id`, [op]))).rows[0].id
     }
@@ -198,7 +196,7 @@ describe('Atender cliente: de la cotización a la solicitud en una sola pantalla
   it('la reserva predeterminada es configurable, con motivo y auditoría', async () => {
     await expect(rpc(vera, `select public.config_reserva_predeterminada(600, 'Política nueva')`)).rejects.toThrow(/Sin permiso/)
     await rpc(admin, `select public.config_reserva_predeterminada(600, 'Política nueva')`)
-    const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Elena Soto", "telefono": "0996667788", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
+    const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Elena Soto", "telefono": "0996667788", "documento": "1726677881", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
     const s = await abrir(vera, `/venta?cliente=${cli}&unidad=E1-PB-A3`)
     const campo = await screen.findByLabelText(/Reserva \(USD\)/)
     await waitFor(() => expect(campo).toHaveAttribute('placeholder', '600'))
@@ -208,7 +206,7 @@ describe('Atender cliente: de la cotización a la solicitud en una sola pantalla
 
   it('crea la solicitud directamente con el monto acordado, sin ajuste posterior, y un reintento no la duplica', async () => {
     await db.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A5'`)
-    const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Gina Paz", "telefono": "0997778899", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
+    const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Gina Paz", "telefono": "0997778899", "documento": "1727788992", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
     const op = (await como(db, vera, () => db.query<{ id: string }>(`select public.oportunidades_crear($1, 'E1-PB-A5', null) as id`, [cli]))).rows[0].id
     const q = (await como(db, vera, () => db.query<{ id: string }>(`select public.cotizaciones_emitir($1, 0, 15, '') as id`, [op]))).rows[0].id
 
@@ -225,7 +223,7 @@ describe('Atender cliente: de la cotización a la solicitud en una sola pantalla
     await expect(rpc(vera, `select public.reservas_solicitar_acordada($1, 800)`, [q])).rejects.toThrow(/ya tiene la solicitud/)
   })
 
-  it('una unidad con solicitud se ve «En proceso de reserva» para todos; solo quien tiene el cliente puede continuar', async () => {
+  it('una unidad con solicitud sigue disponible y muestra la solicitud en trámite; solo quien tiene el cliente puede continuar', async () => {
     const r = await uno<{ codigo: string }>(`select codigo from public.reservations where codigo_unidad = 'E1-PB-A5'`)
     const lista = async (u: string) => (await como(db, u, () => db.query<{ l: { codigo: string; codigo_unidad: string; quote_id: string | null }[] }>(`select public.inventario_solicitudes_activas() as l`))).rows[0].l.find((x) => x.codigo_unidad === 'E1-PB-A5')!
     expect((await lista(vera)).quote_id).toBeTruthy()
@@ -234,12 +232,11 @@ describe('Atender cliente: de la cotización a la solicitud en una sola pantalla
     expect(ajena.quote_id).toBeNull()
     expect(JSON.stringify(ajena)).not.toMatch(/Gina/)
 
-    const otroCli = (await como(db, otro, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Hugo Mar", "telefono": "0998889900", "origen": "instagram"}'::jsonb, $1) as id`, [otro]))).rows[0].id
+    const otroCli = (await como(db, otro, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Hugo Mar", "telefono": "0998889900", "documento": "1728899004", "origen": "instagram"}'::jsonb, $1) as id`, [otro]))).rows[0].id
     const s = await abrir(otro, `/venta?cliente=${otroCli}&unidad=E1-PB-A5`)
-    expect(await screen.findByText('En proceso de reserva')).toBeInTheDocument()
+    expect(await screen.findByText(`Solicitud ${r.codigo} en trámite`)).toBeInTheDocument()
     expect(screen.getByText(new RegExp(`ya tiene la solicitud ${r.codigo}`))).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Continuar operación' })).toBeNull()
-    expect(screen.queryByText('Disponible')).toBeNull()
     expect(await boton(/Emitir cotización y descargar PDF/)).toBeDisabled()
     s.unmount()
 
@@ -263,7 +260,7 @@ describe('Atender cliente: de la cotización a la solicitud en una sola pantalla
     const user = userEvent.setup()
     const libre = (await uno<{ codigo: string }>(`select codigo from public.inventory_units where edificio = 2 order by codigo limit 1`)).codigo
     await db.query(`update public.inventory_units set estado = 'disponible' where codigo = $1`, [libre])
-    const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Iris Rey", "telefono": "0990001122", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
+    const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Iris Rey", "telefono": "0990001122", "documento": "1720011228", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
     const s = await abrir(vera, `/venta?cliente=${cli}&unidad=${libre}`)
     await user.click(await boton(/Agregar cuota extraordinaria/))
     await user.type(screen.getByLabelText(/^Mes \(1 a/), '99')

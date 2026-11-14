@@ -42,7 +42,7 @@ export default function LocationSchema({ unit, units, onSelect }: { unit: Unit; 
           })
         })}
       </svg>
-      <figcaption className="mt-2 text-[11px] text-muted-foreground">Esquema referencial según el campo “Ubicación” de la lista de precios. No es el plano arquitectónico.</figcaption>
+      <figcaption className="mt-2 text-xs text-muted-foreground">Esquema referencial según el campo “Ubicación” de la lista de precios. No es el plano arquitectónico.</figcaption>
     </figure>
   )
 }

@@ -9,7 +9,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ESTADO_EFECTIVO_ORDEN, ESTADOS_EFECTIVOS, estadoEfectivo } from '../estados'
+import { ESTADO_EFECTIVO_ORDEN, ESTADOS_EFECTIVOS, estadoEfectivo, type EstadoEfectivo } from '../estados'
+
+/** Filtro simple para el usuario: solo disponibles, reservadas y vendidas. */
+const FILTRO_ESTADOS: EstadoEfectivo[] = ['disponible', 'reservado', 'vendido']
 import { fmtFechaCorta } from '@/features/financiamiento/plan'
 import { calcularPrecio, fmtCuotas, fmtM2, fmtNum, fmtUsd, type PriceBreakdown } from '../pricing'
 import { estadoPrecio, unidadesTxt } from '../service'
@@ -79,7 +82,7 @@ export default function UnitsTable({
         cell: ({ row }) => (
           <div>
             <div className="font-semibold text-foreground">{row.original.dpt}</div>
-            <div className="text-[11px] text-foreground/70">{row.original.codigo}</div>
+            <div className="text-xs text-foreground/70">{row.original.codigo}</div>
           </div>
         ),
       },
@@ -87,7 +90,7 @@ export default function UnitsTable({
         cell: ({ row }) => (
           <div className="text-right">
             <div className="text-sm font-semibold tabular-nums">{fmtUsd(row.original.precio.precioVenta)}</div>
-            <div className={`text-[11px] ${ETIQUETA_PRECIO[row.original.vigencia.tipo].tono}`}>{ETIQUETA_PRECIO[row.original.vigencia.tipo].label} · {fmtFechaCorta(row.original.vigencia.fecha)}</div>
+            <div className={`text-xs ${ETIQUETA_PRECIO[row.original.vigencia.tipo].tono}`}>{ETIQUETA_PRECIO[row.original.vigencia.tipo].label} · {fmtFechaCorta(row.original.vigencia.fecha)}</div>
           </div>
         ) },
       { id: 'cuota', accessorFn: (r) => r.precio.cuotaMensual, header: ({ column }) => <SortHeader label="Cuota de entrada" column={column} align="right" />,
@@ -95,7 +98,7 @@ export default function UnitsTable({
       { id: 'estado', accessorFn: (r) => ESTADO_EFECTIVO_ORDEN.indexOf(estadoEfectivo(r)), header: ({ column }) => <SortHeader label="Estado" column={column} />,
         cell: ({ row }) => <EstadoBadge estado={estadoEfectivo(row.original)} /> },
       { id: 'edificio', accessorFn: (r) => r.edificio * 10 + (r.piso === 'PB' ? 0 : Number(r.piso)), header: ({ column }) => <SortHeader label="Ubicación" column={column} />,
-        cell: ({ row }) => (<div><div>E{row.original.edificio} · {pisoCorto(row.original.piso)}</div><div className="max-w-40 truncate text-[11px] text-foreground/70">{row.original.ubicacion}</div></div>) },
+        cell: ({ row }) => (<div><div>E{row.original.edificio} · {pisoCorto(row.original.piso)}</div><div className="max-w-40 truncate text-xs text-foreground/70">{row.original.ubicacion}</div></div>) },
       { id: 'tipologia', accessorKey: 'tipologia', header: ({ column }) => <SortHeader label="Tipología" column={column} /> },
       { id: 'area', accessorFn: (r) => r.precio.areaVendibleM2, header: ({ column }) => <SortHeader label="Área + bodega" column={column} align="right" />,
         cell: ({ row }) => <div className="text-right tabular-nums" title={`Área ${fmtM2(row.original.areaM2)} + bodega ${fmtM2(row.original.bodegaM2)}`}>{fmtM2(row.original.precio.areaVendibleM2)}</div> },
@@ -155,7 +158,7 @@ export default function UnitsTable({
         <FiltroSelect label="Edificio" value={filtros.edificio} onChange={set('edificio')} opciones={[['1', 'Edificio 1'], ['2', 'Edificio 2']]} />
         <FiltroSelect label="Piso" value={filtros.piso} onChange={set('piso')} opciones={(['PB', '1', '2', '3', '4', '5'] as const).map((p) => [p, p === 'PB' ? 'Planta baja' : `Piso ${p}`])} />
         <FiltroSelect label="Tipología" value={filtros.tipologia} onChange={set('tipologia')} opciones={[['1 hab', '1 hab'], ['2 hab', '2 hab'], ['2 hab + estudio', '2 hab + estudio']]} />
-        <FiltroSelect label="Estado" value={filtros.estado} onChange={set('estado')} opciones={ESTADO_EFECTIVO_ORDEN.map((e) => [e, ESTADOS_EFECTIVOS[e].label])} />
+        <FiltroSelect label="Estado" value={filtros.estado} onChange={set('estado')} opciones={FILTRO_ESTADOS.map((e) => [e, ESTADOS_EFECTIVOS[e].label])} />
         {activos && <Button variant="ghost" size="sm" onClick={() => onFiltros(FILTROS_VACIOS)}><X />Limpiar</Button>}
       </div>
       <div className="hidden max-h-[70vh] overflow-auto md:block [&_[data-slot=table-container]]:overflow-visible">
@@ -194,9 +197,9 @@ export default function UnitsTable({
           <li key={row.id}>
             <button type="button" onClick={() => onOpen(row.original.codigo)} className="grid w-full gap-1 rounded-lg border border-border bg-card p-3 text-left text-xs">
               <span className="flex flex-wrap items-center justify-between gap-2"><b className="text-sm">Departamento {row.original.dpt}</b><EstadoBadge estado={estadoEfectivo(row.original)} /></span>
-              <span className="text-[11px] text-foreground/70">{row.original.codigo} · {row.original.tipologia} · {fmtM2(row.original.precio.areaVendibleM2)}</span>
+              <span className="text-xs text-foreground/70">{row.original.codigo} · {row.original.tipologia} · {fmtM2(row.original.precio.areaVendibleM2)}</span>
               <span className="flex flex-wrap items-baseline justify-between gap-2"><b className="text-base tabular-nums">{fmtUsd(row.original.precio.precioVenta)}</b><span className={ETIQUETA_PRECIO[row.original.vigencia.tipo].tono}>{ETIQUETA_PRECIO[row.original.vigencia.tipo].label}</span></span>
-              <span className="text-[11px] text-foreground/80">{fmtCuotas(row.original.precio)}</span>
+              <span className="text-xs text-foreground/80">{fmtCuotas(row.original.precio)}</span>
             </button>
           </li>
         ))}

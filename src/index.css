@@ -43,6 +43,17 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-aviso: var(--aviso);
+  --color-aviso-bg: var(--aviso-bg);
+  --color-peligro: var(--peligro);
+  --color-peligro-bg: var(--peligro-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-neutro: var(--neutro);
+  --color-neutro-bg: var(--neutro-bg);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -53,38 +64,45 @@
 
 :root {
   color-scheme: light;
-  --background: #f5f7fb;
-  --foreground: #18243d;
+  /* Identidad AMURA CRM: contenido claro, navegación oscura y acento índigo. Contraste AA comprobado en texto y controles. */
+  --background: #f5f6fa;
+  --foreground: #101828;
   --card: #ffffff;
-  --card-foreground: #18243d;
+  --card-foreground: #101828;
   --popover: #ffffff;
-  --popover-foreground: #18243d;
-  --primary: #3563f3;
+  --popover-foreground: #101828;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
-  --secondary: #edf2ff;
-  --secondary-foreground: #3154bd;
-  --muted: #f0f3f9;
-  --muted-foreground: #67758c;
-  --accent: #edf2ff;
-  --accent-foreground: #3154bd;
-  --destructive: #d34259;
-  --border: #e6ebf3;
-  --input: #dce3ef;
-  --ring: #3563f3;
-  --chart-1: #3563f3;
-  --chart-2: #12a88b;
+  --secondary: #eef2ff;
+  --secondary-foreground: #3730a3;
+  --muted: #f2f4f7;
+  --muted-foreground: #5d6679;
+  --accent: #eef2ff;
+  --accent-foreground: #3730a3;
+  --destructive: #d92d20;
+  --border: #e4e7ec;
+  --input: #d0d5dd;
+  --ring: #6366f1;
+  --chart-1: #4f46e5;
+  --chart-2: #0e9f6e;
   --chart-3: #8b5cf6;
-  --chart-4: #f4ab43;
-  --chart-5: #24a6da;
-  --radius: 0.875rem;
-  --sidebar: #111c32;
-  --sidebar-foreground: #a8b5cf;
-  --sidebar-primary: #87a6ff;
+  --chart-4: #f79009;
+  --chart-5: #0ba5ec;
+  --radius: 0.75rem;
+  --sidebar: #fbfbfc;
+  --sidebar-foreground: #344054;
+  --sidebar-primary: #4f46e5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1b2b49;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #26334c;
-  --sidebar-ring: #87a6ff;
+  --sidebar-accent: #eceef2;
+  --sidebar-accent-foreground: #101828;
+  --sidebar-border: #eaecf0;
+  --sidebar-ring: #6366f1;
+  /* Estados: un solo juego de tonos para reservas, clientes, pagos y unidades. */
+  --ok: #067647; --ok-bg: #ecfdf3;
+  --aviso: #b54708; --aviso-bg: #fffaeb;
+  --peligro: #b42318; --peligro-bg: #fef3f2;
+  --info: #1d4ed8; --info-bg: #eff4ff;
+  --neutro: #475467; --neutro-bg: #f2f4f7;
 }
 
 @layer base {
@@ -106,3 +124,8 @@
 @font-face { font-family: 'Anteroly'; src: url('/brand/fonts/anteroly.otf') format('opentype'); font-display: swap; }
 .marca-titulo { font-family: 'Roclette', var(--font-display); font-weight: 300; }
 .marca-clave { font-family: 'Anteroly', var(--font-display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+
+/* Guía de venta: el botón del siguiente paso se ilumina con un pulso suave. */
+@keyframes guia-pulso { 0%, 100% { box-shadow: 0 0 0 0 rgb(79 70 229 / .45); } 50% { box-shadow: 0 0 0 7px rgb(79 70 229 / 0); } }
+.guia-pulso { animation: guia-pulso 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .guia-pulso { animation: none; } }

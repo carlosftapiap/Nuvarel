@@ -40,7 +40,7 @@ describe('historial con la base real', () => {
 
 describe('imputación de la reserva en el contrato', () => {
   it('con reserva de 500: reserva + firma = 6 %, el cronograma suma el precio y la reserva cuenta una sola vez', async () => {
-    const c = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Reserva Configurable', telefono: '0991000200', origen: 'whatsapp' }), carlos])).id
+    const c = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Reserva Configurable', telefono: '0991000200', documento: '1710034065', origen: 'whatsapp' }), carlos])).id
     const op = (await rpc<{ id: string }>(carlos, `select public.oportunidades_crear($1, 'E2-P1-A1', null) as id`, [c])).id
     const cot = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
     await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [cot])

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, KeyRound, Loader2, RefreshCw, ShieldCheck, UserCheck, UserPlus, UserX } from 'lucide-react'
 import { useSession } from '@/app/session'
+import ClaveInput from '@/components/ClaveInput'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ALCANCES } from '@/app/permissions'
+import { ALCANCES, PLANTILLAS_ROL } from '@/app/permissions'
 import type { Datos } from '@/features/conexion/datos'
 import { FieldError } from '@/features/inventario/components/shared'
 import { cn } from '@/lib/utils'
@@ -30,12 +31,11 @@ export interface CuentaFila {
 interface Rol { id: string; nombre: string; descripcion: string; disponible?: boolean }
 interface Equipo { id: string; nombre: string }
 
-export interface NuevaCuenta { nombre: string; email: string; rolId: string }
+export interface NuevaCuenta { nombre: string; email: string; password: string; rolId: string }
 const CLAVE_MINIMA = 8
 
 /** Operaciones de Supabase Auth que no pasan por la base de datos (inyectables para pruebas). */
 export interface AccionesCuenta {
-  enviarRecuperacion: (email: string) => Promise<void>
   crearUsuario: (p: NuevaCuenta) => Promise<void>
   cambiarClave: (p: { usuarioId: string; password: string; motivo: string }) => Promise<void>
 }
@@ -58,7 +58,7 @@ type Dialogo =
  * Usuarios reales de Supabase. Cada cambio pasa por una función del servidor que verifica el permiso,
  * impide modificarse a uno mismo y conceder permisos que no se tienen, y deja auditoría con usuario, fecha y cambio.
  */
-export default function UsuariosRemoto({ datos, acciones, version = 0 }: { datos: Datos; acciones: AccionesCuenta; version?: number }) {
+export default function UsuariosRemoto({ datos, acciones, version = 0, onCambio }: { datos: Datos; acciones: AccionesCuenta; version?: number; onCambio?: () => void }) {
   const { actor } = useSession()
   const [cuentas, setCuentas] = useState<CuentaFila[] | null>(null)
   const [roles, setRoles] = useState<Rol[]>([])
@@ -77,21 +77,12 @@ export default function UsuariosRemoto({ datos, acciones, version = 0 }: { datos
 
   const ejecutar = async (fn: () => Promise<unknown>, ok: string) => {
     setError(null); setAviso(null)
-    try { await fn(); setAviso(ok); return true } catch (e) { setError((e as Error).message); return false } finally { await cargar() }
+    try { await fn(); setAviso(ok); onCambio?.(); return true } catch (e) { setError((e as Error).message); return false } finally { await cargar() }
   }
   const actualizar = (c: CuentaFila, rol: string, estado: string, motivo: string, alcance = c.alcance, equipo = c.equipo_id) => datos.rpc('config_actualizar_usuario', {
     p_id: c.id, p_rol: rol, p_alcance: alcance, p_supervisor: c.supervisor_id, p_equipo: equipo, p_proyectos: c.proyectos, p_estado: estado, p_motivo: motivo,
   })
   const nombreRol = (id: string) => roles.find((r) => r.id === id)?.nombre ?? id
-  // Crear la cuenta y enviar el enlace son dos pasos: si falla el correo, la cuenta ya existe y el enlace se puede reenviar.
-  const crear = (nombre: string, email: string, rolId: string) => ejecutar(async () => {
-    await acciones.crearUsuario({ nombre, email, rolId })
-    try {
-      await acciones.enviarRecuperacion(email)
-    } catch {
-      throw new Error(`Usuario ${email} creado, pero no se pudo enviar el enlace. Usa «Enviar enlace de contraseña» en la lista.`)
-    }
-  }, `Usuario ${email} creado. Se envió el enlace para crear su contraseña.`)
 
   if (!cuentas) return error ? <FieldError>{error}</FieldError> : <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Cargando usuarios…</p>
   return (
@@ -105,7 +96,7 @@ export default function UsuariosRemoto({ datos, acciones, version = 0 }: { datos
       {!dialogo && <FieldError>{error}</FieldError>}
       <div className="dashboard-card !p-0 overflow-x-auto">
         <table className="w-full min-w-[720px] text-xs">
-          <thead className="bg-muted text-[11px] text-muted-foreground">
+          <thead className="bg-muted text-xs text-muted-foreground">
             <tr><th className="px-4 py-2 text-left font-medium">Usuario</th><th className="px-2 py-2 text-left font-medium">Rol</th><th className="px-2 py-2 text-left font-medium">Estado</th><th className="px-2 py-2 text-left font-medium">Último acceso</th><th className="px-4 py-2 text-right font-medium">Acciones</th></tr>
           </thead>
           <tbody>
@@ -113,9 +104,9 @@ export default function UsuariosRemoto({ datos, acciones, version = 0 }: { datos
               const yo = c.id === actor.id
               return (
                 <tr key={c.id} className="border-t border-border align-top">
-                  <td className="px-4 py-2"><div className="font-medium">{c.nombre}{yo && <span className="ml-1 text-[10px] text-muted-foreground">(tú)</span>}</div><div className="text-muted-foreground">{c.email}</div></td>
+                  <td className="px-4 py-2"><div className="font-medium">{c.nombre}{yo && <span className="ml-1 text-xs text-muted-foreground">(tú)</span>}</div><div className="text-muted-foreground">{c.email}</div></td>
                   <td className="px-2 py-2">{c.rol_nombre ?? <i className="text-muted-foreground">—</i>}</td>
-                  <td className="px-2 py-2"><span className={cn('whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', ESTADO[c.estado].tono)}>{ESTADO[c.estado].label}</span></td>
+                  <td className="px-2 py-2"><span className={cn('whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', ESTADO[c.estado].tono)}>{ESTADO[c.estado].label}</span></td>
                   <td className="px-2 py-2 tabular-nums">{c.ultimo_acceso ? new Date(c.ultimo_acceso).toLocaleDateString('es-EC') : 'Nunca'}</td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap justify-end gap-1.5">
@@ -123,7 +114,7 @@ export default function UsuariosRemoto({ datos, acciones, version = 0 }: { datos
                       {c.tiene_perfil && !yo && <Button size="sm" variant="outline" onClick={() => { setError(null); setDialogo({ tipo: 'rol', c }) }}>Cambiar rol</Button>}
                       {c.tiene_perfil && !yo && c.estado !== 'activo' && <Button size="sm" variant="outline" onClick={() => { setError(null); setDialogo({ tipo: 'estado', c, estado: 'activo' }) }}><UserCheck />Activar</Button>}
                       {c.tiene_perfil && !yo && c.estado === 'activo' && <Button size="sm" variant="outline" onClick={() => { setError(null); setDialogo({ tipo: 'estado', c, estado: 'inactivo' }) }}><UserX />Desactivar</Button>}
-                      <Button size="sm" variant="ghost" onClick={() => void ejecutar(() => acciones.enviarRecuperacion(c.email), `Se envió a ${c.email} el enlace para establecer su contraseña`)}><KeyRound />Enviar enlace de contraseña</Button>
+                      {c.tiene_perfil && !yo && <Button size="sm" variant="ghost" onClick={() => { setError(null); setDialogo({ tipo: 'clave', c }) }}><KeyRound />Restablecer contraseña</Button>}
                     </div>
                   </td>
                 </tr>
@@ -132,14 +123,14 @@ export default function UsuariosRemoto({ datos, acciones, version = 0 }: { datos
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-muted-foreground">Desactivar quita el acceso de inmediato y conserva su historial. Nadie puede cambiar su propio rol ni estado. Cada cambio queda en la auditoría.</p>
+      <p className="text-xs text-muted-foreground">Desactivar quita el acceso de inmediato y conserva su historial. Nadie puede cambiar su propio rol ni estado. Cada cambio queda en la auditoría.</p>
 
-      {dialogo && <DialogoCuenta d={dialogo} roles={roles} equipos={equipos} error={error} onClose={() => { setError(null); setDialogo(null) }} onClave={(c) => { setError(null); setDialogo({ tipo: 'clave', c }) }} onConfirm={async ({ rol, nombre, email, password, alcance, equipo }) => {
+      {dialogo && <DialogoCuenta d={dialogo} roles={roles} equipos={equipos} error={error} onClose={() => { setError(null); setDialogo(null) }} onConfirm={async ({ rol, nombre, email, password, alcance, equipo }) => {
         const ok = dialogo.tipo === 'rol' ? await ejecutar(() => actualizar(dialogo.c, rol, dialogo.c.estado, `Cambio de acceso: rol ${nombreRol(rol)}`, alcance, equipo), `Acceso de ${dialogo.c.nombre} actualizado`)
           : dialogo.tipo === 'clave' ? await ejecutar(() => acciones.cambiarClave({ usuarioId: dialogo.c.id, password, motivo: 'Contraseña asignada por un administrador' }), `Contraseña de ${dialogo.c.nombre} actualizada`)
           : dialogo.tipo === 'estado' ? await ejecutar(() => actualizar(dialogo.c, dialogo.c.rol_id!, dialogo.estado, dialogo.estado === 'activo' ? 'Usuario activado' : 'Usuario desactivado'), `${dialogo.c.nombre}: acceso ${dialogo.estado === 'activo' ? 'activado' : 'desactivado'}`)
             : dialogo.tipo === 'habilitar' ? await ejecutar(() => datos.rpc('config_habilitar_cuenta', { p_user: dialogo.c.id, p_nombre: nombre, p_rol: rol, p_motivo: 'Cuenta habilitada por un administrador' }), `Cuenta ${dialogo.c.email} habilitada`)
-              : await crear(nombre, email, rol)
+              : await ejecutar(() => acciones.crearUsuario({ nombre, email, password, rolId: rol }), `Usuario ${email} creado y activo. Ya puede iniciar sesión con su correo y contraseña.`)
         if (ok) setDialogo(null)
       }} />}
     </div>
@@ -148,7 +139,7 @@ export default function UsuariosRemoto({ datos, acciones, version = 0 }: { datos
 
 interface DatosDialogo { rol: string; nombre: string; email: string; password: string; alcance: string | null; equipo: string | null }
 
-function DialogoCuenta({ d, roles, equipos, error, onClose, onClave, onConfirm }: { d: Dialogo; roles: Rol[]; equipos: Equipo[]; error: string | null; onClose: () => void; onClave: (c: CuentaFila) => void; onConfirm: (x: DatosDialogo) => Promise<void> }) {
+function DialogoCuenta({ d, roles, equipos, error, onClose, onConfirm }: { d: Dialogo; roles: Rol[]; equipos: Equipo[]; error: string | null; onClose: () => void; onConfirm: (x: DatosDialogo) => Promise<void> }) {
   const c = d.tipo === 'crear' ? null : d.c
   const [rol, setRol] = useState(c?.rol_id ?? 'asesor')
   const [alcance, setAlcance] = useState(c?.alcance ?? '')
@@ -157,12 +148,15 @@ function DialogoCuenta({ d, roles, equipos, error, onClose, onClave, onConfirm }
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [enviando, setEnviando] = useState(false)
-  const titulo = d.tipo === 'rol' ? `Cambiar rol de ${c!.nombre}` : d.tipo === 'estado' ? `${d.estado === 'activo' ? 'Activar' : 'Desactivar'} a ${c!.nombre}` : d.tipo === 'habilitar' ? `Habilitar ${c!.email}` : d.tipo === 'clave' ? `Asignar contraseña a ${c!.nombre}` : 'Crear usuario'
+  const titulo = d.tipo === 'rol' ? `Cambiar rol de ${c!.nombre}` : d.tipo === 'estado' ? `${d.estado === 'activo' ? 'Activar' : 'Desactivar'} a ${c!.nombre}` : d.tipo === 'habilitar' ? `Habilitar ${c!.email}` : d.tipo === 'clave' ? `Restablecer contraseña de ${c!.nombre}` : 'Crear usuario'
   // Un rol retirado no se ofrece, salvo que la persona ya lo tenga.
   const opciones = roles.filter((r) => r.disponible !== false || r.id === c?.rol_id)
+  // Un rol del catálogo que todavía no está en la base se muestra, pero no se puede asignar hasta aplicar su migración.
+  const pendientes = PLANTILLAS_ROL.filter((p) => !roles.some((r) => r.id === p.id))
+  const rolPendiente = pendientes.some((p) => p.id === rol)
   const pideNombre = d.tipo === 'habilitar' || d.tipo === 'crear'
-  const valido = (!pideNombre || nombre.trim().length >= 3) && (d.tipo !== 'crear' || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) && (d.tipo !== 'clave' || password.length >= CLAVE_MINIMA)
-  const boton = d.tipo === 'crear' ? 'Crear y enviar enlace' : d.tipo === 'rol' ? 'Guardar' : d.tipo === 'estado' ? (d.estado === 'activo' ? 'Activar' : 'Desactivar') : 'Confirmar'
+  const valido = (!pideNombre || nombre.trim().length >= 3) && (d.tipo !== 'crear' || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) && ((d.tipo !== 'clave' && d.tipo !== 'crear') || password.length >= CLAVE_MINIMA)
+  const boton = d.tipo === 'crear' ? 'Crear usuario' : d.tipo === 'clave' ? 'Guardar contraseña' : d.tipo === 'rol' ? 'Guardar' : d.tipo === 'estado' ? (d.estado === 'activo' ? 'Activar' : 'Desactivar') : 'Confirmar'
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-md">
@@ -172,40 +166,42 @@ function DialogoCuenta({ d, roles, equipos, error, onClose, onClave, onConfirm }
             {d.tipo === 'estado' && d.estado === 'inactivo' && 'La persona perderá el acceso de inmediato. Su historial se conserva.'}
             {d.tipo === 'estado' && d.estado === 'activo' && 'La persona recuperará el acceso con su rol actual.'}
             {d.tipo === 'habilitar' && 'La cuenta ya existe; se le da acceso con el rol elegido.'}
-            {d.tipo === 'crear' && 'Recibirá un correo con un enlace para crear su contraseña.'}
-            {d.tipo === 'clave' && 'Úsalo solo si la persona no puede recibir el enlace por correo. La contraseña no se guarda en AMURA.'}
+            {d.tipo === 'crear' && 'La cuenta queda activa de inmediato. Entrégale su contraseña inicial de forma privada. AMURA no la guarda.'}
+            {d.tipo === 'clave' && 'Reemplaza la contraseña actual. Entrégale la nueva de forma privada. AMURA no la guarda.'}
             {d.tipo === 'rol' && 'Solo puedes conceder roles cuyos permisos ya tienes.'}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
-          {pideNombre && <div className="grid gap-1.5"><Label htmlFor="cu-nombre" className="text-xs">Nombre</Label><Input id="cu-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} /></div>}
-          {d.tipo === 'crear' && <div className="grid gap-1.5"><Label htmlFor="cu-email" className="text-xs">Correo</Label><Input id="cu-email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} /></div>}
-          {d.tipo === 'clave' && <div className="grid gap-1.5"><Label htmlFor="cu-clave" className="text-xs">Nueva contraseña (mínimo {CLAVE_MINIMA} caracteres)</Label><Input id="cu-clave" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>}
+          {pideNombre && <div className="grid gap-1.5"><Label htmlFor="cu-nombre" className="text-xs">{d.tipo === 'crear' ? 'Nombre completo' : 'Nombre'}</Label><Input id="cu-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} /></div>}
+          {d.tipo === 'crear' && <div className="grid gap-1.5"><Label htmlFor="cu-email" className="text-xs">Correo electrónico</Label><Input id="cu-email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} /></div>}
+          {(d.tipo === 'crear' || d.tipo === 'clave') && <div className="grid gap-1.5"><Label htmlFor="cu-clave" className="text-xs">{d.tipo === 'crear' ? 'Contraseña inicial' : 'Nueva contraseña'} (mínimo {CLAVE_MINIMA} caracteres)</Label><ClaveInput id="cu-clave" autoComplete="new-password" value={password} onChange={setPassword} /></div>}
           {d.tipo !== 'estado' && d.tipo !== 'clave' && (
             <div className="grid gap-1.5">
               <Label htmlFor="cu-rol" className="text-xs">Rol</Label>
               <select id="cu-rol" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={rol} onChange={(e) => setRol(e.target.value)}>
                 {opciones.map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                {pendientes.map((p) => <option key={p.id} value={p.id} disabled>{p.nombre} (pendiente de aplicar en la base)</option>)}
               </select>
+            </div>
+          )}
+          {d.tipo === 'rol' && (
+            // El equipo define qué Supervisor ve a esta persona: va a la vista, no en opciones avanzadas.
+            <div className="grid gap-1.5">
+              <Label htmlFor="cu-equipo" className="text-xs">Equipo (su Supervisor ve sus clientes y operaciones)</Label>
+              <select id="cu-equipo" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={equipo} onChange={(e) => setEquipo(e.target.value)}>
+                <option value="">Sin equipo</option>{equipos.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+              </select>
+              {equipos.length === 0 && <p className="text-xs text-amber-700">Todavía no hay equipos: créalos en la sección Equipos, con su Supervisor.</p>}
             </div>
           )}
           {d.tipo === 'rol' && (
             <details className="rounded-lg border border-border px-3 py-2 text-xs">
               <summary className="cursor-pointer font-medium">Opciones avanzadas</summary>
-              <div className="mt-2 grid gap-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="cu-alcance" className="text-xs">Alcance de datos</Label>
-                  <select id="cu-alcance" className="h-8 rounded-md border border-border bg-white px-2 text-xs" value={alcance} onChange={(e) => setAlcance(e.target.value)}>
-                    <option value="">El del rol</option>{Object.entries(ALCANCES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                  </select>
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="cu-equipo" className="text-xs">Equipo</Label>
-                  <select id="cu-equipo" className="h-8 rounded-md border border-border bg-white px-2 text-xs" value={equipo} onChange={(e) => setEquipo(e.target.value)}>
-                    <option value="">Sin equipo</option>{equipos.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
-                  </select>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => onClave(d.c)}>Asignar contraseña manualmente</Button>
+              <div className="mt-2 grid gap-1.5">
+                <Label htmlFor="cu-alcance" className="text-xs">Alcance de datos</Label>
+                <select id="cu-alcance" className="h-8 rounded-md border border-border bg-white px-2 text-xs" value={alcance} onChange={(e) => setAlcance(e.target.value)}>
+                  <option value="">El del rol</option>{Object.entries(ALCANCES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
               </div>
             </details>
           )}
@@ -213,7 +209,7 @@ function DialogoCuenta({ d, roles, equipos, error, onClose, onClave, onConfirm }
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!valido || enviando} variant={d.tipo === 'estado' && d.estado === 'inactivo' ? 'destructive' : 'default'}
+          <Button disabled={!valido || enviando || rolPendiente} variant={d.tipo === 'estado' && d.estado === 'inactivo' ? 'destructive' : 'default'}
             onClick={async () => { setEnviando(true); await onConfirm({ rol, nombre, email: email.trim().toLowerCase(), password, alcance: alcance || null, equipo: equipo || null }); setEnviando(false) }}>{enviando && <Loader2 className="animate-spin" />}{boton}</Button>
         </DialogFooter>
       </DialogContent>
@@ -237,7 +233,7 @@ export function AuditoriaRemota({ datos }: { datos: Datos }) {
   return (
     <div className="dashboard-card !p-0 overflow-x-auto">
       <table className="w-full min-w-[760px] text-xs">
-        <thead className="bg-muted text-[11px] text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Fecha</th><th className="px-2 py-2 text-left font-medium">Quién</th><th className="px-2 py-2 text-left font-medium">Acción</th><th className="px-2 py-2 text-left font-medium">Entidad</th><th className="px-4 py-2 text-left font-medium">Motivo y cambio</th></tr></thead>
+        <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Fecha</th><th className="px-2 py-2 text-left font-medium">Quién</th><th className="px-2 py-2 text-left font-medium">Acción</th><th className="px-2 py-2 text-left font-medium">Entidad</th><th className="px-4 py-2 text-left font-medium">Motivo y cambio</th></tr></thead>
         <tbody>
           {filas.map((f) => (
             <tr key={String(f.id)} className="border-t border-border align-top">
@@ -247,7 +243,7 @@ export function AuditoriaRemota({ datos }: { datos: Datos }) {
               <td className="px-2 py-2 text-muted-foreground">{String(f.entidad)}</td>
               <td className="px-4 py-2">{String(f.motivo)}
                 {(f.antes != null || f.despues != null) && (
-                  <details className="mt-1 text-[11px] text-muted-foreground"><summary className="cursor-pointer">Ver cambio</summary>
+                  <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">Ver cambio</summary>
                     {f.antes != null && <pre className="mt-1 whitespace-pre-wrap break-all">Antes: {JSON.stringify(f.antes)}</pre>}
                     {f.despues != null && <pre className="mt-1 whitespace-pre-wrap break-all">Después: {JSON.stringify(f.despues)}</pre>}
                   </details>

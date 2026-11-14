@@ -28,6 +28,7 @@ import { fmtM2, fmtUsd, fmtUsd2, RESERVA_PREDETERMINADA } from '@/features/inven
 import type { PricingParams, Unit } from '@/features/inventario/types'
 import { useInventory } from '@/features/inventario/store'
 import { claveBorrador, claveSimulacion, guardarJson, leerBorrador, leerCondiciones } from '@/features/venta/borrador'
+import { Destacado } from '@/features/venta/GuiaVenta'
 import OperacionPanel from '@/features/venta/OperacionPanel'
 import { useOperacion } from '@/features/venta/useOperacion'
 import { cn } from '@/lib/utils'
@@ -77,9 +78,9 @@ function OperacionFinanciamiento() {
   ) : (
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Button disabled={!calc.plan || !!op.bloqueoCalculo || !unit} onClick={op.confirmarPlan}><FileText />Usar este plan y continuar cotización</Button>
-        {!calc.plan && <span className="text-[11px] text-muted-foreground">Elige un departamento para calcular el plan.</span>}
-        {calc.plan && op.bloqueoCalculo && <span className="text-[11px] text-rose-700">Corrige el plan para confirmarlo.</span>}
+        <Destacado activo={op.paso.accion === 'plan' && !!calc.plan && !op.bloqueoCalculo} texto="Revisa el plan y haz clic aquí"><Button disabled={!calc.plan || !!op.bloqueoCalculo || !unit} onClick={op.confirmarPlan}><FileText />Usar este plan y continuar cotización</Button></Destacado>
+        {!calc.plan && <span className="text-xs text-muted-foreground">Elige un departamento para calcular el plan.</span>}
+        {calc.plan && op.bloqueoCalculo && <span className="text-xs text-rose-700">Corrige el plan para confirmarlo.</span>}
       </div>
       {op.precioCambio && op.planConfirmado && calc.plan && (
         <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
@@ -87,7 +88,7 @@ function OperacionFinanciamiento() {
         </p>
       )}
       {op.planConfirmado && !op.confirmadoVigente && !op.precioCambio && (
-        <p role="status" className="text-[11px] text-amber-800">Cambiaste las condiciones desde la confirmación. Confirma el plan de nuevo para emitir.</p>
+        <p role="status" className="text-xs text-amber-800">Cambiaste las condiciones desde la confirmación. Confirma el plan de nuevo para emitir.</p>
       )}
     </div>
   )
@@ -102,9 +103,8 @@ function OperacionFinanciamiento() {
         </>} />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="grid min-w-0 content-start gap-4">
-          {unit?.estado === 'por_confirmar' && <p className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800">Disponibilidad por confirmar: se puede cotizar, pero no reservar hasta que se confirme en Inventario.</p>}
           {op.otraReserva && (
-            <div className="flex flex-wrap items-center gap-2 rounded-md bg-yellow-50 px-3 py-2 text-[11px] text-yellow-900">
+            <div className="flex flex-wrap items-center gap-2 rounded-md bg-yellow-50 px-3 py-2 text-xs text-yellow-900">
               <span className="min-w-0 flex-1">Esta unidad ya tiene la solicitud {op.otraReserva.codigo}. No admite otra reserva.</span>
               {op.otraReserva.cotizacionId && op.otraReserva.cotizacionId !== b.cotizacionId && <Button size="xs" variant="outline" onClick={() => op.retomar(op.otraReserva!.cotizacionId!)}>Continuar operación</Button>}
             </div>
@@ -218,20 +218,20 @@ function CondicionesForm({ unit, params, valor, onChange, puedeDescontar, soloLe
       <div className="grid gap-1.5">
         <Label htmlFor="fin-firma" className="text-xs">Fecha de firma</Label>
         <Input id="fin-firma" type="date" value={valor.fecha} disabled={soloLectura} onChange={(e) => set('fecha', e.target.value)} className="h-9" />
-        <p className="text-[11px] text-muted-foreground">Las cuotas de entrada se cuentan desde esta fecha.</p>
+        <p className="text-xs text-muted-foreground">Las cuotas de entrada se cuentan desde esta fecha.</p>
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="fin-reserva" className="text-xs">Reserva (USD)</Label>
         <Input id="fin-reserva" inputMode="decimal" value={valor.reserva ?? ''} disabled={reservaBloqueada} placeholder={String(params.reservaPredeterminada ?? RESERVA_PREDETERMINADA)} onChange={(e) => set('reserva', e.target.value === '' ? null : e.target.value)} className="h-9" />
-        <p className="text-[11px] text-muted-foreground">Monto que paga el cliente al reservar. Se acredita al pago a la firma del 6 %; no se cobra dos veces.</p>
+        <p className="text-xs text-muted-foreground">Monto que paga el cliente al reservar. Se acredita al pago a la firma del 6 %; no se cobra dos veces.</p>
       </div>
       {puedeDescontar ? (
         <div className="grid gap-1.5">
           <Label htmlFor="fin-desc" className="text-xs">Descuento autorizado (%)</Label>
           <Input id="fin-desc" inputMode="decimal" value={valor.descuento} disabled={soloLectura} onChange={(e) => set('descuento', e.target.value)} className="h-9" />
-          <p className="text-[11px] text-muted-foreground">Máximo técnico {DESCUENTO_MAX}%. Úsalo solo con autorización.</p>
+          <p className="text-xs text-muted-foreground">Máximo técnico {DESCUENTO_MAX}%. Úsalo solo con autorización.</p>
         </div>
-      ) : <p className="self-end rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">Los descuentos los autoriza gerencia.</p>}
+      ) : <p className="self-end rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Los descuentos los autoriza gerencia.</p>}
       {vigencia && (
         <div className="grid gap-1.5">
           <Label htmlFor="ve-vigencia" className="text-xs">Vigencia de la cotización (días)</Label>
@@ -372,11 +372,11 @@ function Entrada({ e, fechaFirma }: { e: EntradaCalculada; fechaFirma: string })
       <section className="dashboard-card !p-0 overflow-hidden" aria-labelledby="crono">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <h2 id="crono" className="text-sm font-semibold">Cronograma de pagos</h2>
-          <span className="text-[11px] text-muted-foreground">Simulación: la deuda se activa al firmar</span>
+          <span className="text-xs text-muted-foreground">Simulación: la deuda se activa al firmar</span>
         </div>
         <div className="max-h-[480px] overflow-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground">
+            <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Concepto</th>
                 <th className="px-2 py-2 text-left font-medium">Fecha</th>
@@ -402,7 +402,7 @@ function Entrada({ e, fechaFirma }: { e: EntradaCalculada; fechaFirma: string })
           </table>
         </div>
       </section>
-      <p className="text-[11px] text-muted-foreground">La reserva se acredita al pago a la firma del 6 %. La última cuota ajusta los centavos para que el total sea exacto.</p>
+      <p className="text-xs text-muted-foreground">La reserva se acredita al pago a la firma del 6 %. La última cuota ajusta los centavos para que el total sea exacto.</p>
     </div>
   )
 }
@@ -456,9 +456,9 @@ function Credito({ valor, onChange, precio, entrada, productos, remoto, errorCat
               {productos.map((p) => <option key={p.id} value={p.id}>{p.entidad} · {p.producto} (v{p.version})</option>)}
             </select>
             {producto
-              ? <p className="text-[11px] text-muted-foreground">Fuente: {producto.fuente} · {fmtFechaCorta(producto.fechaFuente)} · plazo {producto.plazoMinMeses}–{producto.plazoMaxMeses} meses{producto.tramos.length ? ' · tasa por tramos de monto y plazo' : ''}</p>
-              : <p className="text-[11px] text-muted-foreground">{remoto ? (productos.length ? 'Escenario manual: se identifica así en la cotización.' : 'El catálogo aún no tiene productos con tasas verificadas.') : 'Sin conexión a Supabase: solo escenario manual.'}</p>}
-            {errorCatalogo && <p className="text-[11px] text-rose-700">{errorCatalogo}</p>}
+              ? <p className="text-xs text-muted-foreground">Fuente: {producto.fuente} · {fmtFechaCorta(producto.fechaFuente)} · plazo {producto.plazoMinMeses}–{producto.plazoMaxMeses} meses{producto.tramos.length ? ' · tasa por tramos de monto y plazo' : ''}</p>
+              : <p className="text-xs text-muted-foreground">{remoto ? (productos.length ? 'Escenario manual: se identifica así en la cotización.' : 'El catálogo aún no tiene productos con tasas verificadas.') : 'Sin conexión a Supabase: solo escenario manual.'}</p>}
+            {errorCatalogo && <p className="text-xs text-rose-700">{errorCatalogo}</p>}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="grid gap-1.5"><Label htmlFor="cr-anios" className="text-xs">Plazo (años)</Label><Input id="cr-anios" inputMode="numeric" value={valor.anios} onChange={(e) => set('anios')(e.target.value)} className="h-9" /></div>
@@ -515,7 +515,7 @@ function Credito({ valor, onChange, precio, entrada, productos, remoto, errorCat
               Sin dato de: {s.faltantes.join(', ')}. No están incluidos en la cuota ni en el costo total; no son gratuitos.
             </p>
           )}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Simulación referencial sujeta a aprobación bancaria. {s.escenario === 'manual' ? 'Escenario manual ingresado por el asesor.' : `Fuente ${s.fuente} del ${fmtFechaCorta(s.fechaFuente)} (versión ${s.version}).`} No se garantiza que la tasa siga vigente a la entrega.
           </p>
           <div className="flex flex-wrap items-center gap-2">
@@ -526,7 +526,7 @@ function Credito({ valor, onChange, precio, entrada, productos, remoto, errorCat
             <section className="dashboard-card !p-0 overflow-x-auto" aria-label="Comparador">
               <h2 className="px-4 pt-4 text-sm font-semibold">Comparación de escenarios</h2>
               <table className="mt-3 w-full text-xs">
-                <thead className="bg-muted text-[11px] text-muted-foreground">
+                <thead className="bg-muted text-xs text-muted-foreground">
                   <tr><th className="px-4 py-2 text-left font-medium">Escenario</th><th className="px-2 py-2 text-right font-medium">Cuota</th><th className="px-2 py-2 text-right font-medium">Plazo</th><th className="px-2 py-2 text-right font-medium">Tasa</th><th className="px-2 py-2 text-right font-medium">Intereses</th><th className="px-2 py-2 text-right font-medium">Costo total</th><th /></tr>
                 </thead>
                 <tbody>
@@ -543,18 +543,18 @@ function Credito({ valor, onChange, precio, entrada, productos, remoto, errorCat
                   ))}
                 </tbody>
               </table>
-              <p className="px-4 py-2 text-[11px] text-muted-foreground">* Sin seguros o gastos conocidos: el costo real será mayor.</p>
+              <p className="px-4 py-2 text-xs text-muted-foreground">* Sin seguros o gastos conocidos: el costo real será mayor.</p>
             </section>
           )}
 
           <section className="dashboard-card !p-0 overflow-hidden" aria-labelledby="amort">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <h2 id="amort" className="text-sm font-semibold">Tabla de amortización</h2>
-              <button type="button" className="text-[11px] text-primary hover:underline" onClick={() => setTodas(!todas)}>{todas ? 'Ver primeras 12' : `Ver las ${s.tabla.length} cuotas`}</button>
+              <button type="button" className="text-xs text-primary hover:underline" onClick={() => setTodas(!todas)}>{todas ? 'Ver primeras 12' : `Ver las ${s.tabla.length} cuotas`}</button>
             </div>
             <div className="max-h-[480px] overflow-auto">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground">
+                <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
                   <tr><th className="px-4 py-2 text-left font-medium">N.º</th><th className="px-2 py-2 text-right font-medium">Capital</th><th className="px-2 py-2 text-right font-medium">Interés</th><th className="px-2 py-2 text-right font-medium">Seguros</th><th className="px-2 py-2 text-right font-medium">Cuota</th><th className="px-4 py-2 text-right font-medium">Saldo</th></tr>
                 </thead>
                 <tbody>
@@ -610,7 +610,7 @@ function CatalogoDialog({ datos, productos, onClose, onGuardado }: { datos: Dato
     }
   }
   const campo = (k: keyof typeof f, label: string, extra: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
-    <div className="grid gap-1"><Label htmlFor={`cat-${k}`} className="text-[11px]">{label}</Label><Input id={`cat-${k}`} className="h-8" value={f[k]} onChange={set(k)} {...extra} /></div>
+    <div className="grid gap-1"><Label htmlFor={`cat-${k}`} className="text-xs">{label}</Label><Input id={`cat-${k}`} className="h-8" value={f[k]} onChange={set(k)} {...extra} /></div>
   )
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
@@ -626,7 +626,7 @@ function CatalogoDialog({ datos, productos, onClose, onGuardado }: { datos: Dato
           {campo('clave', 'Clave (p. ej. BIESS-VIVIENDA)')}
           {campo('entidad', 'Entidad')}
           {campo('producto', 'Producto')}
-          <div className="grid gap-1"><Label htmlFor="cat-tipo" className="text-[11px]">Tipo de tasa</Label>
+          <div className="grid gap-1"><Label htmlFor="cat-tipo" className="text-xs">Tipo de tasa</Label>
             <select id="cat-tipo" className="h-8 rounded-md border border-border bg-white px-2 text-sm" value={f.tipo_tasa} onChange={set('tipo_tasa')}><option value="fija">Fija</option><option value="variable">Variable</option></select></div>
           {campo('tasa_nominal', 'Tasa nominal anual % (sin tramos)', { inputMode: 'decimal' })}
           {campo('financiamiento_max_pct', '% máximo financiado', { inputMode: 'decimal', placeholder: 'Sin dato' })}
@@ -653,7 +653,7 @@ function CatalogoDialog({ datos, productos, onClose, onGuardado }: { datos: Dato
             </div>
           ))}
         </div>
-        <div className="grid gap-1"><Label htmlFor="cat-motivo" className="text-[11px]">Motivo del cambio *</Label><Input id="cat-motivo" className="h-8" value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
+        <div className="grid gap-1"><Label htmlFor="cat-motivo" className="text-xs">Motivo del cambio *</Label><Input id="cat-motivo" className="h-8" value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
         <FieldError>{error}</FieldError>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
@@ -723,13 +723,13 @@ function Integral({ unit, precio, fechaFirma, entrada, credito, asesor, datos }:
 function Caja({ titulo, valor, detalle, destacado }: { titulo: string; valor: string; detalle: string; destacado?: boolean }) {
   return (
     <div className={`dashboard-card !p-4 ${destacado ? 'ring-1 ring-primary/30' : ''}`}>
-      <div className="text-[11px] text-muted-foreground">{titulo}</div>
+      <div className="text-xs text-muted-foreground">{titulo}</div>
       <div className={`mt-1 font-semibold tabular-nums tracking-tight ${destacado ? 'text-2xl text-primary' : 'text-lg'}`}>{valor}</div>
-      <div className="mt-0.5 text-[11px] text-muted-foreground">{detalle}</div>
+      <div className="mt-0.5 text-xs text-muted-foreground">{detalle}</div>
     </div>
   )
 }
 
 function CheckIcon() {
-  return <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-emerald-600 text-[10px] font-bold text-white">✓</span>
+  return <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-emerald-600 text-xs font-bold text-white">✓</span>
 }

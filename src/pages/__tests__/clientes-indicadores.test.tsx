@@ -56,25 +56,30 @@ function renderPagina(clientes: ClientesState) {
   )
 }
 
-describe('Clientes: indicadores, filtros y vistas', () => {
-  it('la vista inicial es Lista, y los tres indicadores tienen el mismo peso', () => {
+describe('Clientes: lista de trabajo, filtros de un clic y vistas', () => {
+  it('la vista inicial es la lista de trabajo; cada filtro muestra cuántos clientes tiene', () => {
     renderPagina(conDatos())
-    const grupo = screen.getByRole('group', { name: 'Indicadores de clientes' })
-    expect(within(grupo).getByRole('button', { name: /Total de clientes/ })).toHaveTextContent('3')
-    expect(within(grupo).getByRole('button', { name: /Clientes activos/ })).toHaveTextContent('2')
-    expect(within(grupo).getByRole('button', { name: /Clientes perdidos/ })).toHaveTextContent('1')
+    const grupo = screen.getByRole('group', { name: 'Filtros rápidos de clientes' })
+    expect(within(grupo).getByRole('button', { name: /^Activos/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(grupo).getByRole('button', { name: /^Activos/ })).toHaveTextContent('2')
+    expect(within(grupo).getByRole('button', { name: /^Perdidos/ })).toHaveTextContent('1')
+    expect(within(grupo).getByRole('button', { name: /^Todos/ })).toHaveTextContent('3')
+    // Ana (Nuevo) y Beto (Seguimiento futuro) no tienen próxima gestión; Ana además está por contactar.
+    expect(within(grupo).getByRole('button', { name: /^Sin próxima gestión/ })).toHaveTextContent('2')
+    expect(within(grupo).getByRole('button', { name: /^Por contactar/ })).toHaveTextContent('1')
     expect(screen.getByRole('button', { name: 'Lista' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.queryByText('Carla Perdida')).not.toBeInTheDocument()
   })
 
-  it('pulsar Perdidos filtra a los perdidos; pulsar Total los devuelve', async () => {
+  it('pulsar Perdidos filtra a los perdidos; pulsar Todos los devuelve', async () => {
     const user = userEvent.setup()
     renderPagina(conDatos())
-    await user.click(screen.getByRole('button', { name: /Clientes perdidos/ }))
-    expect(screen.getByRole('button', { name: /Clientes perdidos/ })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: /^Perdidos/ }))
+    expect(screen.getByRole('button', { name: /^Perdidos/ })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Carla Perdida')).toBeInTheDocument()
     expect(screen.queryByText('Ana Activa')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Total de clientes/ }))
+    await user.click(screen.getByRole('button', { name: /^Todos/ }))
     expect(screen.getByText('Ana Activa')).toBeInTheDocument()
     expect(screen.getByText('Carla Perdida')).toBeInTheDocument()
   })
@@ -105,10 +110,54 @@ describe('Clientes: indicadores, filtros y vistas', () => {
   it('la última vista elegida se recuerda al volver a abrir la página', async () => {
     const user = userEvent.setup()
     const { unmount } = renderPagina(conDatos())
-    await user.click(screen.getByRole('button', { name: 'Tablero' }))
+    await user.click(screen.getByRole('button', { name: 'Pipeline' }))
     expect(localStorage.getItem('amura.clientes.vista')).toBe('tablero')
+    expect(screen.getByRole('region', { name: 'Nuevo: 1 clientes' })).toBeInTheDocument()
     unmount()
     renderPagina(conDatos())
-    expect(screen.getByRole('button', { name: 'Tablero' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Pipeline' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('cada fila trae WhatsApp, llamada y seguimiento sin abrir la ficha', () => {
+    renderPagina(conDatos())
+    const fila = screen.getByRole('button', { name: 'Abrir ficha de Ana Activa' }).closest('tr')!
+    expect(within(fila).getByRole('link', { name: 'WhatsApp a Ana Activa' })).toHaveAttribute('href', expect.stringMatching(/^https:\/\/wa\.me\/5939/))
+    expect(within(fila).getByRole('link', { name: 'Llamar a Ana Activa' })).toHaveAttribute('href', expect.stringMatching(/^tel:/))
+    expect(within(fila).getByRole('button', { name: 'Seguimiento de Ana Activa' })).toBeInTheDocument()
+  })
+
+  it('programar la siguiente gestión desde la lista: tipo, fecha y qué hacer, sin abrir la ficha', async () => {
+    const user = userEvent.setup()
+    renderPagina(conDatos())
+    await user.click(screen.getByRole('button', { name: 'Seguimiento de Ana Activa' }))
+    const pop = await screen.findByRole('dialog', { name: 'Seguimiento de Ana Activa' })
+    await user.click(within(pop).getByRole('button', { name: 'Guardar gestión' }))
+    expect(within(pop).getByRole('alert')).toHaveTextContent(/qué hay que hacer/)
+    await user.click(within(pop).getByRole('button', { name: 'Visita' }))
+    await user.click(within(pop).getByRole('button', { name: 'Confirmar la visita' }))
+    await user.click(within(pop).getByRole('button', { name: 'Guardar gestión' }))
+    expect(await screen.findByText(/Próxima gestión con Ana Activa: visita/)).toBeInTheDocument()
+    const fila = screen.getByRole('button', { name: 'Abrir ficha de Ana Activa' }).closest('tr')!
+    expect(within(fila).getByText('Confirmar la visita')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Seguimiento de Ana Activa' })).not.toBeInTheDocument()
+  })
+
+  it('la lista se abre filtrada desde el inicio (?filtro=)', () => {
+    render(
+      <SessionProvider initialRol="administrador">
+        <InventoryProvider initialState={createInitialState()}>
+          <ClientesProvider initialState={conDatos()}>
+            <ReservasProvider>
+              <MemoryRouter initialEntries={['/clientes?filtro=perdidos']}>
+                <Routes><Route path="/clientes" element={<ClientesPage />} /></Routes>
+              </MemoryRouter>
+            </ReservasProvider>
+          </ClientesProvider>
+        </InventoryProvider>
+      </SessionProvider>,
+    )
+    expect(screen.getByRole('button', { name: /^Perdidos/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('Carla Perdida')).toBeInTheDocument()
+    expect(screen.queryByText('Ana Activa')).not.toBeInTheDocument()
   })
 })

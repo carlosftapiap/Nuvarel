@@ -138,12 +138,12 @@ export default function Importacion({ d, datos, ejecutar }: { d: api.DatosPlan; 
             const titulo = col && ws ? (ws[`${col}${op.filaEncabezado}`] as XLSX.CellObject | undefined)?.v : undefined
             return (
               <div key={c} className="grid gap-1">
-                <Label className="text-[11px]">{CAMPOS[c]}{c === 'codigo' || c === 'nombre' ? ' *' : ''}</Label>
-                <select className="h-7 rounded-md border border-border bg-white px-1 text-[11px]" value={col ?? ''} onChange={(e) => set({ mapeo: { ...op.mapeo, [c]: e.target.value || undefined } })}>
+                <Label className="text-xs">{CAMPOS[c]}{c === 'codigo' || c === 'nombre' ? ' *' : ''}</Label>
+                <select className="h-7 rounded-md border border-border bg-white px-1 text-xs" value={col ?? ''} onChange={(e) => set({ mapeo: { ...op.mapeo, [c]: e.target.value || undefined } })}>
                   <option value="">No importar</option>
                   {COLS.map((x) => <option key={x} value={x}>Columna {x}</option>)}
                 </select>
-                {titulo !== undefined && <span className="truncate text-[10px] text-muted-foreground" title={String(titulo)}>“{String(titulo)}”</span>}
+                {titulo !== undefined && <span className="truncate text-xs text-muted-foreground" title={String(titulo)}>“{String(titulo)}”</span>}
               </div>
             )
           })}
@@ -161,21 +161,21 @@ export default function Importacion({ d, datos, ejecutar }: { d: api.DatosPlan; 
           {estadosArchivo.map((t) => (
             <div key={t} className="flex items-center justify-between gap-2 text-xs">
               <span>“{t}”</span>
-              <select className="h-7 rounded-md border border-border bg-white px-1 text-[11px]" value={op.estados[t] ?? ''} onChange={(e) => set({ estados: { ...op.estados, [t]: e.target.value as EstadoActividad } })}>
+              <select className="h-7 rounded-md border border-border bg-white px-1 text-xs" value={op.estados[t] ?? ''} onChange={(e) => set({ estados: { ...op.estados, [t]: e.target.value as EstadoActividad } })}>
                 <option value="">Sin correspondencia (error)</option>
                 {(['pendiente', 'en_ejecucion', 'cancelada'] as EstadoActividad[]).map((e) => <option key={e} value={e}>{ESTADO_ACTIVIDAD[e].label}</option>)}
               </select>
             </div>
           ))}
-          <p className="text-[11px] text-muted-foreground">“Completado” no cierra la actividad: el cierre exige fecha real de fin y evidencias desde la aplicación.</p>
+          <p className="text-xs text-muted-foreground">“Completado” no cierra la actividad: el cierre exige fecha real de fin y evidencias desde la aplicación.</p>
         </div>
         <div className="dashboard-card grid content-start gap-2">
           <h2 className="text-sm font-semibold">3. Responsables</h2>
-          <p className="text-[11px] text-muted-foreground">Vincula cada texto con un usuario existente. Sin vínculo, se conserva el texto y la actividad queda sin responsable. No se crean usuarios.</p>
+          <p className="text-xs text-muted-foreground">Vincula cada texto con un usuario existente. Sin vínculo, se conserva el texto y la actividad queda sin responsable. No se crean usuarios.</p>
           {responsables.map((r) => (
             <div key={r.texto} className="flex items-center justify-between gap-2 text-xs">
               <span className="min-w-0 truncate">“{r.texto}” <span className="text-muted-foreground">({r.filas})</span></span>
-              <select className="h-7 max-w-40 rounded-md border border-border bg-white px-1 text-[11px]" value={op.responsables[r.texto] ?? ''} onChange={(e) => set({ responsables: { ...op.responsables, [r.texto]: e.target.value || null } })}>
+              <select className="h-7 max-w-40 rounded-md border border-border bg-white px-1 text-xs" value={op.responsables[r.texto] ?? ''} onChange={(e) => set({ responsables: { ...op.responsables, [r.texto]: e.target.value || null } })}>
                 <option value="">Sin vincular</option>
                 {d.personas.filter((p) => p.estado === 'activo').map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
@@ -184,14 +184,14 @@ export default function Importacion({ d, datos, ejecutar }: { d: api.DatosPlan; 
         </div>
         <div className="dashboard-card grid content-start gap-2">
           <h2 className="text-sm font-semibold">4. Fases ({grupos.length} grupos del archivo)</h2>
-          <p className="text-[11px] text-muted-foreground">Se conservan los grupos originales como fases. El frente es opcional y puede asignarse después en Configuración del plan.</p>
+          <p className="text-xs text-muted-foreground">Se conservan los grupos originales como fases. El frente es opcional y puede asignarse después en Configuración del plan.</p>
           {grupos.map((g) => {
             const existente = d.fases.find((f) => f.codigo === g.codigo)
             return (
               <div key={g.codigo} className="flex items-center justify-between gap-2 text-xs">
                 <span className="min-w-0 truncate">{g.codigo} {g.nombre}{existente && <span className="text-muted-foreground"> (ya existe)</span>}</span>
                 {!existente && (
-                  <select className="h-7 max-w-32 rounded-md border border-border bg-white px-1 text-[11px]" value={fasesFrente[g.codigo] ?? ''} onChange={(e) => setFasesFrente({ ...fasesFrente, [g.codigo]: e.target.value })}>
+                  <select className="h-7 max-w-32 rounded-md border border-border bg-white px-1 text-xs" value={fasesFrente[g.codigo] ?? ''} onChange={(e) => setFasesFrente({ ...fasesFrente, [g.codigo]: e.target.value })}>
                     <option value="">Sin frente</option>
                     {d.frentes.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
                   </select>
@@ -207,14 +207,14 @@ export default function Importacion({ d, datos, ejecutar }: { d: api.DatosPlan; 
           <h2 className="mr-auto text-sm font-semibold">5. Vista previa</h2>
           {(['todas', 'nueva', 'actualizada', 'sin_cambios', 'error'] as const).map((c) => (
             <button key={c} type="button" aria-pressed={filtroClase === c} onClick={() => setFiltroClase(c)}
-              className={cn('rounded-full border px-2.5 py-0.5 text-[11px]', filtroClase === c ? 'border-primary bg-secondary' : 'border-border hover:bg-muted')}>
+              className={cn('rounded-full border px-2.5 py-0.5 text-xs', filtroClase === c ? 'border-primary bg-secondary' : 'border-border hover:bg-muted')}>
               {c === 'todas' ? `Todas (${clasif.length})` : `${CLASE[c].label} (${cuenta(c)})`}
             </button>
           ))}
         </div>
         <div className="mt-3 max-h-[50vh] overflow-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground">
+            <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
               <tr><th className="px-3 py-2 text-left font-medium">Fila</th><th className="px-2 py-2 text-left font-medium">Código</th><th className="px-2 py-2 text-left font-medium">Resultado</th><th className="px-3 py-2 text-left font-medium">Detalle</th></tr>
             </thead>
             <tbody>
@@ -222,7 +222,7 @@ export default function Importacion({ d, datos, ejecutar }: { d: api.DatosPlan; 
                 <tr key={`${x.fila}-${x.codigo}`} className="border-t border-border align-top">
                   <td className="px-3 py-1.5 tabular-nums">{x.fila}</td>
                   <td className="px-2 py-1.5 font-mono">{x.codigo}</td>
-                  <td className="px-2 py-1.5"><span className={cn('rounded-full px-2 py-0.5 text-[10px] ring-1 ring-inset', CLASE[x.clase].tono)}>{CLASE[x.clase].label}</span></td>
+                  <td className="px-2 py-1.5"><span className={cn('rounded-full px-2 py-0.5 text-xs ring-1 ring-inset', CLASE[x.clase].tono)}>{CLASE[x.clase].label}</span></td>
                   <td className="px-3 py-1.5">
                     {x.errores.map((e, i) => <div key={i} className="text-rose-700">Hoja “{e.hoja}”, fila {e.fila}{e.columna ? `, columna ${e.columna}` : ''}: {e.mensaje}</div>)}
                     {x.cambios.length > 0 && <div className="text-muted-foreground">{x.cambios.map((c) => `${c.campo}: ${c.antes ?? '∅'} → ${c.despues ?? '∅'}`).join(' · ')}</div>}
@@ -241,7 +241,7 @@ export default function Importacion({ d, datos, ejecutar }: { d: api.DatosPlan; 
               Aplicar solo las filas válidas ({errores} con error quedan fuera)
             </label>
           )}
-          <span className="ml-auto text-[11px] text-muted-foreground">No se eliminan actividades que no estén en el archivo.</span>
+          <span className="ml-auto text-xs text-muted-foreground">No se eliminan actividades que no estén en el archivo.</span>
           <Button disabled={!puedeAplicar} onClick={() => setConfirmar(true)}>Revisar y confirmar</Button>
         </div>
       </div>
@@ -260,7 +260,7 @@ export default function Importacion({ d, datos, ejecutar }: { d: api.DatosPlan; 
               {errores > 0 && <li className="text-rose-700">{errores} filas con error (no se aplican)</li>}
               {fasesNuevas.length > 0 && <li>{fasesNuevas.length} fases nuevas</li>}
             </ul>
-            <p className="text-[11px] text-muted-foreground">Se aplica en una sola transacción: si el servidor rechaza alguna fila (por permisos o reglas), no se guarda nada del lote. Queda registrado quién importó, cuándo, qué archivo y qué cambió.</p>
+            <p className="text-xs text-muted-foreground">Se aplica en una sola transacción: si el servidor rechaza alguna fila (por permisos o reglas), no se guarda nada del lote. Queda registrado quién importó, cuándo, qué archivo y qué cambió.</p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setConfirmar(false)}>Volver</Button>
               <Button disabled={aplicando} onClick={() => void aplicar()}>{aplicando ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}Aplicar importación</Button>

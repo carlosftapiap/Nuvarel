@@ -1,94 +1,119 @@
-import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { AlertCircle, CalendarClock, CalendarDays, CircleDashed } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { List, Search } from 'lucide-react'
+import Aviso from '@/components/Aviso'
 import PageHeader from '@/components/PageHeader'
 import { useSession } from '@/app/session'
-import { ETAPAS, ETAPAS_EMBUDO, ORIGENES, TIPOS_ACTIVIDAD, type Cliente, type Origen } from '@/features/clientes/model'
-import { clientesVisibles, resumenClientes, urgencia, type Urgencia } from '@/features/clientes/service'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import ClienteFormDialog from '@/features/clientes/components/ClienteFormDialog'
+import ClienteSheet from '@/features/clientes/components/ClienteSheet'
+import MoverEtapaDialog from '@/features/clientes/components/MoverEtapaDialog'
+import TableroPipeline from '@/features/clientes/components/TableroPipeline'
+import { ETAPAS, ETAPAS_EMBUDO, ORIGENES, type Cliente, type Etapa, type Origen } from '@/features/clientes/model'
+import { clientesVisibles, moverEtapa, resumenClientes } from '@/features/clientes/service'
 import { useClientes } from '@/features/clientes/store'
 import { fmtFechaCorta } from '@/features/financiamiento/plan'
+import { FieldError } from '@/features/inventario/components/shared'
+import { useInventory } from '@/features/inventario/store'
+import { cn } from '@/lib/utils'
 
-const GRUPOS: { key: Urgencia; titulo: string; icon: typeof AlertCircle; tone: string }[] = [
-  { key: 'vencida', titulo: 'Vencidas', icon: AlertCircle, tone: 'text-rose-700' },
-  { key: 'hoy', titulo: 'Hoy', icon: CalendarClock, tone: 'text-amber-700' },
-  { key: 'semana', titulo: 'Próximos 7 días', icon: CalendarDays, tone: 'text-foreground' },
-  { key: 'sin_actividad', titulo: 'Sin siguiente paso', icon: CircleDashed, tone: 'text-muted-foreground' },
-]
+const norm = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
-/** Agenda del asesor y embudo comercial, calculados con los clientes registrados. */
+/** Pipeline: las oportunidades de cada cliente por etapa comercial, con el embudo, el origen y el seguimiento futuro a la vista. */
 export default function GestionComercialPage() {
-  const { state } = useClientes()
+  const { state, guardar } = useClientes()
+  const { state: inv } = useInventory()
   const { actor } = useSession()
+  const [params, setParams] = useSearchParams()
+  const [q, setQ] = useState('')
+  const [asesor, setAsesor] = useState('todos')
+  const [cerrados, setCerrados] = useState(false)
+  const [pedido, setPedido] = useState<{ id: string; nombre: string; etapa: Etapa } | null>(null)
+  const [form, setForm] = useState<{ open: boolean; id?: string }>({ open: false })
+  const [aviso, setAviso] = useState<string | null>(null)
+  const cerrarAviso = useCallback(() => setAviso(null), [])
+  const [error, setError] = useState<string | null>(null)
   const visibles = useMemo(() => clientesVisibles(state.clientes, actor), [state.clientes, actor])
-  const activos = visibles.filter((c) => c.etapa !== 'perdido' && c.etapa !== 'seguimiento')
-  const r = resumenClientes(visibles)
+  const asesores = useMemo(() => [...new Set(visibles.map((c) => c.asesor))].sort(), [visibles])
+  const filtrados = visibles.filter((c) => (asesor === 'todos' || c.asesor === asesor) && (!q.trim() || norm(`${c.nombre} ${c.telefono} ${c.unidadesInteres.join(' ')}`).includes(norm(q.trim()))))
+  const r = resumenClientes(filtrados)
   const maxEtapa = Math.max(1, ...ETAPAS_EMBUDO.map((e) => r.porEtapa[e]))
-  const porOrigen = Object.entries(ORIGENES).map(([k, l]) => ({ k, l, n: visibles.filter((c) => c.origen === (k as Origen)).length }))
-  const proximosRetomar = visibles.filter((c) => c.etapa === 'seguimiento').sort((a, b) => (a.fechaRetomar ?? '').localeCompare(b.fechaRetomar ?? ''))
+  const porOrigen = Object.entries(ORIGENES).map(([k, l]) => ({ k, l, n: filtrados.filter((c) => c.origen === (k as Origen)).length })).filter((o) => o.n > 0)
+  const proximosRetomar = filtrados.filter((c) => c.etapa === 'seguimiento').sort((a, b) => (a.fechaRetomar ?? '').localeCompare(b.fechaRetomar ?? ''))
+  const dpt = (codigo: string) => inv.units.find((u) => u.codigo === codigo)?.dpt ?? codigo
+  const abierta = params.get('cliente')
+  const abrir = (id: string) => setParams((p) => { p.set('cliente', id); return p })
+
+  async function mover(c: Cliente, etapa: Etapa) {
+    setError(null)
+    if (c.etapa === etapa) return
+    if (etapa === 'perdido' || etapa === 'seguimiento') return setPedido({ id: c.id, nombre: c.nombre, etapa })
+    try {
+      await guardar((s) => moverEtapa(s, c.id, etapa, actor))
+      setAviso(`${c.nombre} → ${ETAPAS[etapa].label}`)
+    } catch (e) { setError((e as Error).message) }
+  }
 
   return (
     <>
-      <PageHeader eyebrow="Seguimiento · Gestión comercial" title="Gestión comercial" subtitle="Qué debe hacer cada asesor hoy para avanzar sus ventas." />
+      <PageHeader eyebrow="Comercial" title="Pipeline" subtitle="Cada cliente en su etapa comercial. Arrastra una tarjeta para cambiarla de etapa; las acciones rápidas no abren la ficha."
+        actions={<Button variant="outline" asChild><Link to="/clientes"><List />Lista de trabajo</Link></Button>} />
       {visibles.length === 0 ? (
-        <div className="module-empty"><h2 className="text-lg font-semibold">Sin clientes registrados</h2><p className="mt-2 text-sm text-muted-foreground">La agenda y el embudo se llenan con los clientes del módulo <Link className="text-primary hover:underline" to="/clientes">Clientes</Link>.</p></div>
+        <div className="module-empty"><h2 className="text-lg font-semibold">Sin clientes registrados</h2><p className="mt-2 text-sm text-muted-foreground">El pipeline se llena con los clientes del módulo <Link className="text-primary hover:underline" to="/clientes">Clientes</Link>.</p></div>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-          <section className="dashboard-card p-5" aria-labelledby="gc-agenda">
-            <h2 id="gc-agenda" className="text-sm font-semibold">Agenda</h2>
-            <div className="mt-3 grid gap-4">
-              {GRUPOS.map(({ key, titulo, icon: Icon, tone }) => {
-                const lista = activos.filter((c) => urgencia(c) === key).sort((a, b) => (a.proxima?.fecha ?? '').localeCompare(b.proxima?.fecha ?? ''))
-                return (
-                  <div key={key}>
-                    <h3 className={`mb-1.5 flex items-center gap-1.5 text-xs font-semibold ${tone}`}><Icon className="size-3.5" />{titulo} <span className="font-normal text-muted-foreground">({lista.length})</span></h3>
-                    {lista.length === 0 ? <p className="text-[11px] text-muted-foreground">Nada pendiente.</p> : (
-                      <ul className="grid gap-1.5">{lista.map((c) => <Fila key={c.id} c={c} />)}</ul>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+          <section aria-label="Embudo comercial" className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+            {ETAPAS_EMBUDO.map((e) => (
+              <div key={e} className="rounded-xl border border-border bg-white px-3 py-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600"><i className="size-2 rounded-full" style={{ background: ETAPAS[e].color }} aria-hidden="true" />{ETAPAS[e].label}</div>
+                <div className="mt-1 text-xl font-semibold tabular-nums">{r.porEtapa[e]}</div>
+                <div className="mt-1.5 h-1 rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${(r.porEtapa[e] / maxEtapa) * 100}%`, background: ETAPAS[e].color }} /></div>
+              </div>
+            ))}
           </section>
-          <div className="grid content-start gap-4">
-            <section className="dashboard-card p-5" aria-labelledby="gc-embudo">
-              <h2 id="gc-embudo" className="text-sm font-semibold">Embudo comercial</h2>
-              <ul className="mt-3 grid gap-2">
-                {ETAPAS_EMBUDO.map((e) => (
-                  <li key={e} className="grid grid-cols-[92px_1fr_28px] items-center gap-2 text-xs">
-                    <span className="text-muted-foreground">{ETAPAS[e].label}</span>
-                    <span className="h-2 rounded-full bg-muted"><span className="block h-2 rounded-full" style={{ width: `${(r.porEtapa[e] / maxEtapa) * 100}%`, background: ETAPAS[e].color }} /></span>
-                    <b className="text-right tabular-nums">{r.porEtapa[e]}</b>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">Perdidos: {r.porEtapa.perdido} · Seguimiento futuro: {r.porEtapa.seguimiento}</p>
-            </section>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[min(100%,260px)] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <label htmlFor="pipe-q" className="sr-only">Buscar en el pipeline</label>
+              <Input id="pipe-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente, celular o departamento" className="h-10 bg-white pl-9 text-sm" />
+            </div>
+            {asesores.length > 1 && (
+              <Select value={asesor} onValueChange={setAsesor}>
+                <SelectTrigger className="h-10 min-w-44 bg-white text-[13px]" aria-label="Filtrar por vendedor"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="todos">Vendedor: todos</SelectItem>{asesores.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
+            <Button variant="outline" className={cn('h-10', cerrados && 'border-primary text-primary')} aria-pressed={cerrados} onClick={() => setCerrados(!cerrados)}>
+              {cerrados ? 'Ocultar' : 'Ver'} seguimiento futuro y perdidos
+            </Button>
+          </div>
+          {error && <FieldError>{error}</FieldError>}
+
+          <TableroPipeline clientes={filtrados} etapas={cerrados ? [...ETAPAS_EMBUDO, 'seguimiento', 'perdido'] : ETAPAS_EMBUDO} dpt={dpt} onAbrir={abrir} onMover={(c, e) => void mover(c, e)} onMessage={setAviso} />
+
+          <div className="grid gap-4 md:grid-cols-2">
             <section className="dashboard-card p-5" aria-labelledby="gc-origen">
               <h2 id="gc-origen" className="text-sm font-semibold">Origen de los clientes</h2>
-              <ul className="mt-3 grid gap-1.5 text-xs">{porOrigen.map((o) => <li key={o.k} className="flex justify-between"><span className="text-muted-foreground">{o.l}</span><b className="tabular-nums">{o.n}</b></li>)}</ul>
+              <ul className="mt-3 grid gap-1.5 text-[13px]">{porOrigen.map((o) => <li key={o.k} className="flex justify-between"><span className="text-slate-600">{o.l}</span><b className="tabular-nums">{o.n}</b></li>)}</ul>
+              <p className="mt-3 border-t border-border pt-2 text-xs text-slate-600">Perdidos: {r.porEtapa.perdido} · Seguimiento futuro: {r.porEtapa.seguimiento}</p>
             </section>
-            {proximosRetomar.length > 0 && (
-              <section className="dashboard-card p-5" aria-labelledby="gc-futuro">
-                <h2 id="gc-futuro" className="text-sm font-semibold">Seguimiento futuro</h2>
-                <ul className="mt-3 grid gap-1.5 text-xs">{proximosRetomar.map((c) => <li key={c.id} className="flex justify-between gap-2"><Link className="hover:underline" to={`/clientes?cliente=${c.id}`}>{c.nombre}</Link><span className="text-muted-foreground">{fmtFechaCorta(c.fechaRetomar)}</span></li>)}</ul>
-              </section>
-            )}
+            <section className="dashboard-card p-5" aria-labelledby="gc-futuro">
+              <h2 id="gc-futuro" className="text-sm font-semibold">Seguimiento futuro</h2>
+              {proximosRetomar.length ? (
+                <ul className="mt-3 grid gap-1.5 text-[13px]">{proximosRetomar.map((c) => <li key={c.id} className="flex justify-between gap-2"><button type="button" className="text-left hover:underline" onClick={() => abrir(c.id)}>{c.nombre}</button><span className="text-slate-600">{fmtFechaCorta(c.fechaRetomar)}</span></li>)}</ul>
+              ) : <p className="mt-2 text-xs text-slate-600">Ningún cliente espera retomarse más adelante.</p>}
+            </section>
           </div>
         </div>
       )}
+      <Aviso texto={aviso} onClose={cerrarAviso} />
+      <ClienteSheet id={abierta} onClose={() => setParams((p) => { p.delete('cliente'); return p })} onEdit={(id) => setForm({ open: true, id })} onMessage={setAviso}
+        onPedirEtapa={(id, etapa) => { const c = state.clientes.find((x) => x.id === id); if (c) setPedido({ id, nombre: c.nombre, etapa }) }} />
+      <ClienteFormDialog open={form.open} onOpenChange={(o) => setForm((f) => ({ ...f, open: o }))} cliente={form.id ? state.clientes.find((c) => c.id === form.id) : undefined} onSaved={(_id, m) => setAviso(m)} />
+      <MoverEtapaDialog pedido={pedido} onClose={() => setPedido(null)} onDone={setAviso} />
     </>
-  )
-}
-
-function Fila({ c }: { c: Cliente }) {
-  return (
-    <li>
-      <Link to={`/clientes?cliente=${c.id}`} className="flex flex-wrap items-center gap-x-2 rounded-lg border border-border px-3 py-2 text-xs hover:bg-muted/50">
-        <b>{c.nombre}</b>
-        <span className="text-muted-foreground">{ETAPAS[c.etapa].label}</span>
-        <span className="ml-auto text-muted-foreground">{c.asesor}</span>
-        <span className="basis-full text-[11px]">{c.proxima ? `${TIPOS_ACTIVIDAD[c.proxima.tipo]} · ${c.proxima.descripcion} · ${fmtFechaCorta(c.proxima.fecha)}` : 'Programa la siguiente actividad'}</span>
-      </Link>
-    </li>
   )
 }

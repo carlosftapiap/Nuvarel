@@ -320,7 +320,7 @@ export function cambiarEstado(
   if (!puedeTransicionar(u.estado, estado)) {
     throw new InventoryError(`No se permite pasar de "${ESTADOS[u.estado].label}" a "${ESTADOS[estado].label}".`)
   }
-  const reservaId = estado === 'disponible' || estado === 'no_disponible' || estado === 'bloqueado' ? null : opts.reservaId ?? u.reservaId
+  const reservaId = estado === 'disponible' ? null : opts.reservaId ?? u.reservaId
   const entry: StatusHistoryEntry = {
     id: newId('st'), fecha: nowIso(), usuario: actor.nombre, rol: actor.rol, codigo, de: u.estado, a: estado, motivo: motivo.trim(), reservaId,
   }
@@ -334,7 +334,7 @@ export function cambiarEstado(
 /* -------------------------------------------- puerto para el módulo de Reservas */
 
 export function puedeReservarse(u: Unit) {
-  return u.estado === 'disponible' || u.estado === 'bloqueado'
+  return u.estado === 'disponible'
 }
 
 /** Llamado por Reservas al aprobar una reserva. Congela el precio vigente. */

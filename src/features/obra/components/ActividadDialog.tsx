@@ -129,7 +129,7 @@ export default function ActividadDialog({ ctx, modo, trabajo, onAplicar, onClose
           {editando && (
             <fieldset className="grid gap-2 rounded-lg border border-border p-3">
               <legend className="px-1 text-xs font-semibold">Dependencias (predecesoras)</legend>
-              {predecesoras.length === 0 ? <p className="text-[11px] text-muted-foreground">No depende de otras actividades.</p> : (
+              {predecesoras.length === 0 ? <p className="text-xs text-muted-foreground">No depende de otras actividades.</p> : (
                 <ul className="grid gap-1 text-xs">
                   {predecesoras.map((d) => (
                     <li key={d.predecesoraId} className="flex items-center justify-between gap-2">
@@ -140,7 +140,7 @@ export default function ActividadDialog({ ctx, modo, trabajo, onAplicar, onClose
                 </ul>
               )}
               <div className="flex flex-wrap items-end gap-2">
-                <div className="grid min-w-48 flex-1 gap-1"><Label htmlFor="dep-pred" className="text-[11px]">Agregar predecesora</Label>
+                <div className="grid min-w-48 flex-1 gap-1"><Label htmlFor="dep-pred" className="text-xs">Agregar predecesora</Label>
                   <select id="dep-pred" className={campo} value={nuevaPred} onChange={(e) => setNuevaPred(e.target.value)}>
                     <option value="">Elegir actividad</option>
                     {obra.actividades.filter((a) => a.estado !== 'cancelada' && a.id !== editando.id && !predecesoras.some((d) => d.predecesoraId === a.id)).map((a) => (
@@ -148,10 +148,10 @@ export default function ActividadDialog({ ctx, modo, trabajo, onAplicar, onClose
                     ))}
                   </select>
                 </div>
-                <div className="grid min-w-40 flex-1 gap-1"><Label htmlFor="dep-motivo" className="text-[11px]">Motivo del cambio</Label><Input id="dep-motivo" value={motivoDep} onChange={(e) => setMotivoDep(e.target.value)} /></div>
+                <div className="grid min-w-40 flex-1 gap-1"><Label htmlFor="dep-motivo" className="text-xs">Motivo del cambio</Label><Input id="dep-motivo" value={motivoDep} onChange={(e) => setMotivoDep(e.target.value)} /></div>
                 <Button size="sm" variant="outline" disabled={!nuevaPred || motivoDep.trim().length < 5 || enviando} onClick={() => void dependencia(nuevaPred, true)}>Agregar</Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">Las dependencias se guardan al instante. No se permiten ciclos.</p>
+              <p className="text-xs text-muted-foreground">Las dependencias se guardan al instante. No se permiten ciclos.</p>
             </fieldset>
           )}
           <FieldError>{error}</FieldError>

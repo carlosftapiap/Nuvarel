@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowRight, ChevronDown, History } from 'lucide-react'
 import { ROLES } from '@/app/permissions'
-import { ESTADOS } from '../estados'
+import { etiquetaEstado } from '../estados'
 import { fmtFecha, fmtNum, fmtUsd } from '../pricing'
 import { trazaAjuste } from '../service'
 import { useInventory } from '../store'
@@ -15,7 +15,7 @@ export const TIPO: Record<PriceHistoryEntry['tipo'], string> = {
 export function TrazaTexto({ h, propuestas }: { h: PriceHistoryEntry; propuestas: PriceProposal[] }) {
   const t = trazaAjuste(h, propuestas)
   return (
-    <span className="grid basis-full gap-0.5 text-[11px]">
+    <span className="grid basis-full gap-0.5 text-xs">
       {t.aprobo
         ? <>
             <span>{t.propuso ? <>Propuso: <b>{t.propuso.usuario}</b> · {fmtFecha(t.propuso.fecha)}</> : 'Sin propuesta previa'}</span>
@@ -42,17 +42,17 @@ export default function HistoryPanel() {
               return (
                 <li key={h.id} className="rounded-lg border border-border">
                   <button type="button" className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 p-3 text-left text-xs" aria-expanded={open} onClick={() => setAbierto(open ? null : h.id)}>
-                    <span className="rounded-md bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">{TIPO[h.tipo]}</span>
+                    <span className="rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">{TIPO[h.tipo]}</span>
                     <span className="font-medium">{h.alcance}</span>
                     <span className="text-muted-foreground">{h.detalle}</span>
                     <span className={`ml-auto tabular-nums ${delta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{delta >= 0 ? '+' : ''}{fmtUsd(delta)}</span>
                     <ChevronDown className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
                     <TrazaTexto h={h} propuestas={state.propuestas} />
-                    <span className="basis-full text-[11px] text-muted-foreground tabular-nums">Total {fmtUsd(h.totalAntes)} → {fmtUsd(h.totalDespues)} · {ROLES[h.rol]?.label ?? h.rol} · “{h.motivo}”</span>
+                    <span className="basis-full text-xs text-muted-foreground tabular-nums">Total {fmtUsd(h.totalAntes)} → {fmtUsd(h.totalDespues)} · {ROLES[h.rol]?.label ?? h.rol} · “{h.motivo}”</span>
                   </button>
                   {open && (
                     <div className="max-h-64 overflow-auto border-t border-border">
-                      <table className="w-full text-[11px]">
+                      <table className="w-full text-xs">
                         <thead className="sticky top-0 bg-muted text-muted-foreground"><tr><th className="p-2 text-left font-medium">Unidad</th><th className="p-2 text-right font-medium">USD/m²</th><th className="p-2 text-right font-medium">Precio</th></tr></thead>
                         <tbody>
                           {h.cambios.map((c) => (
@@ -78,8 +78,8 @@ export default function HistoryPanel() {
           <ol className="mt-3 grid gap-2">
             {state.statusHistory.map((s) => (
               <li key={s.id} className="rounded-lg border border-border p-3 text-xs">
-                <div><b>Departamento {dpt(s.codigo)}</b> <span className="text-muted-foreground">{s.codigo}</span>: {ESTADOS[s.de].label} <ArrowRight className="inline size-3" /> <b>{ESTADOS[s.a].label}</b>{s.reservaId ? ` · ${s.reservaId}` : ''}</div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">{fmtFecha(s.fecha)} · {s.usuario} · “{s.motivo}”</div>
+                <div><b>Departamento {dpt(s.codigo)}</b> <span className="text-muted-foreground">{s.codigo}</span>: {etiquetaEstado(s.de)} <ArrowRight className="inline size-3" /> <b>{etiquetaEstado(s.a)}</b>{s.reservaId ? ` · ${s.reservaId}` : ''}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{fmtFecha(s.fecha)} · {s.usuario} · “{s.motivo}”</div>
               </li>
             ))}
           </ol>

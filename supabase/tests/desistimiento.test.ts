@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
-import { como, crearDb, crearUsuario } from './db'
+import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, gerente2: string, finanzas: string, legal: string, sofia: string, carlos: string, cora: string, jarval: string
@@ -23,7 +23,7 @@ const rechazar = (u: string, id: string) => rpc(u, `select public.desistimientos
 
 const unidadLibre = async () => (await uno<{ codigo: string }>(
   `select codigo from public.inventory_units where estado = 'disponible' and codigo not in (select codigo_unidad from public.reservations where estado in ('solicitada', 'pago_verificado', 'confirmada')) order by codigo limit 1`)).codigo
-const nuevoCliente = async (u: string, nombre: string) => (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: `0${++n}`, origen: 'whatsapp' }), u])).id
+const nuevoCliente = async (u: string, nombre: string) => (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'whatsapp' }), u])).id
 const abrir = async (u: string, c: string, codigo: string) => (await rpc<{ id: string }>(u, `select public.oportunidades_crear($1, $2, null) as id`, [c, codigo])).id
 async function solicitada(u: string, c: string, codigo: string) {
   const op = await abrir(u, c, codigo)
@@ -275,10 +275,11 @@ describe('la unidad solo se libera si corresponde', () => {
     const c = await nuevoCliente(carlos, 'Con contrato')
     const f = await aprobada(carlos, c, codigo)
     const k = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato de prueba') as id`, [f.r, hoyGuayaquil()])).id
+    await aprobarCumplimiento(db)
     await rpc(legal, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'x.pdf')`, [k, hoyGuayaquil()])
     await expect(desistir(carlos, c, f.op)).rejects.toThrow(/contrato vigente/)
     expect((await reserva(f.r)).estado).toBe('confirmada')
-    expect((await unidad(codigo)).estado).toBe('promesa')
+    expect((await unidad(codigo)).estado).toBe('vendido')
     expect((await oportunidad(f.op)).etapa).toBe('cobranza')
     const prev = await rpc<{ p: { bloqueo: string } }>(carlos, `select public.desistimientos_previsualizar($1, $2) as p`, [c, f.op])
     expect(prev.p.bloqueo).toMatch(/contrato vigente/)
@@ -304,32 +305,14 @@ describe('la unidad solo se libera si corresponde', () => {
     expect((await reserva(f.r)).estado).toBe('confirmada')
   })
 
-  it('bloqueada por Gerencia con solicitud: sigue bloqueada', async () => {
+  it('una solicitud sin aprobar no retiene la unidad: al desistir sigue disponible; nadie la bloquea a mano', async () => {
     const codigo = await unidadLibre()
-    const c = await nuevoCliente(carlos, 'Unidad bloqueada')
+    const c = await nuevoCliente(carlos, 'Solo solicitud')
     const f = await solicitada(carlos, c, codigo)
-    await rpc(gerente, `select public.inventario_cambiar_estado($1, 'bloqueado', 'Retención de Gerencia', null)`, [codigo])
+    await expect(rpc(gerente, `select public.inventario_cambiar_estado($1, 'reservado', 'Retención de Gerencia', null)`, [codigo])).rejects.toThrow(/lo asignan Reservas/)
     const d = await fila(await desistir(carlos, c, f.op))
-    expect((await unidad(codigo)).estado).toBe('bloqueado')
-    expect(d).toMatchObject({ unidad_antes: 'bloqueado', unidad_despues: 'bloqueado', unidad_detalle: 'La unidad sigue bloqueada por Gerencia' })
-    await rpc(gerente, `select public.inventario_cambiar_estado($1, 'disponible', 'Fin de la retención', null)`, [codigo])
-  })
-
-  it('bloqueada antes de una reserva aprobada: vuelve a bloqueada, no a disponible', async () => {
-    const codigo = await unidadLibre()
-    const c = await nuevoCliente(carlos, 'Bloqueo previo')
-    const f = await solicitada(carlos, c, codigo)
-    await rpc(gerente, `select public.inventario_cambiar_estado($1, 'bloqueado', 'Retención de Gerencia', null)`, [codigo])
-    await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-B', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [f.r])
-    const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [f.r])
-    await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-B', true, 'Ingreso confirmado')`, [f.r, m.monto_reserva, hoyGuayaquil()])
-    await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [f.r])
-    const id = await desistir(carlos, c, f.op)
-    await autorizar(gerente2, id)
-    await revisar(finanzas, id)
-    expect(await unidad(codigo)).toEqual({ estado: 'bloqueado', reserva_id: null })
-    expect((await fila(id)).unidad_detalle).toMatch(/vuelve a estar bloqueada/)
-    await rpc(gerente, `select public.inventario_cambiar_estado($1, 'disponible', 'Fin de la retención', null)`, [codigo])
+    expect(await unidad(codigo)).toEqual({ estado: 'disponible', reserva_id: null })
+    expect(d).toMatchObject({ unidad_antes: 'disponible', unidad_despues: 'disponible', unidad_detalle: 'La solicitud no había retenido la unidad: no cambia' })
   })
 
   it('una vez liberada, otro cliente la puede cotizar y reservar', async () => {
@@ -497,7 +480,7 @@ describe('historial y auditoría', () => {
 
 describe('origen comercial en el contrato', () => {
   it('conserva origen, detalle, corredor y atribución, y no cambia al reasignar', async () => {
-    const c = (await rpc<{ id: string }>(admin, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Traído por corredor', telefono: `0${++n}`, origen: 'corredor', origen_detalle: 'Cora Corredora', corredor_origen_id: cora }), carlos])).id
+    const c = (await rpc<{ id: string }>(admin, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Traído por corredor', telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'corredor', origen_detalle: 'Cora Corredora', corredor_origen_id: cora }), carlos])).id
     const f = await aprobada(carlos, c, await unidadLibre())
     const k = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato de prueba') as id`, [f.r, hoyGuayaquil()])).id
     const datos = () => uno(`select origen, origen_detalle, corredor_origen_id, atribucion_usuario_id, asesor_id from public.contracts where id = $1`, [k])
@@ -505,5 +488,25 @@ describe('origen comercial en el contrato', () => {
     expect(antes).toEqual({ origen: 'corredor', origen_detalle: 'Cora Corredora', corredor_origen_id: cora, atribucion_usuario_id: admin, asesor_id: carlos })
     await rpc(admin, `select public.clientes_asignar($1, null, $2, 'Cambio de cartera')`, [c, cora])
     expect(await datos()).toEqual(antes)
+  })
+})
+
+describe('el Supervisor también vende', () => {
+  it('no decide la anulación de su propio cliente: la decide Gerencia', async () => {
+    const c = await nuevoCliente(sofia, 'Cliente propio de Sofia')
+    expect(await uno(`select asesor_id from public.clients where id = $1`, [c])).toEqual({ asesor_id: sofia })
+    const f = await aprobadaSinDinero(sofia, c, await unidadLibre())
+    const id = await desistir(gerente, c, f.op)
+    expect((await fila(id)).nivel).toBe('supervisor_o_gerencia')
+    await expect(autorizar(sofia, id)).rejects.toThrow(/Es tu propio cliente: esta anulación la decide Gerencia/)
+    await expect(rechazar(sofia, id)).rejects.toThrow(/Es tu propio cliente/)
+    expect(await autorizar(gerente2, id)).toBe('aplicado')
+  })
+
+  it('sí decide la de un vendedor de su equipo', async () => {
+    const c = await nuevoCliente(carlos, 'Cliente de Carlos para Sofia')
+    const f = await aprobadaSinDinero(carlos, c, await unidadLibre())
+    const id = await desistir(carlos, c, f.op)
+    expect(await autorizar(sofia, id)).toBe('aplicado')
   })
 })

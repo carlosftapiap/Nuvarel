@@ -14,7 +14,7 @@ export default function ReglasAnulacion({ actual }: { actual?: NivelDesistimient
   return (
     <div className="grid gap-1.5" aria-label="Reglas de anulación">
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-[11px]">
+        <table className="w-full text-xs">
           <thead className="bg-muted text-muted-foreground">
             <tr><th className="px-2 py-1.5 text-left font-medium">Situación</th><th className="px-2 py-1.5 text-left font-medium">Quién aprueba</th><th className="px-2 py-1.5 text-left font-medium">Departamento</th></tr>
           </thead>
@@ -27,7 +27,7 @@ export default function ReglasAnulacion({ actual }: { actual?: NivelDesistimient
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-muted-foreground">Hasta completar las aprobaciones no cambia nada. Quien solicita no puede aprobar su propia solicitud, y Gerencia y Finanzas deben ser personas distintas. Si Gerencia bloqueó el departamento, o tiene otro compromiso, no pasa a Disponible. Nada se borra y no se crean pagos ni devoluciones.</p>
+      <p className="text-xs text-muted-foreground">Hasta completar las aprobaciones no cambia nada. Quien solicita no puede aprobar su propia solicitud, y Gerencia y Finanzas deben ser personas distintas. Si Gerencia bloqueó el departamento, o tiene otro compromiso, no pasa a Disponible. Nada se borra y no se crean pagos ni devoluciones.</p>
     </div>
   )
 }

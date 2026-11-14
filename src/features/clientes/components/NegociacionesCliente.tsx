@@ -81,7 +81,7 @@ export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onM
                     <SelectContent>{opciones.map((u) => <SelectItem key={u.codigo} value={u.codigo}>{u.dpt}</SelectItem>)}</SelectContent>
                   </Select>
                 )}
-                {o.etapa === 'perdida' && o.motivoPerdida && <span className="basis-full text-[11px] text-muted-foreground">{o.motivoPerdida}</span>}
+                {o.etapa === 'perdida' && o.motivoPerdida && <span className="basis-full text-xs text-muted-foreground">{o.motivoPerdida}</span>}
               </li>
             )
           })}
@@ -106,13 +106,13 @@ export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onM
           {historial.map((x) => (
             <div key={x.id} className="rounded-lg bg-muted/50 px-3 py-2">
               <div className="flex flex-wrap items-center gap-2"><b>{MOTIVOS_DESISTIMIENTO[x.motivo]}</b>{x.codigoUnidad ? <span>{dptDe(x.codigoUnidad)}</span> : null}
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${ESTADO_DESISTIMIENTO[x.estado].tono}`}>{ESTADO_DESISTIMIENTO[x.estado].label}</span></div>
-              <div className="text-[11px] text-muted-foreground">{new Date(x.registradoEn).toLocaleDateString('es-EC', { timeZone: 'America/Guayaquil' })} · {x.registradoPor}{x.observaciones ? ` · ${x.observaciones}` : ''}</div>
-              {x.unidadDetalle && <div className="text-[11px] text-muted-foreground">{x.unidadDetalle}</div>}
-              {x.estado === 'pendiente' && <div className="text-[11px] font-medium text-amber-800">{faltaPara(x)}. Se decide en Reservas.{x.montoRecibido ? ` Hay ${fmtUsd2(x.montoRecibido)} recibidos.` : ''}</div>}
-              {x.autorizadoPor && <div className="text-[11px] text-muted-foreground">Autorizó {x.autorizadoPor}: {x.autorizacionNota}</div>}
-              {x.revisadoPor && <div className="text-[11px] text-muted-foreground">Revisión de Finanzas de {x.revisadoPor}: {x.revisionNota}</div>}
-              {x.estado === 'rechazado' && <div className="text-[11px] text-rose-700">Rechazó {x.rechazadoPor}: {x.motivoRechazo}</div>}
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${ESTADO_DESISTIMIENTO[x.estado].tono}`}>{ESTADO_DESISTIMIENTO[x.estado].label}</span></div>
+              <div className="text-xs text-muted-foreground">{new Date(x.registradoEn).toLocaleDateString('es-EC', { timeZone: 'America/Guayaquil' })} · {x.registradoPor}{x.observaciones ? ` · ${x.observaciones}` : ''}</div>
+              {x.unidadDetalle && <div className="text-xs text-muted-foreground">{x.unidadDetalle}</div>}
+              {x.estado === 'pendiente' && <div className="text-xs font-medium text-amber-800">{faltaPara(x)}. Se decide en Reservas.{x.montoRecibido ? ` Hay ${fmtUsd2(x.montoRecibido)} recibidos.` : ''}</div>}
+              {x.autorizadoPor && <div className="text-xs text-muted-foreground">Autorizó {x.autorizadoPor}: {x.autorizacionNota}</div>}
+              {x.revisadoPor && <div className="text-xs text-muted-foreground">Revisión de Finanzas de {x.revisadoPor}: {x.revisionNota}</div>}
+              {x.estado === 'rechazado' && <div className="text-xs text-rose-700">Rechazó {x.rechazadoPor}: {x.motivoRechazo}</div>}
             </div>
           ))}
         </div>
@@ -123,7 +123,7 @@ export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onM
           <p className="font-medium">Acceso autorizado</p>
           {c.accesos.map((a) => (
             <div key={a.usuarioId} className="flex items-center gap-2">
-              <span>{a.nombre}</span><span className="truncate text-[11px] text-muted-foreground">{a.motivo}</span>
+              <span>{a.nombre}</span><span className="truncate text-xs text-muted-foreground">{a.motivo}</span>
               <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setPedido({ tipo: 'revocar', usuarioId: a.usuarioId, nombre: a.nombre })}>Revocar</Button>
             </div>
           ))}

@@ -13,8 +13,8 @@ import { ENTRADA_VACIA } from '../datos'
 import { calcularPanel, type ContratoPanel, type EntradaPanel } from '../panel'
 
 const HOY = '2026-11-10'
-/** Como producción: 5 disponibles y el resto por confirmar. */
-const inicial = (): InventoryState => { const e = createInitialState(); return { ...e, units: e.units.map((u, i) => (i < e.units.length - 5 ? { ...u, estado: 'por_confirmar' as const } : u)) } }
+/** 5 vendidas y el resto disponibles. */
+const inicial = (): InventoryState => { const e = createInitialState(); return { ...e, units: e.units.map((u, i) => (i < 5 ? { ...u, estado: 'vendido' as const } : u)) } }
 const contrato = (id: string, unidad: string, estado: ContratoPanel['estado'], precio: number, extra: Partial<ContratoPanel> = {}): ContratoPanel => ({
   id, codigo: id, clientId: 'c', cliente: '', unidad, edificio: unidad.startsWith('E2') ? 2 : 1, responsable: '', estado, precio, reservaId: `r-${id}`, fechaFirma: null, ...extra,
 })
@@ -135,13 +135,12 @@ describe('pantalla del dashboard', () => {
     </SessionProvider>,
   )
 
-  it('muestra las unidades por confirmar como alerta y no dice que no hay pendientes', async () => {
+  it('muestra solo los tres estados del inventario', async () => {
     abrir()
-    const alerta = await screen.findByRole('link', { name: /unidades por confirmar/i })
-    expect(alerta).toHaveAttribute('href', '/inventario?estado=por_confirmar')
-    expect(screen.queryByText(/No hay pendientes/)).toBeNull()
-    expect(screen.getByRole('link', { name: /^Por confirmar: 67$/ })).toHaveAttribute('href', '/inventario?estado=por_confirmar')
-    expect(screen.getByRole('link', { name: /^Disponibles: 5$/ })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /^Disponibles: 67$/ })).toHaveAttribute('href', '/inventario?estado=disponible')
+    expect(screen.getByRole('link', { name: /^Reservadas: 0$/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^Vendidas: 5$/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Por confirmar|Bloquead|Prometid/)).toBeNull()
     expect(screen.getByRole('link', { name: /^Departamentos: 72$/ })).toBeInTheDocument()
   })
 
@@ -165,7 +164,7 @@ describe('pantalla del dashboard', () => {
     expect(within(grupo).getAllByRole('button')).toHaveLength(3)
   })
 
-  it('una unidad con solicitud activa cuenta como en proceso de reserva, no como disponible', async () => {
+  it('una solicitud en trámite no cambia el estado: la unidad sigue disponible y se avisa en Reservas', async () => {
     const e = inicial()
     const i = e.units.findIndex((u) => u.estado === 'disponible')
     e.units[i] = { ...e.units[i], solicitud: { codigo: 'RES-2026-0001', estado: 'solicitada', vigenciaHasta: null, cotizacionId: null } }
@@ -174,8 +173,8 @@ describe('pantalla del dashboard', () => {
         <InventoryProvider initialState={e}><MemoryRouter><DashboardPage /></MemoryRouter></InventoryProvider>
       </SessionProvider>,
     )
-    expect(await screen.findByRole('link', { name: /^Disponibles: 4$/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /1 unidad en proceso de reserva/ })).toHaveAttribute('href', '/inventario?estado=en_proceso_reserva')
+    expect(await screen.findByRole('link', { name: /^Disponibles: 67$/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /1 solicitud de reserva en trámite/ })).toHaveAttribute('href', '/reservas')
   })
 
   it('muestra el banner, el video bajo demanda y sin sonido, y la galería ampliable', async () => {

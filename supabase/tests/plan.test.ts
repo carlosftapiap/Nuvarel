@@ -128,11 +128,11 @@ describe('reprogramación, dependencias y cierre', () => {
 
   it('cerrar exige 100% y fecha real; reabrir deja constancia', async () => {
     let d01 = await act('D01')
-    await expect(como(db, sofia, () => db.query(`select public.plan_actividad_estado($1, $2, 'cerrar', '2026-11-04', 'Acta firmada')`, [d01.id, d01.version]))).rejects.toThrow(/100%/)
+    await expect(como(db, sofia, () => db.query(`select public.plan_actividad_estado($1, $2, 'cerrar', current_date, 'Acta firmada')`, [d01.id, d01.version]))).rejects.toThrow(/100%/)
     await como(db, vera, () => db.query(`select public.plan_actividad_avance($1, $2, 100, null, null)`, [d01.id, d01.version]))
     d01 = await act('D01')
     await expect(como(db, sofia, () => db.query(`select public.plan_actividad_estado($1, $2, 'cerrar', null, 'Acta firmada')`, [d01.id, d01.version]))).rejects.toThrow(/fecha real/)
-    await como(db, sofia, () => db.query(`select public.plan_actividad_estado($1, $2, 'cerrar', '2026-11-04', 'Acta firmada')`, [d01.id, d01.version]))
+    await como(db, sofia, () => db.query(`select public.plan_actividad_estado($1, $2, 'cerrar', current_date, 'Acta firmada')`, [d01.id, d01.version]))
     d01 = await act('D01')
     expect(d01.estado).toBe('completada')
     await como(db, sofia, () => db.query(`select public.plan_actividad_estado($1, $2, 'reabrir', null, 'Falta una firma')`, [d01.id, d01.version]))

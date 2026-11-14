@@ -45,11 +45,11 @@ export default function ParamsPanel({ onMessage }: { onMessage: (m: string) => v
           <Campo id="par-patio" label="Valor del m² de patio (USD)" value={form.patio} onChange={(v) => setForm({ ...form, patio: v })} disabled={!editable} />
           <Campo id="par-reserva" label="Pago a la firma, acumulado (%)" value={form.reserva} onChange={(v) => setForm({ ...form, reserva: v })} disabled />
           <Campo id="par-cuotas" label="Cuotas durante la obra (%)" value={form.cuotas} onChange={(v) => setForm({ ...form, cuotas: v })} disabled />
-          <div className="grid gap-1"><span className="text-[11px] text-muted-foreground">Contra entrega (calculado)</span><span className="flex h-8 items-center rounded-lg border border-border bg-muted px-3 text-sm tabular-nums">{Number.isFinite(contra) ? `${contra}%` : '—'}</span></div>
+          <div className="grid gap-1"><span className="text-xs text-muted-foreground">Contra entrega (calculado)</span><span className="flex h-8 items-center rounded-lg border border-border bg-muted px-3 text-sm tabular-nums">{Number.isFinite(contra) ? `${contra}%` : '—'}</span></div>
           <Campo id="par-m1" label="Meses de cuotas · Edificio 1" value={form.m1} onChange={(v) => setForm({ ...form, m1: v })} disabled={!editable} />
           <Campo id="par-m2" label="Meses de cuotas · Edificio 2" value={form.m2} onChange={(v) => setForm({ ...form, m2: v })} disabled={!editable} />
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">La entrada es política comercial fija: 6 % a la firma + 14 % en cuotas = 20 %; 80 % contra entrega.</p>
+        <p className="mt-2 text-xs text-muted-foreground">La entrada es política comercial fija: 6 % a la firma + 14 % en cuotas = 20 %; 80 % contra entrega.</p>
         {editable && (
           <div className="mt-4 grid gap-2">
             <Label htmlFor="par-motivo" className="text-xs">Motivo</Label>
@@ -83,7 +83,7 @@ const toForm = (p: PricingParams) => ({ patio: String(p.patioUsdM2), reserva: St
 function Campo({ id, label, value, onChange, disabled }: { id: string; label: string; value: string; onChange: (v: string) => void; disabled: boolean }) {
   return (
     <div className="grid gap-1">
-      <Label htmlFor={id} className="text-[11px] font-normal text-muted-foreground">{label}</Label>
+      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">{label}</Label>
       <Input id={id} inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} className="h-8" />
     </div>
   )

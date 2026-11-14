@@ -65,22 +65,22 @@ describe('exportación e importación Excel', () => {
     const s = createInitialState()
     const buf = libro([
       H,
-      ['E1-PB-A1', '70,47', 'BOD 10A', '2,10', '-', '2.300,00', 'Bloqueado', 'Bloqueo por gerencia'],
-      ['E2-P1-A3', 53.69, '21E', 1.07, 0, 2361.7, 'No disponible', 'Unidad modelo'],
+      ['E1-PB-A1', '70,47', 'BOD 10A', '2,10', '-', '2.300,00', 'Disponible', 'Revisado por gerencia'],
+      ['E2-P1-A3', 53.69, '21E', 1.07, 0, 2361.7, 'Disponible', 'Unidad modelo'],
     ])
     const v = validarImportacion(s, leerLibro(buf).filas)
     expect(v.conErrores).toBe(0)
     expect(v.conCambios).toBe(2)
     expect(v.faltantes).toHaveLength(70)
-    expect(v.filas[0].cambios.map((c) => c.campo)).toEqual(['usdM2', 'estado', 'notas'])
+    expect(v.filas[0].cambios.map((c) => c.campo)).toEqual(['usdM2', 'notas'])
     expect(() => aplicarImportacion(s, v, 'Carga de prueba', asesor, 'x.xlsx')).toThrow(PermissionError)
     const s2 = aplicarImportacion(s, v, 'Carga de prueba', gerencia, 'x.xlsx')
     const u = s2.units.find((x) => x.codigo === 'E1-PB-A1')!
-    expect(u).toMatchObject({ usdM2: 2300, estado: 'bloqueado', notas: 'Bloqueo por gerencia' })
+    expect(u).toMatchObject({ usdM2: 2300, estado: 'disponible', notas: 'Revisado por gerencia' })
     expect(calcularPrecio(u, s2.params).precioVenta).toBe(Math.round(2300 * 72.57))
     expect(s2.priceHistory[0]).toMatchObject({ tipo: 'importacion' })
     expect(s2.priceHistory[0].cambios).toHaveLength(1)
-    expect(s2.statusHistory).toHaveLength(2)
+    expect(s2.statusHistory).toHaveLength(0)
   })
 
   it('lee la exportación del simulador AMURA (hojas Edificio 1 / Edificio 2)', () => {

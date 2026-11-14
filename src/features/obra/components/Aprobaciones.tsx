@@ -52,11 +52,11 @@ function PanelFrente({ ctx, frente, valida }: { ctx: ContextoBase; frente: Frent
             </ul>
             {valida && !frente.pesosAprobados && (
               <div className="flex flex-wrap items-end gap-2">
-                <div className="grid min-w-48 flex-1 gap-1"><label htmlFor={`mp-${frente.id}`} className="text-[11px]">Motivo de la aprobación</label><Input id={`mp-${frente.id}`} value={motivoPesos} onChange={(e) => setMotivoPesos(e.target.value)} /></div>
+                <div className="grid min-w-48 flex-1 gap-1"><label htmlFor={`mp-${frente.id}`} className="text-xs">Motivo de la aprobación</label><Input id={`mp-${frente.id}`} value={motivoPesos} onChange={(e) => setMotivoPesos(e.target.value)} /></div>
                 <Button size="sm" disabled={!completos || motivoPesos.trim().length < 5 || ocupado} onClick={() => void accion(() => aprobarPesos(datos, frente.id, motivoPesos.trim()), `Ponderaciones de ${frente.nombre} aprobadas.`, () => setMotivoPesos(''))}>Aprobar ponderaciones</Button>
               </div>
             )}
-            {valida && !frente.pesosAprobados && !completos && <p className="text-[11px] text-muted-foreground">Se pueden aprobar cuando todos los niveles suman 100 %.</p>}
+            {valida && !frente.pesosAprobados && !completos && <p className="text-xs text-muted-foreground">Se pueden aprobar cuando todos los niveles suman 100 %.</p>}
           </div>
 
           <div className="grid content-start gap-2 text-xs">
@@ -67,11 +67,11 @@ function PanelFrente({ ctx, frente, valida }: { ctx: ContextoBase; frente: Frent
             {cronogramas.length > 1 && <p className="text-muted-foreground">Versiones anteriores: {cronogramas.filter((c) => c.estado === 'reemplazado').map((c) => `v${c.version}`).join(', ')}.</p>}
             {valida && (
               <div className="flex flex-wrap items-end gap-2">
-                <div className="grid min-w-48 flex-1 gap-1"><label htmlFor={`mc-${frente.id}`} className="text-[11px]">Motivo de la aprobación</label><Input id={`mc-${frente.id}`} value={motivoCron} onChange={(e) => setMotivoCron(e.target.value)} /></div>
+                <div className="grid min-w-48 flex-1 gap-1"><label htmlFor={`mc-${frente.id}`} className="text-xs">Motivo de la aprobación</label><Input id={`mc-${frente.id}`} value={motivoCron} onChange={(e) => setMotivoCron(e.target.value)} /></div>
                 <Button size="sm" variant="outline" disabled={!conFechas || motivoCron.trim().length < 5 || ocupado} onClick={() => void accion(() => aprobarCronograma(datos, frente.id, motivoCron.trim()), `Cronograma de ${frente.nombre} aprobado.`, () => setMotivoCron(''))}>{vigente ? 'Aprobar nueva versión' : 'Aprobar cronograma'}</Button>
               </div>
             )}
-            {valida && !conFechas && <p className="text-[11px] text-muted-foreground">Se puede aprobar cuando haya actividades con fechas previstas.</p>}
+            {valida && !conFechas && <p className="text-xs text-muted-foreground">Se puede aprobar cuando haya actividades con fechas previstas.</p>}
           </div>
         </div>
       )}

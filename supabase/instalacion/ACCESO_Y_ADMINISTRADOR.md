@@ -8,7 +8,7 @@ Ninguna contraseña se guarda en el código, en los scripts SQL, en variables `V
 2. **Authentication → Sign In / Providers**: desactiva **Allow new users to sign up**. Con esto el registro público queda cerrado: solo un administrador crea cuentas.
 3. **Authentication → URL Configuration**:
    - *Site URL*: la dirección de la app (por ejemplo `https://amura.tudominio.com`).
-   - *Redirect URLs*: agrega `http://localhost:5173/login` y `https://<tu dominio>/login` (enlace de recuperación de contraseña).
+   - *Redirect URLs*: agrega `http://localhost:5173/login`, `http://127.0.0.1:5173/login` y `https://<tu dominio>/login` (enlace de recuperación de contraseña).
 4. **Authentication → Policies / Password**: longitud mínima recomendada 10 caracteres.
 
 ## 2. Base de datos
@@ -52,9 +52,9 @@ Esperado: `Carlos Tapia · activo · administrador` y `permisos_del_rol = permis
 Desde **Configuración → Usuarios** (solo quien tiene `config.usuarios`):
 
 - **Habilitar**: para una cuenta creada en *Authentication → Users*; se elige nombre, rol y motivo.
-- **Crear usuario**: el administrador asigna contraseña inicial, rol, alcance y equipo; la cuenta queda activa sin correo. Requiere desplegar la función del servidor:
+- **Crear usuario**: el administrador indica nombre, correo, contraseña inicial y rol; la cuenta queda activa, sin correos ni confirmación. Requiere desplegar la función del servidor:
   `supabase functions deploy crear-usuario`.
   La clave `service_role` la provee Supabase dentro de la función; nunca va al navegador. 
-- **Modificar acceso**, **Activar / Desactivar**, **Cambiar contraseña** y **Recuperar clave**, siempre con motivo y auditoría.
+- **Cambiar rol**, **Activar / Desactivar** y **Restablecer contraseña**, siempre con motivo y auditoría.
 
 Reglas que aplica la base de datos (no solo la pantalla): nadie se crea un perfil ni cambia su propio rol o estado; nadie concede un rol con permisos que no tiene; desactivar quita el acceso a los datos de inmediato y conserva el historial.

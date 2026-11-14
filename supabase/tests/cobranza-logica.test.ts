@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  aplicarPagos, configurarProveedor, enviarPendientes, estadoCuota, planificarCobranza, proveedorSimulado,
+  aplicarPagos, configurarProveedor, enviarPendientes, estadoCuota, mensajePrueba, planificarCobranza, proveedorSimulado, REMITENTE_PRUEBA,
   type EntradaCobranza, type FilaCola,
 } from '../functions/_shared/cobranza'
 
@@ -31,13 +31,33 @@ describe('estados por cuota', () => {
 })
 
 describe('aplicación de pagos', () => {
-  it('reparte en orden de cuota y deja el excedente como saldo a favor', () => {
-    const cs = [{ numero: 2, monto: 800 }, { numero: 1, monto: 500 }]
+  it('reparte la entrada en orden de vencimiento y deja el excedente como saldo a favor', () => {
+    const cs = [{ numero: 2, monto: 800, vencimiento: '2026-02-01' }, { numero: 1, monto: 500, vencimiento: '2026-01-01' }]
     const r = aplicarPagos(cs, 1000)
     expect(r.pagado.get(1)).toBe(500)
     expect(r.pagado.get(2)).toBe(500)
     expect(r.excedente).toBe(0)
     expect(aplicarPagos(cs, 1500).excedente).toBe(200)
+  })
+
+  it('lo vencido se cubre antes que una cuota anterior reprogramada; la reserva va primero', () => {
+    const cs = [
+      { numero: 0, monto: 100, vencimiento: '2026-03-01' },
+      { numero: 1, monto: 500, vencimiento: '2026-12-01' },
+      { numero: 2, monto: 500, vencimiento: '2026-02-01' },
+    ]
+    const r = aplicarPagos(cs, 600)
+    expect([r.pagado.get(0), r.pagado.get(2), r.pagado.get(1)]).toEqual([100, 500, 0])
+  })
+
+  it('el saldo contra entrega solo recibe lo autorizado, nunca más que el excedente', () => {
+    const cs = [{ numero: 1, monto: 1000, vencimiento: '2026-01-01' }, { numero: 2, monto: 4000, vencimiento: null }]
+    expect(aplicarPagos(cs, 3000)).toEqual({ pagado: new Map([[1, 1000], [2, 0]]), excedente: 2000 })
+    expect(aplicarPagos(cs, 3000, 1500)).toEqual({ pagado: new Map([[1, 1000], [2, 1500]]), excedente: 500 })
+    // Autorización mayor que el excedente real (por ejemplo, tras anular un pago): se limita al excedente.
+    expect(aplicarPagos(cs, 1200, 1500)).toEqual({ pagado: new Map([[1, 1000], [2, 200]]), excedente: 0 })
+    // Lo que supera también el 80 % queda a favor.
+    expect(aplicarPagos(cs, 6000, 5000)).toEqual({ pagado: new Map([[1, 1000], [2, 4000]]), excedente: 1000 })
   })
 })
 
@@ -112,7 +132,7 @@ describe('planificación de alertas', () => {
     const v = r.alertas.find((x) => x.tipo === 'escalamiento_7')!
     expect(v.cuerpo).toContain('Ana &lt;Pérez&gt;')
     expect(v.cuerpo).not.toContain('<Pérez>')
-    expect(v.cuerpo).toContain('https://amura.test/cobranza?contrato=c1')
+    expect(v.cuerpo).toContain('https://amura.test/cobranzas?contrato=c1')
   })
 })
 
@@ -153,5 +173,38 @@ describe('envío de correos', () => {
     expect(configurarProveedor({ COBRANZA_ENVIO_REAL: 'true', COBRANZA_REMITENTE: 'a@b.test' }).motivo).toMatch(/RESEND_API_KEY/)
     expect(configurarProveedor({ COBRANZA_ENVIO_REAL: 'true', RESEND_API_KEY: 'k' }).motivo).toMatch(/dominio remitente/)
     expect(configurarProveedor({ COBRANZA_ENVIO_REAL: 'true', RESEND_API_KEY: 'k', COBRANZA_REMITENTE: 'a@b.test' }).proveedor).not.toBeNull()
+  })
+
+  it('modo prueba: tiene prioridad sobre el envío real y usa el remitente de pruebas', () => {
+    const c = configurarProveedor({ CORREO_PRUEBA_DESTINO: 'pruebas@amura.test', COBRANZA_ENVIO_REAL: 'true', RESEND_API_KEY: 'k', COBRANZA_REMITENTE: 'cobranza@amura.test' })
+    expect(c.prueba).toEqual({ destino: 'pruebas@amura.test', maximo: 10 })
+    expect(c.remitente).toBe(REMITENTE_PRUEBA)
+    expect(configurarProveedor({ CORREO_PRUEBA_DESTINO: 'pruebas@amura.test', RESEND_API_KEY: 'k', CORREO_PRUEBA_REMITENTE: 'Otro <o@x.test>', CORREO_PRUEBA_MAXIMO: '500' })).toMatchObject({ remitente: 'Otro <o@x.test>', prueba: { maximo: 50 } })
+    // Un destino mal escrito no cae al envío real: no envía nada.
+    const mal = configurarProveedor({ CORREO_PRUEBA_DESTINO: 'no-es-correo', COBRANZA_ENVIO_REAL: 'true', RESEND_API_KEY: 'k', COBRANZA_REMITENTE: 'c@a.test' })
+    expect(mal.proveedor).toBeNull()
+    expect(mal.motivo).toMatch(/no es un correo válido/)
+    expect(configurarProveedor({ CORREO_PRUEBA_DESTINO: 'pruebas@amura.test' }).motivo).toMatch(/RESEND_API_KEY/)
+  })
+
+  it('modo prueba: nadie real recibe nada; el original queda visible y se registra el destinatario efectivo', async () => {
+    const sim = proveedorSimulado()
+    const filas = ['cliente@real.test', 'finanzas@real.test', 'oficial@real.test'].map((d, i) => fila({ id: `a${i}`, destinatario: d }))
+    const r = await enviarPendientes(filas, sim, 't', REMITENTE_PRUEBA, { destino: 'pruebas@amura.test', maximo: 2 })
+    expect(sim.enviados.map((m) => m.to)).toEqual(['pruebas@amura.test', 'pruebas@amura.test'])
+    expect(sim.enviados[0].subject).toBe('[PRUEBA para cliente@real.test] Asunto')
+    expect(sim.enviados[0].html).toContain('iba dirigido a <b>cliente@real.test</b>')
+    expect(sim.enviados[0].from).toBe(REMITENTE_PRUEBA)
+    expect(r.map((a) => [a.id, a.estado, a.destinatario_efectivo])).toEqual([['a0', 'enviada', 'pruebas@amura.test'], ['a1', 'enviada', 'pruebas@amura.test']])
+    // Sobre el máximo, la tercera queda pendiente y sin intento.
+    expect(r.find((a) => a.id === 'a2')).toBeUndefined()
+    expect(mensajePrueba(fila({ destinatario: '<x>@y.test' }), 'p@a.test').html).toContain('&lt;x&gt;@y.test')
+  })
+
+  it('envío real: el destinatario efectivo es el original', async () => {
+    const sim = proveedorSimulado()
+    const [a] = await enviarPendientes([fila()], sim, 't', 'AMURA <c@a.test>')
+    expect(a.destinatario_efectivo).toBe('x@y.test')
+    expect(sim.enviados[0].subject).toBe('Asunto')
   })
 })

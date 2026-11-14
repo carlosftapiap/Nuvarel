@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2, leerMonto } from '@/features/inventario/pricing'
-import { errorArchivo, type DatosPago } from '../comprobantes'
+import { errorArchivo, MEDIOS_PAGO, type DatosPago, type MedioPago } from '../comprobantes'
 import { aplicacionPago, type ResumenContrato } from '../tablero'
 
 /** Registra un pago de la entrada. Queda por verificar: no cuenta como cobrado hasta que otra persona lo confirme. */
@@ -24,6 +24,7 @@ export default function RegistrarPagoCuota({ contratos, inicial, departamento, o
   const [banco, setBanco] = useState('')
   const [referencia, setReferencia] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
+  const [medio, setMedio] = useState<MedioPago>('transferencia')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +38,7 @@ export default function RegistrarPagoCuota({ contratos, inicial, departamento, o
   async function guardar() {
     setEnviando(true); setError(null)
     try {
-      await onGuardar(contratoId, { monto: valor!, fecha, banco: banco.trim(), referencia: referencia.trim(), archivo: archivo! })
+      await onGuardar(contratoId, { monto: valor!, fecha, banco: banco.trim(), referencia: referencia.trim(), archivo: archivo!, medio })
       onClose()
     } catch (e) {
       setError((e as Error).message)
@@ -63,10 +64,10 @@ export default function RegistrarPagoCuota({ contratos, inicial, departamento, o
           {r && (
             <p className="rounded-lg bg-muted px-3 py-2 text-xs" aria-label="Cuota">
               {proxima ? <><b>Cuota:</b> {proxima.concepto} · vence {fmtFechaCorta(proxima.vencimiento)} · saldo {fmtUsd2(proxima.saldo)}</> : 'La entrada de este contrato ya está pagada.'}
-              {reparto && reparto.cuotas.length > 1 && <span className="mt-0.5 block text-[11px] text-muted-foreground">Este valor cubre {reparto.cuotas.length} cuotas, en orden.</span>}
-              {reparto && reparto.parcial && <span className="mt-0.5 block text-[11px] text-muted-foreground">Pago parcial: la cuota quedará con saldo {fmtUsd2(reparto.parcial)}.</span>}
-              {reparto && reparto.excedente > 0 && <span className="mt-0.5 block text-[11px] text-amber-800">Supera el saldo de la entrada en {fmtUsd2(reparto.excedente)}. Revisa el valor.</span>}
-              {r.comprobantesPendientes > 0 && <span className="mt-0.5 block text-[11px] text-amber-800">Este cliente ya tiene {r.comprobantesPendientes === 1 ? '1 pago' : `${r.comprobantesPendientes} pagos`} por verificar. Comprueba que no sea el mismo.</span>}
+              {reparto && reparto.cuotas.length > 1 && <span className="mt-0.5 block text-xs text-muted-foreground">Este valor cubre {reparto.cuotas.length} cuotas, en orden.</span>}
+              {reparto && reparto.parcial && <span className="mt-0.5 block text-xs text-muted-foreground">Pago parcial: la cuota quedará con saldo {fmtUsd2(reparto.parcial)}.</span>}
+              {reparto && reparto.excedente > 0 && <span className="mt-0.5 block text-xs text-amber-800">Supera el saldo de la entrada en {fmtUsd2(reparto.excedente)}. Revisa el valor.</span>}
+              {r.comprobantesPendientes > 0 && <span className="mt-0.5 block text-xs text-amber-800">Este cliente ya tiene {r.comprobantesPendientes === 1 ? '1 pago' : `${r.comprobantesPendientes} pagos`} por verificar. Comprueba que no sea el mismo.</span>}
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -78,12 +79,18 @@ export default function RegistrarPagoCuota({ contratos, inicial, departamento, o
               <Label htmlFor="rc-fecha" className="text-xs">Fecha *</Label>
               <Input id="rc-fecha" type="date" max={hoyGuayaquil()} value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </div>
+            <div className="grid gap-1.5 sm:col-span-2">
+              <Label htmlFor="rc-medio" className="text-xs">Medio de pago *</Label>
+              <select id="rc-medio" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={medio} onChange={(e) => setMedio(e.target.value as MedioPago)}>
+                {Object.entries(MEDIOS_PAGO).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+              </select>
+            </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="rc-banco" className="text-xs">Banco *</Label>
+              <Label htmlFor="rc-banco" className="text-xs">{MEDIOS_PAGO[medio].banco} *</Label>
               <Input id="rc-banco" value={banco} onChange={(e) => setBanco(e.target.value)} />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="rc-ref" className="text-xs">Número de transferencia o depósito *</Label>
+              <Label htmlFor="rc-ref" className="text-xs">{MEDIOS_PAGO[medio].referencia} *</Label>
               <Input id="rc-ref" value={referencia} onChange={(e) => setReferencia(e.target.value)} />
             </div>
           </div>

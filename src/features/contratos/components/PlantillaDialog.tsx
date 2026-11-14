@@ -124,15 +124,15 @@ export default function PlantillaDialog({ datos, almacen, campos, modo, onCambio
             <div className="grid gap-1.5 rounded-lg border border-border p-3">
               <Label htmlFor="pl-archivo" className="text-xs">Modelo en Word (.docx) {modo.tipo === 'editar' ? '(opcional: reemplaza el actual)' : '*'}</Label>
               <input id="pl-archivo" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="text-xs" onChange={(e) => void elegir(e.target.files?.[0])} />
-              <p className="text-[11px] text-muted-foreground">Escribe en el Word los campos entre llaves, por ejemplo {'{comprador.nombre}'}, y {'{#pago.cuotas}'} … {'{/pago.cuotas}'} para repetir filas de una tabla. Se conservan el formato, las tablas, la numeración, los encabezados y los pies.</p>
-              {(archivo || base?.archivoNombre) && <p className="text-[11px]">Archivo: <b>{archivo?.nombre ?? base?.archivoNombre}</b></p>}
+              <p className="text-xs text-muted-foreground">Escribe en el Word los campos entre llaves, por ejemplo {'{comprador.nombre}'}, y {'{#pago.cuotas}'} … {'{/pago.cuotas}'} para repetir filas de una tabla. Se conservan el formato, las tablas, la numeración, los encabezados y los pies.</p>
+              {(archivo || base?.archivoNombre) && <p className="text-xs">Archivo: <b>{archivo?.nombre ?? base?.archivoNombre}</b></p>}
             </div>
           ) : (
             <div className="grid gap-1.5">
               <Label htmlFor="pl-cuerpo" className="text-xs">Texto de la plantilla *</Label>
-              <Textarea id="pl-cuerpo" rows={12} value={cuerpo} onChange={(e) => setCuerpo(e.target.value)} className="font-mono text-[11px]" />
-              <p className="text-[11px] text-muted-foreground">{AYUDA}</p>
-              <p className="text-[11px] text-muted-foreground">Se agrega automáticamente un bloque de firmas (parte vendedora, compradores y apoderados) sin cláusulas.</p>
+              <Textarea id="pl-cuerpo" rows={12} value={cuerpo} onChange={(e) => setCuerpo(e.target.value)} className="font-mono text-xs" />
+              <p className="text-xs text-muted-foreground">{AYUDA}</p>
+              <p className="text-xs text-muted-foreground">Se agrega automáticamente un bloque de firmas (parte vendedora, compradores y apoderados) sin cláusulas.</p>
             </div>
           )}
 
@@ -141,7 +141,7 @@ export default function PlantillaDialog({ datos, almacen, campos, modo, onCambio
             {variables.length === 0 ? <p className="text-muted-foreground">Cuando cargues el modelo aparecen aquí los campos detectados. Los del catálogo de AMURA se llenan solos con datos de Supabase; los demás se piden al generar.</p> : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs" aria-label="Campos de la plantilla">
-                  <thead className="text-[11px] text-muted-foreground"><tr><th className="py-1 text-left font-medium">Campo</th><th className="text-left font-medium">Cómo se llena</th><th className="text-left font-medium">Nombre en pantalla</th><th className="text-center font-medium">Obligatorio</th></tr></thead>
+                  <thead className="text-xs text-muted-foreground"><tr><th className="py-1 text-left font-medium">Campo</th><th className="text-left font-medium">Cómo se llena</th><th className="text-left font-medium">Nombre en pantalla</th><th className="text-center font-medium">Obligatorio</th></tr></thead>
                   <tbody>{variables.map((v) => (
                     <tr key={v.clave} className="border-t border-border">
                       <td className="py-1.5"><code>{`{${v.clave}}`}</code></td>

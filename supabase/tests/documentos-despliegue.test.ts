@@ -15,7 +15,8 @@ async function baseSinModulo() {
   const db = new PGlite()
   await db.exec(STUB_SUPABASE)
   for (const f of fs.readdirSync(path.join(RAIZ, 'migrations')).filter((x) => x.endsWith('.sql')).sort()) {
-    if ([MODULO, '20261030000000_plan_responsable_externo.sql', '20261031120000_avance_obra.sql', '20261031210000_obra_avance_directo.sql'].includes(f)) continue
+    // Cumplimiento y notificaciones (fases 3 y 5) son posteriores y dependen de este módulo.
+    if ([MODULO, '20261030000000_plan_responsable_externo.sql', '20261031120000_avance_obra.sql', '20261031210000_obra_avance_directo.sql', '20261114000000_cumplimiento.sql', '20261116000000_notificaciones.sql'].includes(f)) continue
     await db.exec(leer(`migrations/${f}`))
     if (f.startsWith('20261028120000')) await db.exec(leer('seed.sql'))
     if (f.startsWith('20261028220000')) await db.exec(leer('seed_roles.sql'))
@@ -114,7 +115,7 @@ describe('almacenamiento privado (políticas con un Storage simulado)', () => {
     constructor = await crearUsuario(db, 'Constructor', 'constructor')
     corredor = await crearUsuario(db, 'Corredor', 'corredor')
     await db.exec(`alter table public.contracts disable trigger all; alter table public.reservations disable trigger all;`)
-    const cli = (await db.query<{ id: string }>(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Comprador', '0991110000', 'whatsapp', $1, $1, $1) returning id`, [corredor])).rows[0].id
+    const cli = (await db.query<{ id: string }>(`insert into public.clients (nombre, documento, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Comprador', '1716100001', '0991110000', 'whatsapp', $1, $1, $1) returning id`, [corredor])).rows[0].id
     const q = (await db.query<{ id: string }>(`select gen_random_uuid() id`)).rows[0].id
     await db.exec(`alter table public.reservations drop constraint if exists reservations_quote_id_fkey`)
     const r = (await db.query<{ id: string }>(`insert into public.reservations (codigo, codigo_unidad, client_id, created_by, quote_id, precio_acordado, monto_reserva, reserva_pct, meses, cuota_mensual, estado, vigencia_hasta) values ('RES-1', 'E1-PB-A1', $1, $2, $3, 100000, 500, 6, 30, 100, 'confirmada', (now() at time zone 'America/Guayaquil')::date + 30) returning id`, [cli, corredor, q])).rows[0].id

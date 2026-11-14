@@ -51,12 +51,12 @@ describe('Clientes', () => {
   it('registra un cliente, aparece en Nuevo y una llamada lo pasa a Contactado', async () => {
     const user = userEvent.setup()
     renderApp('/clientes')
-    await user.click(screen.getByRole('button', { name: 'Tablero' }))
+    await user.click(screen.getByRole('button', { name: 'Pipeline' }))
     await user.click(screen.getAllByRole('button', { name: /Nuevo cliente/ })[0])
     const dlg = await screen.findByRole('dialog', { name: 'Nuevo cliente' })
     await user.type(within(dlg).getByLabelText('Primer nombre *'), 'Lucía')
     await user.type(within(dlg).getByLabelText('Primer apellido *'), 'Andrade')
-    await user.type(within(dlg).getByLabelText('Teléfono'), '0991112233')
+    await user.type(within(dlg).getByLabelText('Celular *'), '0991112233')
     await user.type(within(dlg).getByLabelText('Presupuesto (USD)'), '170000')
     await user.click(within(dlg).getByRole('button', { name: 'Registrar cliente' }))
 

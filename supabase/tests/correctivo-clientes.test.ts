@@ -128,9 +128,9 @@ describe('correctivo', () => {
   })
 
   it('crear un cliente persiste, con corredor de origen y cédula, y se lee desde otra sesión', async () => {
-    const id = await crear(db, carlos, 'Cliente de prueba', { documento: '1712345678', origen: 'corredor', origenDetalle: 'Carlos Corredor' })
+    const id = await crear(db, carlos, 'Cliente de prueba', { documento: '1712345675', origen: 'corredor', origenDetalle: 'Carlos Corredor' })
     const c = (await cargarClientes(datosPglite(db, carlos))).state.clientes.find((x) => x.id === id)!
-    expect(c).toMatchObject({ documento: '1712345678', corredorOrigenId: carlos, asesorId: carlos, etapa: 'nuevo' })
+    expect(c).toMatchObject({ documento: '1712345675', corredorOrigenId: carlos, asesorId: carlos, etapa: 'nuevo' })
     expect(c.atribucion.usuarioId).toBe(carlos)
   })
 

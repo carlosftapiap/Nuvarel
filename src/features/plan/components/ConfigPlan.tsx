@@ -42,7 +42,7 @@ export default function ConfigPlan({ d, datos, ejecutar }: { d: api.DatosPlan; d
       <div className="dashboard-card grid gap-3">
         <h2 className="text-sm font-semibold">Motivo de los cambios</h2>
         <Input aria-label="Motivo" placeholder="Ej.: Acordado en comité del 29/10/2026" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
-        <p className="text-[11px] text-muted-foreground">Obligatorio (mínimo 5 caracteres). Se registra con tu usuario, la fecha y los valores anteriores y nuevos.</p>
+        <p className="text-xs text-muted-foreground">Obligatorio (mínimo 5 caracteres). Se registra con tu usuario, la fecha y los valores anteriores y nuevos.</p>
       </div>
 
       <div className="dashboard-card grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -53,23 +53,23 @@ export default function ConfigPlan({ d, datos, ejecutar }: { d: api.DatosPlan; d
 
       <div className="dashboard-card !p-0 overflow-x-auto">
         <h2 className="px-4 pt-4 text-sm font-semibold">Pesos de los frentes</h2>
-        <p className="px-4 text-[11px] text-muted-foreground">El consolidado solo se habilita cuando todos los frentes incluidos tienen peso validado. No se reparten pesos iguales automáticamente.</p>
+        <p className="px-4 text-xs text-muted-foreground">El consolidado solo se habilita cuando todos los frentes incluidos tienen peso validado. No se reparten pesos iguales automáticamente.</p>
         <table className="mt-3 w-full text-xs">
-          <thead className="bg-muted text-[11px] text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Frente</th><th className="px-2 py-2 text-left font-medium">Peso</th><th className="px-2 py-2 text-left font-medium">Validado</th><th className="px-2 py-2 text-left font-medium">Incluido</th><th /></tr></thead>
+          <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Frente</th><th className="px-2 py-2 text-left font-medium">Peso</th><th className="px-2 py-2 text-left font-medium">Validado</th><th className="px-2 py-2 text-left font-medium">Incluido</th><th /></tr></thead>
           <tbody>{d.frentes.map((f) => <FilaFrente key={f.id} f={f} motivo={motivo} onGuardar={(peso, validado, incluido) => ejecutar(() => api.pesoFrente(datos, f.id, peso, validado, incluido, motivo), `Frente ${f.nombre} actualizado`)} />)}</tbody>
         </table>
       </div>
 
       <div className="dashboard-card !p-0 overflow-x-auto">
         <h2 className="px-4 pt-4 text-sm font-semibold">Frente de cada fase</h2>
-        <p className="px-4 text-[11px] text-muted-foreground">Las fases son los grupos originales del cronograma. Sus actividades toman el frente elegido; sin frente no entran en el avance de ningún frente.</p>
+        <p className="px-4 text-xs text-muted-foreground">Las fases son los grupos originales del cronograma. Sus actividades toman el frente elegido; sin frente no entran en el avance de ningún frente.</p>
         <table className="mt-3 w-full text-xs">
           <tbody>
             {d.fases.map((f) => (
               <tr key={f.id} className="border-t border-border">
                 <td className="px-4 py-2">{f.codigo} {f.nombre}</td>
                 <td className="px-4 py-2 text-right">
-                  <select aria-label={`Frente de ${f.nombre}`} className="h-7 rounded-md border border-border bg-white px-1 text-[11px]" value={f.frenteId ?? ''}
+                  <select aria-label={`Frente de ${f.nombre}`} className="h-7 rounded-md border border-border bg-white px-1 text-xs" value={f.frenteId ?? ''}
                     onChange={(e) => void ejecutar(() => api.guardarFase(datos, plan.id, f.codigo, f.nombre, e.target.value || null, f.orden), `Fase ${f.codigo} asignada`)}>
                     <option value="">Sin frente</option>
                     {d.frentes.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}

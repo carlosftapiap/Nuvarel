@@ -57,7 +57,7 @@ beforeAll(async () => {
   omar = await crearUsuario(db, 'Omar Vendedor', 'asesor')
   await db.query(`update public.inventory_units set estado = 'disponible' where codigo = $1`, [UNIDAD])
   await rpc(admin, `select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`)
-  const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Andrea Mora", "telefono": "0995556677", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
+  const cli = (await como(db, vera, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Andrea Mora", "telefono": "0995556677", "documento": "1725566770", "origen": "instagram"}'::jsonb, $1) as id`, [vera]))).rows[0].id
   const op = (await como(db, vera, () => db.query<{ id: string }>(`select public.oportunidades_crear($1, $2, null) as id`, [cli, UNIDAD]))).rows[0].id
   q = (await como(db, vera, () => db.query<{ id: string }>(`select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op]))).rows[0].id
   reserva = (await como(db, vera, () => db.query<{ id: string }>(`select public.reservas_solicitar_acordada($1, 600) as id`, [q]))).rows[0].id
@@ -135,10 +135,10 @@ describe('Reservas dentro de Cobranzas', () => {
     const fila = (await screen.findByText('Andrea Mora')).closest('tr')!
     expect(within(fila).getByText('$700,00')).toBeInTheDocument()
     expect(within(fila).getByText('$0,00')).toBeInTheDocument()
-    expect(within(fila).getByText(/Pago verificado · por aprobar/)).toBeInTheDocument()
+    // Reserva normal: al verificar el ingreso queda confirmada, sin aprobación de Gerencia.
+    expect(within(fila).getByText('Confirmada')).toBeInTheDocument()
     s.unmount()
 
-    await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [reserva])
     await rpc(legal, `select public.contratos_crear($1, $2::date, 'Contrato de la reserva')`, [reserva, hoyGuayaquil()])
     expect(await conteo('payments')).toBe(1)
     s = await abrir(finanzas)

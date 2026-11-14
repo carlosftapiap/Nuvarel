@@ -55,7 +55,7 @@ export default function ImportarCronograma({ ctx, lectura, archivo, onClose, onH
               <ul className="mt-2 max-h-48 list-disc overflow-y-auto pl-5 text-rose-800">
                 {lectura.errores.slice(0, 50).map((e, i) => <li key={i}>Fila {e.fila}: {e.mensaje}</li>)}
               </ul>
-              {lectura.errores.length > 50 && <p className="mt-1 text-[11px]">…y {lectura.errores.length - 50} más.</p>}
+              {lectura.errores.length > 50 && <p className="mt-1 text-xs">…y {lectura.errores.length - 50} más.</p>}
             </div>
           )}
           {!hayErrores && clase.detalle.some((d) => d.clase === 'actualizada') && (

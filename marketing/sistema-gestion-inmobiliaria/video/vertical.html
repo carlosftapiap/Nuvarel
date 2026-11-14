@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Sistema de Gestión Inmobiliaria · vertical</title>
+<style>
+@font-face { font-family: Manrope; src: url('fuentes/manrope.woff2') format('woff2'); font-weight: 200 800; }
+@font-face { font-family: Geist; src: url('fuentes/geist.woff2') format('woff2'); font-weight: 100 900; }
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b1324; }
+body { font-family: Geist, sans-serif; color: #fff; position: relative; }
+#fondo, #rejilla { position: absolute; inset: 0; }
+#rejilla { background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 72px 72px; }
+.capa { position: absolute; inset: 0; visibility: hidden; }
+/* Zona segura de Reels y TikTok: todo lo importante vive entre x 60-940 e y 240-1440. */
+#pregunta { position: absolute; left: 60px; width: 880px; top: 262px; font: 800 68px/1.14 Manrope; letter-spacing: -.025em; }
+.ficha { position: absolute; width: 360px; padding: 24px 28px; border-radius: 20px; background: #fff; color: #18243d; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
+.ficha b { display: block; font: 700 34px Manrope; }
+.ficha span { display: block; margin-top: 4px; font-size: 27px; color: #5b6880; }
+.ficha i { display: block; width: 44px; height: 7px; border-radius: 4px; margin-bottom: 12px; }
+.centro { position: absolute; left: 60px; width: 880px; top: 330px; height: 1100px; display: flex; flex-direction: column; justify-content: center; }
+.nombre { font: 800 124px/1.04 Manrope; letter-spacing: -.04em; }
+.bajada { margin-top: 36px; font: 400 46px/1.28 Geist; color: #c6d2ea; }
+.lema { margin-top: 34px; font: 700 50px/1.22 Manrope; }
+.cta { align-self: flex-start; margin-top: 40px; padding: 26px 48px; border-radius: 999px; background: #3563f3; font: 700 46px Manrope; box-shadow: 0 16px 60px rgba(53,99,243,.6); }
+.demo { display: flex; align-items: center; gap: 24px; margin-top: 44px; font-size: 30px; line-height: 1.25; color: #c6d2ea; }
+.demo span.marca { flex: none; padding: 14px 22px; border-radius: 16px; background: #fff; }
+.demo img { display: block; height: 92px; width: auto; }
+.bloque { position: absolute; left: 60px; width: 880px; top: 318px; height: 306px; display: flex; flex-direction: column; justify-content: flex-end; }
+.seccion { font: 700 28px Geist; letter-spacing: .12em; text-transform: uppercase; color: #8fb0ff; }
+.titulo { margin-top: 10px; font: 800 84px/1.05 Manrope; letter-spacing: -.03em; text-wrap: balance; }
+.detalle { margin-top: 12px; font: 400 36px/1.22 Geist; color: #d3dcf0; }
+.ventana { position: absolute; border-radius: 24px; background: #f5f7fb; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.14); }
+.ventana img { position: absolute; left: 0; top: 0; width: 2000px; height: 1125px; transform-origin: 0 0; max-width: none; }
+#marca { position: absolute; left: 60px; top: 190px; font: 700 32px Manrope; letter-spacing: -.01em; color: #fff; }
+#nota { position: absolute; left: 60px; top: 250px; padding: 9px 22px; border-radius: 999px; background: rgba(255,255,255,.12); font-size: 28px; color: #e4eaf7; white-space: nowrap; }
+</style></head>
+<body>
+<div id="fondo"></div><div id="rejilla"></div>
+<div id="raiz"></div>
+<div id="marca">Sistema de Gestión Inmobiliaria</div>
+<div id="nota" data-seguro>Proyecto demostrativo: AMURA · Datos ficticios</div>
+<script>
+const V = new URLSearchParams(location.search).get('v') === '30' ? 30 : 60;
+// Ventana: destino [x, y, W, H] en el video y encuadre [x, y, ancho] sobre la pantalla (base 2000 px de ancho).
+const v = (img, x, y, W, H, de, a) => ({ img, x, y, W, H, de, a: a ?? de });
+const TOMAS = {
+  clientes: { sec: 'Clientes y seguimiento', t: 'Cada cliente, con su etapa y asesor', d: 'Todas las oportunidades a la vista.', p: [v('clientes', 60, 640, 880, 1060, [700, 496, 470], [336, 496, 470])] },
+  comercial: { sec: 'Clientes y seguimiento', t: 'Qué sigue en cada venta', d: 'El embudo y la agenda de cada asesor.', p: [v('comercial', 60, 640, 880, 430, [1300, 270, 640], [1300, 306, 460]), v('comercial', 60, 1090, 880, 610, [362, 556, 420])] },
+  inventario: { sec: 'Inventario y precios', t: 'Conoce tu inventario', d: 'Cada departamento con su precio y su estado.', p: [
+    v('inventario', 60, 640, 430, 193, [336, 359, 200]), v('inventario', 510, 640, 430, 193, [609, 359, 200]), v('inventario', 60, 853, 430, 193, [881, 359, 200]), v('inventario', 510, 853, 430, 193, [1154, 359, 200]),
+    v('inventario', 60, 1066, 880, 634, [764, 742, 460], [346, 742, 460])] },
+  precios: { sec: 'Inventario y precios', t: 'Simula antes de cambiar', d: 'Los precios oficiales no cambian sin aprobación.', p: [v('precios', 60, 640, 430, 193, [757, 335, 200]), v('precios', 510, 640, 430, 193, [1062, 335, 200]), v('precios', 60, 853, 880, 847, [346, 342, 398])] },
+  cotizaciones: { sec: 'Cotizaciones y financiamiento', t: 'Cotizaciones en PDF', d: 'Con precio, condiciones y vigencia.', p: [v('cotizaciones', 60, 640, 880, 900, [1512, 462, 448])] },
+  financiamiento: { sec: 'Cotizaciones y financiamiento', t: 'Organiza planes de pago', d: 'Entrada, cuotas y crédito, con su cronograma.', p: [v('financiamiento', 60, 640, 430, 359, [732, 530, 230]), v('financiamiento', 510, 640, 430, 359, [1355, 530, 230]), v('financiamiento', 60, 1019, 880, 681, [1186, 800, 470], [732, 800, 470])] },
+  reservas: { sec: 'Reservas y ventas', t: 'Reservas bajo control', d: 'Solicitud, verificación del pago y aprobación.', p: [v('reservas', 60, 640, 430, 222, [337, 257, 240]), v('reservas', 510, 640, 430, 222, [747, 257, 240]), v('reservas', 60, 882, 880, 818, [1130, 673, 530], [336, 673, 470])] },
+  ventas: { sec: 'Reservas y ventas', t: 'Ventas y contratos', d: 'Del acuerdo al contrato firmado.', p: [v('ventas', 60, 640, 430, 222, [1157, 315, 240]), v('ventas', 510, 640, 430, 222, [1567, 315, 240]), v('ventas', 60, 882, 880, 410, [1500, 727, 470], [336, 727, 470]), v('ventas', 60, 1312, 880, 388, [362, 486, 470])] },
+  cobranzas: { sec: 'Cobranzas', t: 'Cobranzas claras', d: 'Cobrado, pendiente y vencido, de un vistazo.', p: [v('cobranzas', 60, 640, 430, 222, [337, 321, 240]), v('cobranzas', 510, 640, 430, 222, [747, 321, 240]), v('cobranzas', 60, 882, 430, 222, [1157, 321, 240]), v('cobranzas', 510, 882, 430, 222, [1567, 321, 240]), v('cobranzas', 60, 1124, 880, 576, [850, 526, 470], [336, 526, 470])] },
+  cuotas: { sec: 'Cobranzas', t: 'Cada cuota con su saldo', d: 'Valor, pagado, saldo y estado por cliente.', p: [v('cobranzas', 60, 640, 880, 1060, [1350, 526, 490], [850, 526, 490])] },
+  dashboard: { sec: 'Dashboard gerencial', t: 'Toda la operación, en una sola vista', d: 'Inventario, ventas y cobros en un panel.', p: [v('dashboard', 60, 640, 430, 323, [610, 601, 258]), v('dashboard', 510, 640, 430, 323, [883, 601, 258]), v('dashboard', 60, 983, 430, 323, [1156, 821, 258]), v('dashboard', 510, 983, 430, 323, [1703, 821, 258]), v('dashboard', 60, 1326, 430, 323, [336, 601, 258]), v('dashboard', 510, 1326, 430, 323, [1430, 821, 258])] },
+  decide: { sec: 'Dashboard gerencial', t: 'Decide con datos centralizados', d: 'Clientes, reservas, contratos y cobros.', p: [v('dashboard', 60, 640, 430, 323, [336, 821, 258]), v('dashboard', 510, 640, 430, 323, [610, 821, 258]), v('dashboard', 60, 983, 430, 323, [883, 821, 258]), v('dashboard', 510, 983, 430, 323, [1430, 821, 258]), v('dashboard', 60, 1326, 430, 323, [1156, 601, 258]), v('dashboard', 510, 1326, 430, 323, [883, 601, 258])] },
+};
+// La música va a 100 BPM: cada cambio cae sobre un pulso (0,6 s).
+const PLAN = V === 60
+  ? { H: 7.2, T: 12, C: 55.2, D: 60, dur: 3.6, nom: ['clientes', 'comercial', 'inventario', 'precios', 'cotizaciones', 'financiamiento', 'reservas', 'ventas', 'cobranzas', 'cuotas', 'dashboard', 'decide'],
+      preg: '¿Tu constructora todavía administra clientes, departamentos, reservas y cobranzas en diferentes archivos?',
+      baj: 'Centraliza la operación de tus proyectos en una sola plataforma.', cierre: 'Proyectos, clientes, ventas, financiamiento y cobranzas en una sola plataforma.' }
+  : { H: 3.6, T: 6, C: 24, D: 30, dur: 3, nom: ['clientes', 'inventario', 'financiamiento', 'reservas', 'cobranzas', 'dashboard'],
+      preg: '¿Todavía administras tu constructora en archivos separados?',
+      baj: 'Toda tu operación en una sola plataforma.', cierre: 'Clientes, ventas, financiamiento y cobranzas en un solo lugar.' };
+const ESCENAS = PLAN.nom.map((n, i) => ({ ...TOMAS[n], a: PLAN.T + i * PLAN.dur, b: PLAN.T + (i + 1) * PLAN.dur }));
+const FICHAS = [
+  ['Clientes.xlsx', 'Hoja de cálculo', '#16a34a', 60, 780], ['Reservas_v3.xlsx', '¿Cuál es la última?', '#16a34a', 540, 760], ['Cobranzas.pdf', 'Enviado por correo', '#dc2626', 100, 950],
+  ['Chat de ventas', 'Mensajes dispersos', '#22c55e', 560, 940], ['Inventario', 'Otra planilla', '#16a34a', 60, 1120], ['Avance de obra', 'Cuaderno de campo', '#d97706', 520, 1110], ['Contratos', 'Carpeta compartida', '#3563f3', 290, 1262],
+];
+const raiz = document.getElementById('raiz');
+const el = (html) => { const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; };
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const out3 = (x) => 1 - (1 - x) ** 3;
+const suave = (x) => x * x * (3 - 2 * x);
+const hacer = (o, op, tx = 0, ty = 0, s = 1) => { o.style.opacity = op; o.style.transform = `translate(${tx}px,${ty}px) scale(${s})`; };
+const palabras = (txt) => txt.split(' ').map((w) => `<span class="pp" style="display:inline-block;margin-right:.24em">${w}</span>`).join('');
+
+const problema = el(`<div class="capa"><div id="pregunta" data-seguro>${palabras(PLAN.preg)}</div>${FICHAS.map((f) => `<div class="ficha" data-seguro><i style="background:${f[2]}"></i><b>${f[0]}</b><span>${f[1]}</span></div>`).join('')}</div>`);
+raiz.append(problema);
+const titulo = el(`<div class="capa"><div class="centro"><div class="nombre" id="n1" data-seguro>Sistema de Gestión Inmobiliaria</div><div class="bajada" id="b1" data-seguro>${PLAN.baj}</div></div></div>`);
+raiz.append(titulo);
+for (const e of ESCENAS) {
+  e.nodo = el(`<div class="capa"><div class="bloque"><div class="seccion" data-seguro>${e.sec}</div><div class="titulo" data-seguro>${e.t}</div><div class="detalle" data-seguro data-texto-fin>${V === 60 ? e.d : ''}</div></div>
+    ${e.p.map((p) => `<div class="ventana" ${p.y + p.H <= 1440 ? 'data-seguro' : ''} style="left:${p.x}px;top:${p.y}px;width:${p.W}px;height:${p.H}px"><img src="../recursos/pantallas-3x/${p.img}.png"></div>`).join('')}</div>`);
+  raiz.append(e.nodo);
+  e.txt = [...e.nodo.querySelector('.bloque').children];
+  e.ven = [...e.nodo.querySelectorAll('.ventana')];
+  e.ima = e.ven.map((n) => n.firstElementChild);
+}
+const cierre = el(`<div class="capa"><div class="centro"><div class="nombre" id="n2" data-seguro style="font-size:112px">Sistema de Gestión Inmobiliaria</div><div class="bajada" id="b2" data-seguro>${PLAN.cierre}</div><div class="lema" id="l2" data-seguro>Más control. Mejores decisiones.</div><div class="cta" id="c2" data-seguro>Solicita una demostración</div><div class="demo" id="d2" data-seguro><span class="marca"><img src="../../../public/brand/logo-amura.png" alt="AMURA Apartments"></span><span>Proyecto demostrativo<br>Datos ficticios</span></div></div></div>`);
+raiz.append(cierre);
+const ver = (n, si) => { n.style.visibility = si ? 'visible' : 'hidden'; };
+const pp = [...problema.querySelectorAll('.pp')], fichas = [...problema.querySelectorAll('.ficha')];
+const nota = document.getElementById('nota'), fondo = document.getElementById('fondo');
+const lento = V === 60 ? 1 : 0.5;
+
+window.draw = (t) => {
+  const lx = 30 + 40 * Math.sin(t / 9), ly = 40 + 25 * Math.cos(t / 7);
+  fondo.style.background = `radial-gradient(1000px 1300px at ${lx}% ${ly}%, rgba(53,99,243,.36), transparent 70%), linear-gradient(160deg, #111c32, #0b1324)`;
+
+  // Problema: los archivos dispersos se reúnen y dan paso al producto.
+  const { H, T, C, D } = PLAN;
+  ver(problema, t < H + 0.4);
+  if (t < H + 0.4) {
+    const reune = suave(prog(t, H - 1.1 * lento, H - 0.1));
+    const paso = (H * 0.32) / pp.length;
+    pp.forEach((p, i) => { const q = out3(prog(t, 0.1 + i * paso, 0.55 + i * paso)); hacer(p, q * (1 - prog(t, H - 0.5, H)), 0, (1 - q) * 26); });
+    fichas.forEach((f, i) => {
+      const [, , , x, y] = FICHAS[i];
+      const q = out3(prog(t, (1 + i * 0.24) * lento, (1.5 + i * 0.24) * lento));
+      const dx = 10 * Math.sin(t * 0.7 + i * 2), dy = 10 * Math.cos(t * 0.6 + i), r = (i % 2 ? -1 : 1) * (1.5 + i * 0.4) + 1.6 * Math.sin(t * 0.5 + i);
+      f.style.left = x + dx + (290 - x - dx) * reune + 'px'; f.style.top = y + dy + (1040 - y - dy) * reune + 'px'; f.style.opacity = q * (1 - prog(t, H - 0.4, H));
+      f.style.transform = `rotate(${r * (1 - reune)}deg) scale(${(0.85 + 0.15 * q) * (1 - 0.35 * reune)})`;
+    });
+  }
+
+  // Nombre del software.
+  const vivo = t >= H - 0.2 && t < T + 0.4;
+  ver(titulo, vivo);
+  if (vivo) {
+    const sale = 1 - prog(t, T - 0.1, T + 0.3), q = out3(prog(t, H - 0.1, H + 0.7));
+    hacer(titulo.querySelector('#n1'), q * sale, 0, (1 - q) * 40, 0.95 + 0.05 * q);
+    const q2 = out3(prog(t, H + 0.4, H + 1.1));
+    hacer(titulo.querySelector('#b1'), q2 * sale, 0, (1 - q2) * 24);
+  }
+
+  // Pantallas reales: entran por partes y se recorren despacio.
+  for (const e of ESCENAS) {
+    const fin = e.b + 0.3, activa = t >= e.a && t < fin;
+    ver(e.nodo, activa);
+    if (!activa) continue;
+    e.nodo.style.opacity = 1 - prog(t, e.b, fin);
+    e.txt.forEach((n, i) => { const q = out3(prog(t, e.a + i * 0.08, e.a + 0.5 + i * 0.08)); hacer(n, q, 0, (1 - q) * 26); });
+    e.p.forEach((p, i) => {
+      const q = out3(prog(t, e.a + 0.1 + i * 0.09, e.a + 0.7 + i * 0.09));
+      hacer(e.ven[i], q, 0, (1 - q) * 70, 0.97 + 0.03 * q);
+      const u = suave(prog(t, e.a + 0.9 * lento + 0.3, e.b - 0.25));
+      const sx = p.de[0] + (p.a[0] - p.de[0]) * u, sy = p.de[1] + (p.a[1] - p.de[1]) * u, sw = p.de[2] + (p.a[2] - p.de[2]) * u;
+      const s = p.W / sw;
+      e.ima[i].style.transform = `translate(${-sx * s}px, ${-sy * s}px) scale(${s})`;
+    });
+  }
+
+  // Cierre.
+  ver(cierre, t >= C - 0.1);
+  if (t >= C - 0.1) {
+    const q = out3(prog(t, C, C + 0.7)); hacer(cierre.querySelector('#n2'), q, 0, (1 - q) * 36, 0.96 + 0.04 * q);
+    const q1 = out3(prog(t, C + 0.5, C + 1.1)); hacer(cierre.querySelector('#b2'), q1, 0, (1 - q1) * 20);
+    const q2 = out3(prog(t, C + 1, C + 1.6)); hacer(cierre.querySelector('#l2'), q2, 0, (1 - q2) * 20);
+    const q3 = out3(prog(t, C + 1.5, C + 2.1)); hacer(cierre.querySelector('#c2'), q3, 0, (1 - q3) * 20, 0.94 + 0.06 * q3);
+    const q4 = out3(prog(t, C + 2, C + 2.6)); hacer(cierre.querySelector('#d2'), q4, 0, (1 - q4) * 20);
+  }
+  nota.style.opacity = prog(t, H + 0.2, H + 0.8);
+  document.getElementById('marca').style.opacity = t >= T ? 1 - prog(t, C - 0.3, C) : 0;
+  // El primer cuadro ya muestra el mensaje: en Reels no hay tiempo para un fundido desde negro.
+  document.body.style.opacity = 1 - prog(t, D - 0.5, D);
+};
+window.listo = Promise.all([document.fonts.load('800 60px Manrope'), document.fonts.load('400 30px Geist'), ...[...document.images].map((i) => i.decode())]).then(() => { draw(0); return true; });
+
+// Comprobación: nada importante fuera de la zona segura ni textos encima de las pantallas.
+window.fueraDeZona = (t) => {
+  draw(t); const malos = [];
+  for (const n of document.querySelectorAll('[data-seguro]')) {
+    let o = n, oculto = false; while (o && o !== document.body) { const c = getComputedStyle(o); if (c.visibility === 'hidden' || Number(c.opacity) < 0.05) oculto = true; o = o.parentElement; }
+    const r = n.getBoundingClientRect();
+    if (oculto || (n.classList.contains('ventana') && Number(n.style.opacity) < 0.98) || !r.width || !n.textContent && !n.querySelector('img')) continue;
+    if (r.left < 40 || r.right > 950 || r.top < 240 || r.bottom > 1445) malos.push([n.className || n.id, Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)].join(' '));
+    if (n.classList.contains('seccion') && r.top < 306) malos.push(['título demasiado largo', n.parentElement.textContent.slice(0, 40), Math.round(r.top)].join(' '));
+    if (n.hasAttribute('data-texto-fin') && r.bottom > 632) malos.push(['detalle sobre pantalla', n.textContent.slice(0, 30), Math.round(r.bottom)].join(' '));
+  }
+  return malos;
+};
+</script>
+</body></html>

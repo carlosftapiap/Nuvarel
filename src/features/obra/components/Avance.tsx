@@ -34,7 +34,7 @@ export default function Avance({ ctx }: { ctx: ContextoBase }) {
               <button type="button" aria-pressed={f.id === frente?.id} aria-label={`Ver ${f.nombre}`} className="rounded-lg" onClick={() => setFrenteId(f.id)}>
                 <Anillo valor={actual} etiqueta={f.nombre} sublabel={etapas.length ? `${completas} de ${etapas.length} etapas` : 'sin etapas'} />
               </button>
-              <span className="text-[11px] text-muted-foreground">Avance actual</span>
+              <span className="text-xs text-muted-foreground">Avance actual</span>
               <EtiquetaEstado estado={estadoPorAvance({ estado: 'por_programar' }, actual ?? 0)} />
               {registra && <Button size="sm" variant={f.id === frente?.id ? 'default' : 'outline'} aria-label={`Actualizar avance de ${f.nombre}`} onClick={() => abrir(f, null)}>Actualizar avance</Button>}
             </section>
@@ -69,7 +69,7 @@ function Detalle({ ctx, frente, registra, onActualizar }: { ctx: ContextoBase; f
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <span className={nivel ? '' : 'font-semibold'}>{a.nombre}</span>
           <span className="flex flex-wrap items-center gap-2">
-            {r && <span className="text-[11px] text-muted-foreground">{r}</span>}
+            {r && <span className="text-xs text-muted-foreground">{r}</span>}
             <EtiquetaEstado estado={estadoPorAvance(a, v)} />
             <b className="w-14 text-right tabular-nums">{pct(Math.round(v * 100) / 100)}</b>
             {registra && !hijos.length && <Button size="xs" variant="outline" aria-label={`Actualizar ${a.nombre}`} onClick={() => onActualizar(a.id)}>Actualizar</Button>}
@@ -92,15 +92,15 @@ function Detalle({ ctx, frente, registra, onActualizar }: { ctx: ContextoBase; f
         {registros.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">Todavía no hay avances en este frente.</p> : (
           <div className="mt-2 overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="text-[11px] text-muted-foreground"><tr><th className="py-1 text-left font-medium">Fecha</th><th className="text-left font-medium">Actividad</th><th className="text-right font-medium">Avance</th><th className="pl-3 text-left font-medium">Responsable</th><th className="text-left font-medium">Registró</th><th className="text-left font-medium">Observaciones</th></tr></thead>
+              <thead className="text-xs text-muted-foreground"><tr><th className="py-1 text-left font-medium">Fecha</th><th className="text-left font-medium">Actividad</th><th className="text-right font-medium">Avance</th><th className="pl-3 text-left font-medium">Responsable</th><th className="text-left font-medium">Registró</th><th className="text-left font-medium">Observaciones</th></tr></thead>
               <tbody>
                 {registros.map((r) => (
                   <tr key={r.id} className="border-t border-border align-top">
                     <td className="py-1.5 tabular-nums">{fechaCorta(r.fechaCorte)}</td>
                     <td className="pr-2">{porId.get(r.actividadId)?.nombre ?? '—'}</td>
-                    <td className="text-right tabular-nums">{pct(r.avance)}{r.avanceAnterior !== null && <div className="text-[10px] text-muted-foreground">antes {pct(r.avanceAnterior)}</div>}{r.estado === 'rechazado' && <div className="text-[10px] text-rose-700">no cuenta</div>}{r.estado === 'pendiente' && <div className="text-[10px] text-amber-800">sin incorporar: registrar de nuevo</div>}</td>
+                    <td className="text-right tabular-nums">{pct(r.avance)}{r.avanceAnterior !== null && <div className="text-xs text-muted-foreground">antes {pct(r.avanceAnterior)}</div>}{r.estado === 'rechazado' && <div className="text-xs text-rose-700">no cuenta</div>}{r.estado === 'pendiente' && <div className="text-xs text-amber-800">sin incorporar: registrar de nuevo</div>}</td>
                     <td className="pl-3">{r.responsableNombre ?? '—'}</td>
-                    <td>{r.registradoNombre}<div className="text-[10px] text-muted-foreground">{fechaHora(r.registradoEn)}</div></td>
+                    <td>{r.registradoNombre}<div className="text-xs text-muted-foreground">{fechaHora(r.registradoEn)}</div></td>
                     <td className="max-w-64 text-muted-foreground">{r.observaciones || '—'}</td>
                   </tr>
                 ))}

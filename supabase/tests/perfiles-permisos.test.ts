@@ -4,9 +4,9 @@ import type { PGlite } from '@electric-sql/pglite'
 import { TODOS_LOS_PERMISOS } from '../../src/app/permissions'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { cargarInventario } from '../../src/features/inventario/remoto'
-import { gestionarCuenta, type AdminAuth, type ClienteUsuario, type Peticion } from '../functions/_shared/cuentas'
+import { gestionarCuenta, origenCors, type AdminAuth, type ClienteUsuario, type Peticion } from '../functions/_shared/cuentas'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, sofia: string, vera: string, valeria: string, carlos: string, obra: string, jarval: string, equipo: string
@@ -44,7 +44,7 @@ function adminFalso() {
 const alta = (o: Partial<Extract<Peticion, { accion: 'crear' }>> = {}): Peticion => ({ accion: 'crear', nombre: 'Persona Nueva', email: `nueva${++n}@amura.ec`, password: 'Clave-Inicial-1', rolId: 'asesor', alcance: null, equipoId: null, supervisorId: null, motivo: 'Alta de personal', ...o })
 
 async function venta(u: string, nombre: string, codigo: string) {
-  const c = (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: `0${++n}`, origen: 'whatsapp' }), u])).id
+  const c = (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'whatsapp' }), u])).id
   const op = (await rpc<{ id: string }>(u, `select public.oportunidades_crear($1, $2, null) as id`, [c, codigo])).id
   const cot = (await rpc<{ id: string }>(u, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(u, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [cot])
@@ -53,6 +53,7 @@ async function venta(u: string, nombre: string, codigo: string) {
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, 500, $2::date, $3, true, 'Ingreso confirmado')`, [r, hoy, `BAN-${r.slice(0, 6)}`])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
   const k = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato de la venta') as id`, [r, hoy])).id
+  await aprobarCumplimiento(db)
   await rpc(legal, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'contrato.pdf')`, [k, hoy])
   return { cliente: c, contrato: k }
 }
@@ -74,9 +75,9 @@ beforeAll(async () => {
 }, 60_000)
 
 describe('matriz aprobada de perfiles', () => {
-  it('existen los ocho perfiles, y el catálogo de la app coincide con la base', async () => {
+  it('existen los nueve perfiles, y el catálogo de la app coincide con la base', async () => {
     const roles = (await db.query<{ id: string; nombre: string; disponible: boolean }>(`select id, nombre, disponible from public.roles where sistema order by id`)).rows
-    expect(roles.filter((r) => r.disponible).map((r) => r.nombre).sort()).toEqual(['Administrador', 'Constructor', 'Corredor', 'Finanzas', 'Gerencia', 'Legal', 'Supervisor', 'Vendedor'])
+    expect(roles.filter((r) => r.disponible).map((r) => r.nombre).sort()).toEqual(['Administrador', 'Constructor', 'Corredor', 'Finanzas', 'Gerencia', 'Legal', 'Oficial de Cumplimiento', 'Supervisor', 'Vendedor'])
     const catalogo = (await db.query<{ clave: string }>(`select clave from public.permissions`)).rows.map((r) => r.clave)
     expect([...catalogo].sort()).toEqual([...TODOS_LOS_PERMISOS].sort())
     expect((await permisos('administrador')).length).toBe(TODOS_LOS_PERMISOS.length)
@@ -106,7 +107,7 @@ describe('matriz aprobada de perfiles', () => {
 describe('el servidor hace cumplir los permisos, no solo la pantalla', () => {
   it('un vendedor no cambia precios, ni aprueba descuentos, ni confirma pagos, ni toca contratos', async () => {
     await expect(rpc(vera, `select public.inventario_ajustar_precio('fijar', 2600, 'Intento de vendedora', array['E1-PB-A1'])`)).rejects.toThrow(/Sin permiso/)
-    const c = (await rpc<{ id: string }>(vera, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Descuento Negado', telefono: `0${++n}`, origen: 'whatsapp' }), vera])).id
+    const c = (await rpc<{ id: string }>(vera, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Descuento Negado', telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'whatsapp' }), vera])).id
     const op = (await rpc<{ id: string }>(vera, `select public.oportunidades_crear($1, 'E1-PB-A3', null) as id`, [c])).id
     await expect(rpc(vera, `select public.cotizaciones_emitir($1, 5, 30, '')`, [op])).rejects.toThrow(/descuento/i)
     const v = await venta(vera, 'Venta De Vera', 'E1-P1-A1')
@@ -174,6 +175,14 @@ describe('el servidor hace cumplir los permisos, no solo la pantalla', () => {
 })
 
 describe('crear usuarios desde AMURA', () => {
+  it('responde solo a las direcciones autorizadas en APP_ORIGIN', () => {
+    const lista = 'https://amura.carlostapiapro.com, http://127.0.0.1:5173'
+    expect(origenCors('http://127.0.0.1:5173', lista)).toBe('http://127.0.0.1:5173')
+    expect(origenCors('https://amura.carlostapiapro.com', lista)).toBe('https://amura.carlostapiapro.com')
+    expect(origenCors('https://otro.example', lista)).toBe('https://amura.carlostapiapro.com')
+    expect(origenCors('https://otro.example', undefined)).toBe('*')
+  })
+
   it('crea la cuenta confirmada, con contraseña, rol, alcance y equipo; ya tiene permisos y queda auditada sin la contraseña', async () => {
     const a = adminFalso()
     const email = 'vendedor.nuevo@amura.ec'
@@ -197,16 +206,21 @@ describe('crear usuarios desde AMURA', () => {
     expect(a.createUser).not.toHaveBeenCalled()
   })
 
-  it('sin contraseña, crea la cuenta con una aleatoria larga y distinta cada vez', async () => {
+  it('sin contraseña inicial no crea la cuenta, y la respuesta nunca la devuelve', async () => {
     const a = adminFalso()
     const c = clienteDe(admin)
-    const base = alta({ email: 'sin.clave.1@amura.ec' }) as Extract<Peticion, { accion: 'crear' }>
-    const { password: _omitida, ...sinClave } = base
-    expect((await gestionarCuenta(sinClave, c, a)).status).toBe(200)
-    expect((await gestionarCuenta({ ...sinClave, email: 'sin.clave.2@amura.ec' }, c, a)).status).toBe(200)
-    const claves = (a.createUser as unknown as { mock: { calls: [{ password: string }][] } }).mock.calls.map((x) => x[0].password)
-    expect(claves[0].length).toBeGreaterThanOrEqual(40)
-    expect(claves[0]).not.toBe(claves[1])
+    const { password: _omitida, ...sinClave } = alta({ email: 'sin.clave@amura.ec' }) as Extract<Peticion, { accion: 'crear' }>
+    expect((await gestionarCuenta(sinClave as Peticion, c, a)).body.error).toMatch(/al menos 8/)
+    expect(a.createUser).not.toHaveBeenCalled()
+    const r = await gestionarCuenta(alta({ email: 'con.clave@amura.ec' }), c, a)
+    expect(r.status).toBe(200)
+    expect(JSON.stringify(r.body)).not.toContain('Clave-Inicial-1')
+  })
+
+  it('reconoce el mensaje real de Supabase para un correo repetido', async () => {
+    const a = adminFalso()
+    a.createUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'A user with this email address has been registered already' } } as never)
+    expect((await gestionarCuenta(alta(), clienteDe(admin), a)).body.error).toBe('Ya existe una cuenta con ese correo')
   })
 
   it('valida antes de crear: contraseña, correo, motivo, rol retirado o inexistente', async () => {

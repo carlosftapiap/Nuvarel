@@ -18,7 +18,7 @@ import { fmtUsd, fmtUsd2 } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import { cn } from '@/lib/utils'
 
-const SUBTITULO = 'Seguimiento de cada comisión por tramos, con los datos de Contratos y Cobranzas. Nada se paga solo: Finanzas confirma cada pago.'
+const SUBTITULO = 'Seguimiento de cada comisión con los datos de Contratos y Cobranzas: condiciones, vendedor y pago. Nada se paga solo: Finanzas confirma cada pago.'
 type Filtro = 'todas' | EstadoTramo
 
 export default function ComisionesPage() {
@@ -68,25 +68,35 @@ function Comisiones({ datos }: { datos: Datos }) {
   const politica = d?.politica
 
   const acciones = (c: Comision, t: Tramo): ReactNode[] => {
-    const titulo = `Tramo ${t.numero} de ${c.contrato}`
+    const vendedor = c.esquema === 'vendedor'
+    const titulo = vendedor ? `Comisión de ${c.contrato}` : `Tramo ${t.numero} de ${c.contrato}`
     const b: ReactNode[] = []
-    if (finanzas && t.estado === 'pendiente' && !t.honorario) {
+    if (!vendedor && finanzas && t.estado === 'pendiente' && !t.honorario) {
       b.push(<Button key="hon" size="xs" variant="outline" onClick={() => setPedido({
         titulo: 'Registrar honorario recibido', ayuda: `${titulo}. Registra lo que Jarva recibió por este tramo. No crea ingresos ni pagos en otros módulos.`, boton: 'Registrar honorario', ok: 'Honorario registrado',
         campos: [{ id: 'monto', label: 'Monto recibido (USD) *', tipo: 'monto' }, { id: 'fecha', label: 'Fecha de recepción *', tipo: 'fecha', inicial: hoyGuayaquil() }, { id: 'referencia', label: 'Referencia del ingreso *', minimo: 3 }],
         ejecutar: (v) => api.registrarHonorario(datos, t.id, Number(v.monto.replace(',', '.')), v.fecha, v.referencia),
       })}>Registrar honorario</Button>)
     }
-    if (finanzas && t.estado === 'pendiente' && t.honorario) {
+    if (!vendedor && finanzas && t.estado === 'pendiente' && t.honorario) {
       b.push(<Button key="qhon" size="xs" variant="ghost" onClick={() => setPedido({ titulo: 'Quitar honorario', ayuda: `${titulo}. Úsalo para corregir un registro equivocado; queda en la auditoría.`, boton: 'Quitar honorario', ok: 'Honorario quitado', campos: [MOTIVO], ejecutar: (v) => api.quitarHonorario(datos, t.id, v.motivo) })}>Quitar honorario</Button>)
     }
-    if (aprueba && t.estado === 'pendiente' && t.cumple && politica?.aprobada) {
+    if (!vendedor && aprueba && t.estado === 'pendiente' && t.cumple && politica?.aprobada) {
       b.push(<Button key="hab" size="xs" onClick={() => setPedido({ titulo: 'Habilitar para liquidación', ayuda: `${titulo} · ${fmtUsd2(t.monto)}. No paga nada: autoriza a Finanzas a liquidarlo.`, boton: 'Habilitar', ok: 'Tramo habilitado para liquidación', campos: [MOTIVO], ejecutar: (v) => api.habilitar(datos, t.id, v.motivo) })}>Habilitar</Button>)
     }
-    if (aprueba && t.estado === 'habilitada') {
+    if (!vendedor && aprueba && t.estado === 'habilitada') {
       b.push(<Button key="dhab" size="xs" variant="ghost" onClick={() => setPedido({ titulo: 'Quitar habilitación', ayuda: `${titulo}. Vuelve a pendiente de condiciones.`, boton: 'Quitar habilitación', ok: 'Habilitación retirada', campos: [MOTIVO], ejecutar: (v) => api.deshabilitar(datos, t.id, v.motivo) })}>Quitar habilitación</Button>)
     }
-    if (finanzas && t.estado === 'habilitada' && t.cumple && t.habilitadaPor !== actor.id) {
+    // Vendedor (opción A): lista para pago, Finanzas registra el desembolso con su comprobante. Bloqueado hasta la formalización contractual.
+    if (vendedor && finanzas && t.listaParaPago && d?.parametros.pagosHabilitados && politica?.aprobada && c.beneficiarioId !== actor.id) {
+      b.push(<Button key="pagv" size="xs" onClick={() => setPedido({
+        titulo: `Confirmar pago a ${c.beneficiario ?? 'el vendedor'}`, ayuda: `${titulo} · ${fmtUsd2(t.monto)}. Registra un desembolso ya realizado fuera del sistema; no mueve dinero.`,
+        boton: 'Confirmar pago', ok: 'Pago confirmado', confirmacion: `Confirmo que se pagaron ${fmtUsd2(t.monto)} a ${c.beneficiario ?? 'el vendedor'}.`,
+        campos: [{ id: 'fecha', label: 'Fecha de pago *', tipo: 'fecha', inicial: hoyGuayaquil() }, { id: 'referencia', label: 'Comprobante de la transferencia *', minimo: 3 }],
+        ejecutar: (v) => api.confirmarPago(datos, t.id, v.fecha, c.beneficiario ?? '', v.referencia, true),
+      })}>Confirmar pago</Button>)
+    }
+    if (!vendedor && finanzas && t.estado === 'habilitada' && t.cumple && t.habilitadaPor !== actor.id) {
       b.push(<Button key="pag" size="xs" onClick={() => setPedido({
         titulo: 'Confirmar pago', ayuda: `${titulo} · ${fmtUsd2(t.monto)}. Registra un pago ya realizado fuera del sistema; no mueve dinero.`, boton: 'Confirmar pago', ok: 'Pago confirmado', confirmacion: `Confirmo que este pago de ${fmtUsd2(t.monto)} se realizó.`,
         campos: [{ id: 'fecha', label: 'Fecha de pago *', tipo: 'fecha', inicial: hoyGuayaquil() }, { id: 'beneficiario', label: 'Pagado a *', minimo: 3 }, { id: 'referencia', label: 'Referencia del pago o factura *', minimo: 3 }],
@@ -114,6 +124,10 @@ function Comisiones({ datos }: { datos: Datos }) {
         <Kpi t="Por recuperar" v={fmtUsd2(r.porRecuperar)} d="De ventas anuladas" tono={r.porRecuperar > 0 ? 'text-rose-700' : undefined} />
       </div>
 
+      {d && !d.parametros.pagosHabilitados && (
+        <p role="note" className="mb-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><ShieldAlert className="size-4" aria-hidden="true" />
+          <span><b>Propuesta pendiente de formalización contractual.</b> Las comisiones se calculan y se muestran, pero no se registran pagos a vendedores hasta resolver el beneficiario contractual del 2,60 %.</span></p>
+      )}
       {politica && (
         <section aria-label="Política de liquidación" className={cn('mb-4 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs', politica.aprobada ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-200 bg-amber-50 text-amber-900')}>
           {politica.aprobada ? <ShieldCheck className="size-4" aria-hidden="true" /> : <ShieldAlert className="size-4" aria-hidden="true" />}
@@ -129,9 +143,17 @@ function Comisiones({ datos }: { datos: Datos }) {
       )}
 
       <details className="dashboard-card mb-4 p-4">
-        <summary className="cursor-pointer text-xs font-semibold">¿Cómo funciona cada tramo y quién interviene?</summary>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-[11px]">
+        <summary className="cursor-pointer text-xs font-semibold">¿Cómo funciona la comisión y quién interviene?</summary>
+        {d && (
+          <div className="mt-3 grid gap-1 text-xs">
+            <p><b>Comisión del vendedor:</b> {d.porcentaje.toFixed(2)} % del precio total del departamento, a nombre del vendedor responsable de la venta (también un supervisor que vende). Queda fija al formalizar la venta.</p>
+            <p>Queda <b>lista para pago</b> cuando se cumplen a la vez: promesa de compraventa firmada y pagos verificados por Finanzas de al menos {d.parametros.umbralPagoPct.toFixed(0)} % del precio. Sin tramos ni desembolso hipotecario.</p>
+            <p>Finanzas registra y confirma el desembolso con su comprobante; nadie confirma su propia comisión. Requiere la aprobación general de la política.</p>
+          </div>
+        )}
+        <p className="mt-3 text-xs font-medium">Esquema anterior (comisiones creadas antes de este cambio):</p>
+        <div className="mt-1 overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-xs">
             <thead className="bg-muted text-muted-foreground"><tr><th className="px-2 py-1.5 text-left font-medium">Tramo</th><th className="px-2 py-1.5 text-left font-medium">Condiciones</th></tr></thead>
             <tbody>
               <tr className="border-t border-border"><td className="px-2 py-1.5">1 · 50 %</td><td className="px-2 py-1.5">Promesa firmada, al menos 10 % del precio pagado (verificado en Cobranzas) y honorario recibido por Jarva.</td></tr>
@@ -139,7 +161,7 @@ function Comisiones({ datos }: { datos: Datos }) {
             </tbody>
           </table>
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">Finanzas registra el honorario; Gerencia o administración habilita el tramo; Finanzas confirma el pago, y no puede hacerlo quien lo habilitó. El porcentaje se fija al firmar la venta y no cambia después. Si el contrato se anula, lo pagado queda por recuperar. Esta pantalla no reparte la comisión entre participantes: ese reparto sigue sin aprobarse.</p>
+        <p className="mt-2 text-xs text-muted-foreground">En ese esquema, Finanzas registra el honorario; Gerencia o administración habilita el tramo; Finanzas confirma el pago, y no puede hacerlo quien lo habilitó. El porcentaje se fija al firmar la venta y no cambia después. Si el contrato se anula, lo pagado queda por recuperar. Esta pantalla no reparte la comisión entre participantes: ese reparto sigue sin aprobarse.</p>
       </details>
 
       <section aria-labelledby="com-det" className="dashboard-card p-5">
@@ -164,6 +186,7 @@ function Comisiones({ datos }: { datos: Datos }) {
                 <b>{c.contrato}</b><span>{c.cliente}</span><span className="text-muted-foreground">Dpto. {dpt(c.unidad)}</span>
                 <span className="text-muted-foreground">{fmtUsd(c.precioBase)} × {c.porcentaje.toFixed(2)} %</span>
                 <b className="tabular-nums">{fmtUsd2(c.montoTotal)}</b>
+                {c.beneficiario && <span>Vendedor: <b>{c.beneficiario}</b></span>}
                 {c.ajustes !== 0 && <span className="tabular-nums text-muted-foreground">Ajustes: {fmtUsd2(c.ajustes)}</span>}
                 {c.porRecuperar > 0 && <span className="font-medium tabular-nums text-rose-700">Por recuperar: {fmtUsd2(c.porRecuperar)}</span>}
                 {c.estado === 'anulada' && <span className="text-muted-foreground">Contrato anulado{c.motivoAnulacion ? `: ${c.motivoAnulacion}` : ''}</span>}
@@ -173,14 +196,15 @@ function Comisiones({ datos }: { datos: Datos }) {
                   ejecutar: (v) => api.ajustar(datos, c.id, Number(v.monto.replace(',', '.')), v.motivo, v.evidencia),
                 })}>Registrar ajuste</Button>}
               </div>
-              {(c.asesor || c.corredor) && <p className="mt-0.5 text-[11px] text-muted-foreground">{c.asesor ? `Asesor: ${c.asesor}` : ''}{c.asesor && c.corredor ? ' · ' : ''}{c.corredor ? `Corredor: ${c.corredor}` : ''}</p>}
+              {(c.asesor || c.corredor) && <p className="mt-0.5 text-xs text-muted-foreground">{c.asesor ? `Asesor: ${c.asesor}` : ''}{c.asesor && c.corredor ? ' · ' : ''}{c.corredor ? `Corredor: ${c.corredor}` : ''}</p>}
 
               <div className="mt-2 grid gap-2 lg:grid-cols-2">
                 {c.tramos.map((t) => (
-                  <div key={t.id} className="grid gap-1.5 rounded-md bg-muted/50 p-2.5 text-[11px]" aria-label={`Tramo ${t.numero}`}>
+                  <div key={t.id} className="grid gap-1.5 rounded-md bg-muted/50 p-2.5 text-xs" aria-label={`Tramo ${t.numero}`}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <b>Tramo {t.numero} · {t.porcentaje.toFixed(0)} %</b><b className="tabular-nums">{fmtUsd2(t.monto)}</b>
-                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', ESTADO_TRAMO[t.estado].tono)}>{ESTADO_TRAMO[t.estado].label}</span>
+                      <b>{c.esquema === 'vendedor' ? 'Comisión · 100 %' : `Tramo ${t.numero} · ${t.porcentaje.toFixed(0)} %`}</b><b className="tabular-nums">{fmtUsd2(t.monto)}</b>
+                      <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', ESTADO_TRAMO[t.estado].tono)}>{ESTADO_TRAMO[t.estado].label}</span>
+                      {t.listaParaPago && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">Lista para pago</span>}
                     </div>
                     {t.estado !== 'anulada' && t.estado !== 'pagada' && (
                       <ul className="grid gap-0.5">
@@ -190,9 +214,10 @@ function Comisiones({ datos }: { datos: Datos }) {
                         })}
                       </ul>
                     )}
-                    {t.estado === 'pendiente' && t.cumple && !politica?.aprobada && <p className="font-medium text-amber-800">Condiciones cumplidas: falta la aprobación formal de la política.</p>}
+                    {c.esquema !== 'vendedor' && t.estado === 'pendiente' && t.cumple && !politica?.aprobada && <p className="font-medium text-amber-800">Condiciones cumplidas: falta la aprobación formal de la política.</p>}
                     {t.estado === 'habilitada' && !t.cumple && <p role="alert" className="font-medium text-rose-700">Se habilitó, pero dejó de cumplir una condición: no se puede pagar.</p>}
                     {t.estado === 'habilitada' && t.habilitadaPor === actor.id && finanzas && <p className="text-muted-foreground">Lo habilitaste tú: otra persona debe confirmar el pago.</p>}
+                    {t.listaParaPago && d && !d.parametros.pagosHabilitados && <p className="font-medium text-amber-800">Lista para pago, pero los pagos a vendedores están bloqueados hasta la formalización contractual.</p>}
                     {t.honorario && <p className="text-muted-foreground">Honorario: {fmtUsd2(t.honorario.monto)} · {fmtFechaCorta(t.honorario.fecha)} · {t.honorario.referencia}{t.honorario.monto < t.monto ? ' · menor que este tramo' : ''}</p>}
                     {t.habilitadaNombre && t.estado !== 'pagada' && <p className="text-muted-foreground">Habilitó {t.habilitadaNombre}</p>}
                     {t.pago && <p className="text-emerald-800">Pagado el {fmtFechaCorta(t.pago.fecha)}{t.pago.beneficiario ? ` a ${t.pago.beneficiario}` : ''}{t.pago.referencia ? ` · ${t.pago.referencia}` : ''}</p>}
@@ -202,7 +227,7 @@ function Comisiones({ datos }: { datos: Datos }) {
               </div>
 
               {c.movimientos.length > 0 && (
-                <details className="mt-2 text-[11px]">
+                <details className="mt-2 text-xs">
                   <summary className="cursor-pointer font-medium">Movimientos ({c.movimientos.length})</summary>
                   <ul className="mt-1.5 grid gap-1">
                     {c.movimientos.map((m) => (
@@ -286,9 +311,9 @@ function PedidoDialog({ pedido, onClose, onDone }: { pedido: Pedido; onClose: ()
 function Kpi({ t, v, d, tono }: { t: string; v: string; d: string; tono?: string }) {
   return (
     <div className="dashboard-card p-4">
-      <div className="text-[11px] font-medium text-muted-foreground">{t}</div>
+      <div className="text-xs font-medium text-muted-foreground">{t}</div>
       <div className={cn('mt-1 text-lg font-semibold tabular-nums', tono)}>{v}</div>
-      <div className="mt-0.5 text-[11px] text-muted-foreground">{d}</div>
+      <div className="mt-0.5 text-xs text-muted-foreground">{d}</div>
     </div>
   )
 }

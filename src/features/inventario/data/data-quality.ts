@@ -31,9 +31,6 @@ export function estadoDocumento(cargado: boolean, validado = false): EstadoDocum
 /** Avisos sobre datos que aún no están confirmados. Las medidas de bodega y patio vienen de los planos. */
 export function dataFlags(u: Unit): DataFlag[] {
   const flags: DataFlag[] = []
-  if (u.estado === 'por_confirmar') {
-    flags.push({ campo: 'Estado', nivel: 'pendiente', mensaje: 'Disponibilidad no confirmada: aún no se recibe el estado comercial oficial.' })
-  }
   if (u.patioM2 > 0) {
     flags.push({ campo: 'Patio', nivel: 'referencial', mensaje: 'Superficie de patio tomada del simulador (planos DWG, 28/10/2026); el PDF de planos no muestra la cota.' })
   }

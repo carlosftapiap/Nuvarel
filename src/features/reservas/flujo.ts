@@ -46,10 +46,16 @@ export function useReservaFlujo() {
       fijarMonto: (id: string, monto: number) => enServidor(() => remoto.fijarMonto(datos, id, monto)),
       rechazarPago: (id: string, motivo: string) => enServidor(() => rechazarPagoReserva(datos, id, motivo)),
       registrarPago: (r: Reserva, pago: DatosPago) => enServidor(() => reportarPagoReserva(datos, almacenPagos(conexion), r.id, pago)),
-      verificarPago: (id: string, input: ConfirmarInput & { verificadoBanco?: boolean }) => enServidor(async () => {
-        const recibo = await remoto.confirmarPago(datos, id, input.montoRecibido, input.comprobante, !!input.verificadoBanco)
-        await completarRecibo(datos, almacenPagos(conexion), recibo)
-      }),
+      /** Devuelve cómo quedó la reserva: confirmada (condiciones normales) o pago_verificado (excepción para Gerencia). */
+      verificarPago: async (id: string, input: ConfirmarInput & { verificadoBanco?: boolean }) => {
+        let estado: string | null = null
+        await enServidor(async () => {
+          const recibo = await remoto.confirmarPago(datos, id, input.montoRecibido, input.comprobante, !!input.verificadoBanco)
+          await completarRecibo(datos, almacenPagos(conexion), recibo)
+          estado = (await datos.select<{ estado: string }>('reservations', { filtros: { id } }).catch(() => []))[0]?.estado ?? null
+        })
+        return estado
+      },
       aprobar: (id: string, motivo: string) => enServidor(() => remoto.aprobar(datos, id, motivo)),
       anular: (id: string, motivo: string) => enServidor(() => remoto.anular(datos, id, motivo)),
     }
@@ -63,7 +69,11 @@ export function useReservaFlujo() {
     fijarMonto: async () => {},
     registrarPago: async () => {},
     rechazarPago: async () => {},
-    verificarPago: async (id: string, input: ConfirmarInput) => aplicar((e) => verificarPagoReserva(e, id, input, actor)),
+    verificarPago: async (id: string, input: ConfirmarInput) => {
+      const n = verificarPagoReserva({ inv, res, clientes }, id, input, actor)
+      aplicar(() => n)
+      return n.res.reservas.find((r) => r.id === id)?.estado ?? null
+    },
     aprobar: async (id: string, motivo: string) => aplicar((e) => aprobarReserva(e, id, motivo, actor)),
     anular: async (id: string, motivo: string) => aplicar((e) => anularReserva(e, id, motivo, actor)),
   }

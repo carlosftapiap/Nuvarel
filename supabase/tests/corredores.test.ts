@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
-import { como, crearDb, crearUsuario } from './db'
+import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, carlos: string, cora: string, asesor: string
@@ -13,7 +13,7 @@ const rpc = <T = unknown>(u: string, sql: string, p: unknown[] = []) => como(db,
 const datos = (o: Record<string, unknown> = {}) => JSON.stringify({ nombre: 'Corredora Nueva', documento: '0912345678', licencia: 'LIC-77', telefono: '0991234500', email: 'nueva@correo.com', responsable_id: null, ...o })
 const listar = async (u: string) => (await rpc<{ j: { id: string; nombre: string; estado: string; usuario_id: string | null; clientes: number; ventas: number }[] }>(u, `select public.corredores_listar() as j`)).j
 const cliente = async (u: string, nombre: string, corredor: string | null) =>
-  (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: `0${++n}`, origen: corredor ? 'corredor' : 'whatsapp', origen_detalle: corredor ? 'Corredor' : '', corredor_origen_id: corredor }), u])).id
+  (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: corredor ? 'corredor' : 'whatsapp', origen_detalle: corredor ? 'Corredor' : '', corredor_origen_id: corredor }), u])).id
 
 beforeAll(async () => {
   db = await crearDb()

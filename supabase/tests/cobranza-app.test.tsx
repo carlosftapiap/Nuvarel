@@ -42,7 +42,7 @@ beforeAll(async () => {
   finanzas = await crearUsuario(db, 'Fernanda Finanzas', 'finanzas', { alcance: 'empresa' })
   vera = await crearUsuario(db, 'Vera', 'asesor')
   // Contrato firmado de prueba (precio 10.000): reserva 500 pagada, firma 100 y cuota 700 vencidas, cuota 700 por vencer, entrega 8.000.
-  const cli = (await db.query<{ id: string }>(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Cliente Cobranza', '0990000030', 'whatsapp', $1, $1, $1) returning id`, [vera])).rows[0].id
+  const cli = (await db.query<{ id: string }>(`insert into public.clients (nombre, documento, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Cliente Cobranza', '1715000301', '0990000030', 'whatsapp', $1, $1, $1) returning id`, [vera])).rows[0].id
   const q = (await db.query<{ id: string }>(`insert into public.quotes (numero, fecha, valida_hasta, codigo, cliente, asesor, descuento_pct, precio_lista, precio_final, plan, created_by, client_id)
     values ('COT-CB-1', (now() at time zone 'America/Guayaquil')::date, (now() at time zone 'America/Guayaquil')::date + 30, 'E1-PB-A2', '{}', '{}', 0, 10000, 10000, '{}', $1, $2) returning id`, [vera, cli])).rows[0].id
   const r = (await db.query<{ id: string }>(`insert into public.reservations (codigo, client_id, codigo_unidad, quote_id, vigencia_hasta, precio_acordado, reserva_pct, monto_reserva, meses, cuota_mensual, estado, created_by)

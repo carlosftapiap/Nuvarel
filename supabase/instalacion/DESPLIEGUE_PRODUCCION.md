@@ -4,7 +4,7 @@ Proyecto: `sjjjlnqgcaqtkmzdcmog`. Nada de esto se ejecuta sin autorización. Si 
 
 ## 1. Verificar el estado actual (solo lectura)
 
-En **SQL Editor**, ejecuta `instalacion/verificar_despliegue.sql` y guarda el resultado. No modifica nada ni muestra datos de personas.
+En **SQL Editor**, ejecuta `sql_produccion/VERIFICAR_DESPLIEGUE.sql` y guarda el resultado. No modifica nada ni muestra datos de personas.
 
 Resultado esperado: solo `FALTA` de los objetos de las migraciones pendientes (responsables externos del Plan y Avance de obra), **ningún `DISTINTO`**. Si aparece otra diferencia, detente y compártela.
 
@@ -50,12 +50,12 @@ npx supabase login
 npx supabase functions deploy crear-usuario --project-ref sjjjlnqgcaqtkmzdcmog
 ```
 
-Supabase le entrega la clave a la función; no hay que copiarla en ningún lado. Sin este paso, «Crear usuario» y «Cambiar contraseña» muestran un aviso y no cambian nada.
+Supabase le entrega la clave a la función; no hay que copiarla en ningún lado. Sin este paso, «Crear usuario» y «Restablecer contraseña» muestran un aviso y no cambian nada.
 
 Limita la función a la dirección publicada:
 
 ```powershell
-npx supabase secrets set APP_ORIGIN=https://<dominio de AMURA> --project-ref sjjjlnqgcaqtkmzdcmog
+npx supabase secrets set "APP_ORIGIN=https://<dominio de AMURA>,http://127.0.0.1:5173,http://localhost:5173" --project-ref sjjjlnqgcaqtkmzdcmog
 ```
 
 En Supabase → **Edge Functions**, si aparece la función antigua `invitar-usuario`, elimínala.

@@ -2,16 +2,17 @@
 // La clave de servicio se lee del entorno del servidor (SUPABASE_SERVICE_ROLE_KEY); nunca va al navegador ni al repositorio.
 // Despliegue: supabase functions deploy crear-usuario
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4'
-import { gestionarCuenta, type Peticion } from '../_shared/cuentas.ts'
-
-const cors = {
-  'Access-Control-Allow-Origin': Deno.env.get('APP_ORIGIN') ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
+import { gestionarCuenta, origenCors, type Peticion } from '../_shared/cuentas.ts'
 
 Deno.serve(async (req) => {
+  const cors = {
+    'Access-Control-Allow-Origin': origenCors(req.headers.get('Origin'), Deno.env.get('APP_ORIGIN')),
+    'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    Vary: 'Origin',
+  }
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } })
+
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
   if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405)
 

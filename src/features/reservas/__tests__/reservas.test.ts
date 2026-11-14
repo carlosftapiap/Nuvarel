@@ -18,14 +18,13 @@ const finanzas: Actor = { id: 'u-finanzas', nombre: 'Finanzas', rol: 'finanzas' 
 const confirmar = (e: Estado, id: string, input: { comprobante: string; montoRecibido: number }, aprobador: Actor) =>
   aprobarReserva(verificarPagoReserva(e, id, input, finanzas), id, 'Aprobada en comité', aprobador)
 
-/** Lleva una unidad al estado «por confirmar»: el de antes de esta versión, para probar sus reglas. */
-const porValidar = (s: InventoryState, codigo: string): InventoryState => ({ ...s, units: s.units.map((u) => (u.codigo === codigo ? { ...u, estado: 'por_confirmar' as const } : u)) })
+/** Lleva una unidad a vendida, para probar que no se reserva. */
+const vendida = (s: InventoryState, codigo: string): InventoryState => ({ ...s, units: s.units.map((u) => (u.codigo === codigo ? { ...u, estado: 'vendido' as const } : u)) })
 
 /** Escenario: cliente, unidad disponible y cotización emitida para ese cliente. */
-function escenario(opts: { fecha?: string; unidad?: string; disponible?: boolean } = {}) {
+function escenario(opts: { fecha?: string; unidad?: string; descuento?: number } = {}) {
   const unidad = opts.unidad ?? 'E1-PB-A2'
-  let inv: InventoryState = createInitialState()
-  if (opts.disponible === false) inv = porValidar(inv, unidad)
+  const inv: InventoryState = createInitialState()
   const cli = crearCliente(estadoInicialClientes(), {
     nombre: 'María Pérez', telefono: '0991234567', email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [unidad],
     presupuesto: null, proposito: null, formaPago: null, asesorId: asesor.id, asesor: asesor.nombre,
@@ -34,9 +33,9 @@ function escenario(opts: { fecha?: string; unidad?: string; disponible?: boolean
     codigo: unidad, clienteId: cli.cliente.id,
     cliente: { nombre: 'María Pérez', email: '', telefono: '0991234567' },
     asesor: { nombre: 'Ana Asesora', email: 'ana@nuvarel.com', telefono: '' },
-    descuentoPct: 0, vigenciaDias: 15, fecha: opts.fecha ?? hoyGuayaquil(), observaciones: '',
+    descuentoPct: opts.descuento ?? 0, vigenciaDias: 15, fecha: opts.fecha ?? hoyGuayaquil(), observaciones: '',
   }
-  const cot: Cotizacion = crearCotizacion(inv, input, asesor, [])
+  const cot: Cotizacion = crearCotizacion(inv, input, opts.descuento ? gerencia : asesor, [])
   const e: Estado = { inv, clientes: cli.state, res: estadoInicialReservas() }
   return { e, cot, clienteId: cli.cliente.id }
 }
@@ -51,9 +50,9 @@ describe('solicitud de reserva', () => {
     expect(s.inv.units.find((u) => u.codigo === 'E1-PB-A2')!.estado).toBe('disponible')
   })
 
-  it('no permite solicitar una unidad que aún está por confirmar', () => {
-    const { e, cot } = escenario({ disponible: false })
-    expect(() => solicitarReserva(e, cot, asesor)).toThrow(/disponibilidad confirmada/)
+  it('no permite solicitar una unidad vendida', () => {
+    const { e, cot } = escenario()
+    expect(() => solicitarReserva({ ...e, inv: vendida(e.inv, cot.unidad.codigo) }, cot, asesor)).toThrow(/vendido y no puede reservarse/)
   })
 
   it('no permite solicitar con cotización vencida', () => {
@@ -83,17 +82,30 @@ describe('solicitud de reserva', () => {
 })
 
 describe('confirmación de reserva', () => {
-  it('bloquea la unidad, avanza al cliente a Reserva y registra el historial', () => {
+  it('con condiciones normales, verificar el pago confirma la reserva sin aprobación de Gerencia', () => {
     const { e, cot, clienteId } = escenario()
     const s = solicitarReserva(e, cot, asesor)
     const id = s.res.reservas[0].id
-    const c = confirmar(s, id, pago(cot.plan.reserva), gerencia)
+    const c = verificarPagoReserva(s, id, pago(cot.plan.reserva), finanzas)
     const u = c.inv.units.find((x) => x.codigo === 'E1-PB-A2')!
     expect(u).toMatchObject({ estado: 'reservado', reservaId: c.res.reservas[0].codigo })
-    expect(c.res.reservas[0]).toMatchObject({ estado: 'confirmada', comprobante: 'TRF-00123' })
+    expect(c.res.reservas[0]).toMatchObject({ estado: 'confirmada', comprobante: 'TRF-00123', verificadaPor: { id: finanzas.id }, aprobadaPor: null })
     expect(c.clientes.clientes.find((x) => x.id === clienteId)!.etapa).toBe('reserva')
-    expect(c.res.reservas[0].historial[0].texto).toMatch(/aprobada/)
-    expect(c.res.reservas[0]).toMatchObject({ verificadaPor: { id: finanzas.id }, aprobadaPor: { id: gerencia.id } })
+    expect(c.res.reservas[0].historial[0].texto).toMatch(/confirmada automáticamente/)
+    // Aprobar después no cambia nada.
+    expect(aprobarReserva(c, id, 'Doble clic', gerencia)).toBe(c)
+  })
+
+  it('con descuento queda como excepción: Gerencia la autoriza y la unidad se bloquea al autorizar', () => {
+    const { e, cot } = escenario({ descuento: 2 })
+    const s = solicitarReserva(e, cot, asesor)
+    const id = s.res.reservas[0].id
+    const v = verificarPagoReserva(s, id, pago(cot.plan.reserva), finanzas)
+    expect(v.res.reservas[0].estado).toBe('pago_verificado')
+    expect(v.inv.units.find((x) => x.codigo === 'E1-PB-A2')!.estado).toBe('disponible')
+    const c = aprobarReserva(v, id, 'Descuento autorizado', gerencia)
+    expect(c.res.reservas[0]).toMatchObject({ estado: 'confirmada', aprobadaPor: { id: gerencia.id } })
+    expect(c.inv.units.find((x) => x.codigo === 'E1-PB-A2')!.estado).toBe('reservado')
   })
 
   it('no confirma con un monto menor a la reserva acordada', () => {
@@ -116,9 +128,9 @@ describe('confirmación de reserva', () => {
   })
 
   it('quien verificó el pago no puede aprobar la reserva', () => {
-    const { e, cot } = escenario()
+    const { e, cot } = escenario({ descuento: 2 })
     const pedida = solicitarReserva(e, cot, asesor)
-    // Un administrador tiene ambos permisos: aun así no puede verificar y aprobar la misma reserva.
+    // Un administrador tiene ambos permisos: aun así no puede verificar y autorizar la misma excepción.
     const s = verificarPagoReserva(pedida, pedida.res.reservas[0].id, pago(cot.plan.reserva), admin)
     expect(() => aprobarReserva(s, s.res.reservas[0].id, 'Motivo válido', admin)).toThrow(/no puede aprobar/)
   })

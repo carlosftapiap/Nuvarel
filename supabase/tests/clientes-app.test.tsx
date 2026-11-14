@@ -53,7 +53,7 @@ async function registrar(user: ReturnType<typeof userEvent.setup>, nombre: strin
   const [primero, ...resto] = nombre.split(' ')
   await user.type(within(dlg).getByLabelText('Primer nombre *'), primero)
   await user.type(within(dlg).getByLabelText('Primer apellido *'), resto.join(' '))
-  await user.type(within(dlg).getByLabelText('Teléfono'), telefono)
+  await user.type(within(dlg).getByLabelText('Celular *'), telefono)
   await user.click(within(dlg).getByRole('button', { name: 'Registrar cliente' }))
   return dlg
 }
@@ -115,6 +115,23 @@ describe('Clientes conectado a la base de datos (Postgres real con RLS)', () => 
     expect(within(otra).getByText(/Busca 2 habitaciones/)).toBeInTheDocument()
   })
 
+  it('programar una actividad futura queda guardado y sobrevive a una sesión nueva', async () => {
+    const user = userEvent.setup()
+    const { rows } = await fila(db, 'Lucía Andrade')
+    const s = await abrirComo(cora, db, `/clientes?cliente=${rows[0].id}`)
+    const ficha = await screen.findByRole('dialog', { name: /Lucía Andrade/ })
+    await user.type(within(ficha).getByLabelText('Qué hacer'), 'Enviar planos del piso 3')
+    await user.type(within(ficha).getByLabelText('Fecha de la próxima actividad'), '2030-01-15')
+    await user.click(within(ficha).getByRole('button', { name: /^(Programar|Reprogramar)$/ }))
+    await waitFor(async () => {
+      const r = await db.query<{ d: string; f: string }>(`select proxima_descripcion as d, proxima_fecha::text as f from public.clients where id = $1`, [rows[0].id])
+      expect(r.rows[0]).toEqual({ d: 'Enviar planos del piso 3', f: '2030-01-15' })
+    })
+    s.unmount()
+    await abrirComo(cora, db, `/clientes?cliente=${rows[0].id}`)
+    expect(within(await screen.findByRole('dialog', { name: /Lucía Andrade/ })).getByText(/Enviar planos del piso 3/)).toBeInTheDocument()
+  })
+
   it('mover de etapa desde la ficha persiste; Reserva no se puede elegir', async () => {
     const user = userEvent.setup()
     const { rows } = await fila(db, 'Lucía Andrade')
@@ -153,16 +170,20 @@ describe('Clientes conectado a la base de datos (Postgres real con RLS)', () => 
     await abrirComo(cora)
     await screen.findAllByRole('button', { name: /Nuevo cliente/ })
     const otro = await crearUsuario(db, 'Otra Corredora', 'corredor')
-    await db.query(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Oculto', '0995556677', 'whatsapp', $1, $1, $1)`, [otro])
+    await db.query(`insert into public.clients (nombre, documento, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Oculto', '1710566777', '0995556677', 'whatsapp', $1, $1, $1)`, [otro])
     const dlg = await registrar(user, 'Copia Oculta', '0995556677')
-    expect(await within(dlg).findByRole('alert')).toHaveTextContent(/Ya existe un cliente con ese teléfono/)
+    // Sin datos del otro cliente ni de su vendedor: solo el aviso y la opción de pedir la revisión.
+    expect(await within(dlg).findByRole('alert')).toHaveTextContent('Este celular ya se encuentra registrado en AMURA.')
+    expect(within(dlg).getByRole('alert')).not.toHaveTextContent(/Oculto|Otra Corredora/)
+    expect(within(dlg).getByRole('button', { name: 'Solicitar revisión o reasignación' })).toBeInTheDocument()
+    expect(within(dlg).getByRole('button', { name: 'Registrar cliente' })).toBeDisabled()
     expect(within(dlg).getByLabelText('Primer nombre *')).toHaveValue('Copia')
     expect((await fila(db, 'Copia Oculta')).rows).toHaveLength(0)
   })
 
   it('abre una negociación desde la ficha, sin duplicarla, y conserva la etapa del cliente', async () => {
     const user = userEvent.setup()
-    const c = await db.query<{ id: string }>(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id, etapa, unidades_interes) values ('Con interés', '0995550001', 'whatsapp', $1, $1, $1, 'calificado', '{E1-PB-A2}') returning id`, [cora])
+    const c = await db.query<{ id: string }>(`insert into public.clients (nombre, documento, telefono, origen, asesor_id, created_by, atribucion_usuario_id, etapa, unidades_interes) values ('Con interés', '1710500016', '0995550001', 'whatsapp', $1, $1, $1, 'calificado', '{E1-PB-A2}') returning id`, [cora])
     await abrirComo(cora, db, `/clientes?cliente=${c.rows[0].id}`)
     const ficha = await screen.findByRole('dialog', { name: /Con interés/ })
     await user.click(within(ficha).getByLabelText('Unidad o tipología de la negociación'))

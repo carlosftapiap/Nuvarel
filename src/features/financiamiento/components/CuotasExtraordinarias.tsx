@@ -24,14 +24,14 @@ export default function CuotasExtraordinarias({ filas, onChange, meses, fechaBas
     <div className="grid gap-2" role="group" aria-label="Cuotas extraordinarias">
       {filas.map((f, i) => (
         <div key={i} className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-1"><Label htmlFor={`extra-mes-${i}`} className="text-[11px]">Mes (1 a {meses})</Label><Input id={`extra-mes-${i}`} inputMode="numeric" className="h-8 w-24" disabled={soloLectura} value={f.mes} onChange={(e) => cambiar(i, { mes: e.target.value })} /></div>
-          <div className="grid gap-1"><Label htmlFor={`extra-monto-${i}`} className="text-[11px]">Monto (USD)</Label><Input id={`extra-monto-${i}`} inputMode="decimal" className="h-8 w-32" disabled={soloLectura} value={f.monto} onChange={(e) => cambiar(i, { monto: e.target.value })} /></div>
-          <span className="pb-1.5 text-[11px] text-muted-foreground tabular-nums">{fecha(f.mes)}</span>
+          <div className="grid gap-1"><Label htmlFor={`extra-mes-${i}`} className="text-xs">Mes (1 a {meses})</Label><Input id={`extra-mes-${i}`} inputMode="numeric" className="h-8 w-24" disabled={soloLectura} value={f.mes} onChange={(e) => cambiar(i, { mes: e.target.value })} /></div>
+          <div className="grid gap-1"><Label htmlFor={`extra-monto-${i}`} className="text-xs">Monto (USD)</Label><Input id={`extra-monto-${i}`} inputMode="decimal" className="h-8 w-32" disabled={soloLectura} value={f.monto} onChange={(e) => cambiar(i, { monto: e.target.value })} /></div>
+          <span className="pb-1.5 text-xs text-muted-foreground tabular-nums">{fecha(f.mes)}</span>
           {!soloLectura && <Button type="button" size="icon-xs" variant="ghost" aria-label={`Eliminar cuota extraordinaria ${i + 1}`} onClick={() => onChange(filas.filter((_, j) => j !== i))}><Trash2 /></Button>}
         </div>
       ))}
       {!soloLectura && <Button type="button" size="xs" variant="outline" className="justify-self-start" onClick={() => onChange([...filas, { mes: '', monto: '' }])}><Plus />Agregar cuota extraordinaria</Button>}
-      {filas.length > 0 && <p className="text-[11px] text-muted-foreground">Es un pago programado, no un pago recibido: solo Finanzas confirma los ingresos. Las cuotas mensuales se recalculan para completar exactamente el 14 %.</p>}
+      {filas.length > 0 && <p className="text-xs text-muted-foreground">Es un pago programado, no un pago recibido: solo Finanzas confirma los ingresos. Las cuotas mensuales se recalculan para completar exactamente el 14 %.</p>}
     </div>
   )
 }
@@ -40,7 +40,7 @@ export default function CuotasExtraordinarias({ filas, onChange, meses, fechaBas
 export function TablaCronogramaMes({ filas }: { filas: CronogramaMes[] }) {
   return (
     <table className="w-full text-xs">
-      <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground">
+      <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
         <tr>
           <th className="px-3 py-2 text-left font-medium">Mes</th>
           <th className="px-2 py-2 text-left font-medium">Fecha</th>

@@ -110,7 +110,7 @@ function ObraCompleta({ datos, almacen }: { datos: Datos; almacen: Almacen }) {
         {frente && <TabsContent value="evidencias"><Evidencias ctx={{ ...ctx, frente }} /></TabsContent>}
         {frente && avanzadas && (
           <TabsContent value="avanzadas" className="grid gap-4">
-            <p className="text-[11px] text-muted-foreground">Pesos, dependencias, jerarquías, cronograma y controles técnicos. No hacen falta para registrar el avance.</p>
+            <p className="text-xs text-muted-foreground">Pesos, dependencias, jerarquías, cronograma y controles técnicos. No hacen falta para registrar el avance.</p>
             <Aprobaciones ctx={ctx} frente={frente} />
             {can('obra.editar') && <Cronograma key={frente.id} ctx={{ ...ctx, frente }} />}
             <ControlesTecnicos key={`c-${frente.id}`} ctx={{ ...ctx, frente }} actividades={hojas.map((a) => ({ id: a.id, etiqueta: `${a.codigo} · ${a.nombre}` }))} puedeRegistrar={can('obra.avance')}

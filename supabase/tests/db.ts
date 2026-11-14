@@ -76,3 +76,26 @@ export function como<T>(db: PGlite, userId: string, fn: () => Promise<T>): Promi
   turnos.set(db, resultado)
   return resultado
 }
+
+/** Deja aprobada la revisión de Cumplimiento (fase 3) de los contratos en borrador que no la tienen: sin ella no pasan a firmado. */
+export async function aprobarCumplimiento(db: PGlite) {
+  const { rows } = await db.query<{ t: string | null }>(`select to_regclass('public.cumplimiento_revisiones')::text as t`)
+  if (!rows[0].t) return
+  await db.query(`insert into public.cumplimiento_revisiones (contract_id, estado, observaciones, registrado_por)
+    select c.id, 'aprobado', 'Aprobado en la prueba', (select id from auth.users order by id limit 1) from public.contracts c
+     where c.estado = 'borrador' and public.cumplimiento_estado(c.id) is distinct from 'aprobado'`)
+}
+
+/** Cédula ecuatoriana válida y distinta para cada número: la base no acepta documentos inválidos ni repetidos. */
+/** Celular ecuatoriano de prueba, distinto para cada número. */
+export const celularPrueba = (n: number) => `09${String(n % 100_000_000).padStart(8, '0')}`
+
+export function cedulaPrueba(n: number) {
+  const base = `171${String(n % 1_000_000).padStart(6, '0')}`
+  let s = 0
+  for (let i = 0; i < 9; i++) {
+    const d = Number(base[i]) * (i % 2 === 0 ? 2 : 1)
+    s += d > 9 ? d - 9 : d
+  }
+  return base + ((10 - (s % 10)) % 10)
+}

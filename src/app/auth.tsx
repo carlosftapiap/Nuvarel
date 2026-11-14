@@ -1,6 +1,6 @@
 import type { AlmacenContratos } from '@/features/contratos/almacen'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Navigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { Loader2, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -71,11 +71,14 @@ interface SesionRemota {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<EstadoAuth>({ tipo: 'cargando' })
   const datos = useMemo(() => datosSupabase(supabase), [])
+  // El enlace de contraseña también deja una sesión: hasta guardar la clave, cargar el perfil no debe sacar a la persona del formulario.
+  const enRecuperacion = useRef(false)
 
   const cargar = useCallback(async (session: Session | null) => {
     if (!session) { setEstado({ tipo: 'sin_sesion' }); return }
     try {
       const s = await datos.rpc<SesionRemota | null>('mi_sesion')
+      if (enRecuperacion.current) return
       const email = session.user.email ?? ''
       if (!s) { setEstado({ tipo: 'sin_perfil', email }); return }
       if (s.estado !== 'activo') { setEstado({ tipo: 'inactivo', email, estado: s.estado }); return }
@@ -94,13 +97,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let vivo = true
     supabase.auth.getSession().then(({ data }) => { if (vivo) void cargar(data.session) })
     const { data: sub } = supabase.auth.onAuthStateChange((evento, session) => {
-      if (evento === 'PASSWORD_RECOVERY') { setEstado({ tipo: 'recuperacion' }); return }
+      if (evento === 'PASSWORD_RECOVERY') { enRecuperacion.current = true; setEstado({ tipo: 'recuperacion' }); return }
+      if (evento === 'USER_UPDATED' || evento === 'SIGNED_OUT') enRecuperacion.current = false
+      if (enRecuperacion.current) return
       if (evento === 'SIGNED_IN' || evento === 'SIGNED_OUT' || evento === 'USER_UPDATED') void cargar(session)
     })
     return () => { vivo = false; sub.subscription.unsubscribe() }
   }, [cargar])
 
-  const salir = useCallback(async () => { await supabase.auth.signOut() }, [])
+  // Al salir se vuelve a la raíz: la siguiente cuenta entra a su propia pantalla de inicio, no a la última del usuario anterior.
+  const salir = useCallback(async () => { window.history.replaceState(null, '', '/'); await supabase.auth.signOut() }, [])
   const value = useMemo<ConexionValue>(() => ({ remoto: true, datos, estado, cuenta: estado.tipo === 'listo' ? estado.cuenta : null, salir }), [datos, estado, salir])
   return <ConexionContext.Provider value={value}>{children}</ConexionContext.Provider>
 }
@@ -115,26 +121,27 @@ export function MarcoAcceso({ children }: { children: ReactNode }) {
         <img src="/media/logo-horizontal-crema.webp" alt="AMURA Apartments" width={600} height={163} className="absolute left-5 top-4 h-10 w-auto md:left-10 md:top-8 md:h-14" />
         <div className="absolute inset-x-10 bottom-8 hidden text-[#f7f4ed] md:block">
           <p className="marca-titulo text-3xl leading-tight">Un lugar para vivir, compartir y crecer.</p>
-          <small className="mt-2 block text-[11px] opacity-80">Visualización conceptual</small>
+          <small className="mt-2 block text-xs opacity-80">Visualización conceptual</small>
         </div>
       </div>
       <div className="flex flex-col items-center justify-center gap-6 px-5 py-8 [--primary:#584536] [--ring:#584536]">
         <div className="w-full max-w-sm">{children}</div>
-        <p className="text-center text-[10px] text-muted-foreground">AMURA · Espacio comercial · Acceso solo para personal autorizado</p>
+        <p className="text-center text-xs text-muted-foreground">AMURA · Espacio comercial · Acceso solo para personal autorizado</p>
       </div>
     </div>
   )
 }
 
-/** Ruta privada: sin sesión lleva a /login y recuerda la página pedida. */
+/** Ruta privada: sin sesión lleva a /login; al entrar, cada perfil va a su inicio. */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { estado, salir } = useConexion()
-  const location = useLocation()
   if (!estado || estado.tipo === 'cargando') {
     return <MarcoAcceso><p className="flex items-center justify-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Verificando tu sesión…</p></MarcoAcceso>
   }
-  if (estado.tipo === 'sin_sesion' || estado.tipo === 'recuperacion') return <Navigate to="/login" replace state={{ desde: location.pathname + location.search }} />
-  if (estado.tipo === 'listo') return <SessionProvider actorRemoto={estado.actor}>{children}</SessionProvider>
+  if (estado.tipo === 'sin_sesion' || estado.tipo === 'recuperacion') return <Navigate to="/login" replace />
+  // Otra cuenta en el mismo navegador (p. ej. en otra pestaña) cambia la sesión aquí: con la clave por usuario se descartan
+  // los datos ya cargados del usuario anterior (clientes, inventario, reservas) y se vuelven a leer con los permisos del nuevo.
+  if (estado.tipo === 'listo') return <SessionProvider key={estado.actor.id} actorRemoto={estado.actor}>{children}</SessionProvider>
   const texto = estado.tipo === 'sin_perfil'
     ? `La cuenta ${estado.email} no tiene un perfil en AMURA. Pide al administrador que la habilite desde Configuración.`
     : estado.tipo === 'inactivo'

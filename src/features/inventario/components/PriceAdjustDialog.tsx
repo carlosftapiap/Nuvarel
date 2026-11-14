@@ -140,13 +140,13 @@ export default function PriceAdjustDialog({
                     <span className={delta >= 0 ? 'text-emerald-700' : 'text-rose-700'}>({delta >= 0 ? '+' : ''}{fmtUsd(delta)})</span></span>
                 </div>
                 {preview.data.omitidas.length > 0 && (
-                  <ul className="mt-2 grid gap-0.5 text-[11px] text-amber-800" aria-label="Unidades excluidas">
+                  <ul className="mt-2 grid gap-0.5 text-xs text-amber-800" aria-label="Unidades excluidas">
                     {preview.data.omitidas.map((o) => <li key={o.codigo}>Departamento {dpt(o.codigo)}: {o.razon}</li>)}
                   </ul>
                 )}
                 {preview.data.cambios.length > 0 && (
                   <div className="mt-2 max-h-44 overflow-y-auto rounded-md border border-border bg-card">
-                    <table className="w-full text-[11px]">
+                    <table className="w-full text-xs">
                       <thead className="sticky top-0 bg-card text-muted-foreground"><tr><th className="p-1.5 text-left font-medium">Unidad</th><th className="p-1.5 text-right font-medium">USD/m²</th><th className="p-1.5 text-right font-medium">Precio</th><th className="p-1.5 text-right font-medium">Variación</th></tr></thead>
                       <tbody>
                         {preview.data.cambios.map((c) => (
@@ -194,7 +194,7 @@ function Opcion({ activo, onClick, children }: { activo: boolean; onClick: () =>
 function Sel({ id, label, value, onChange, items, placeholder }: { id: string; label: string; value: string; onChange: (v: string) => void; items: [string, string][]; placeholder?: string }) {
   return (
     <div className="grid gap-1">
-      <Label htmlFor={id} className="text-[11px] text-muted-foreground">{label}</Label>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">{label}</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger id={id} className="h-8 w-full text-xs"><SelectValue placeholder={placeholder} /></SelectTrigger>
         <SelectContent>{items.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>

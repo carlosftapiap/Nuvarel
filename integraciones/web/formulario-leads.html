@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMURA · Formularios conectados</title>
+<!--
+  Ejemplo de página de AMURA con sus formularios conectados a AMURA (función leads-web) por amura-leads.js:
+  un formulario de contacto, una solicitud de información y el botón público de WhatsApp con captura previa.
+  Guía: integraciones/web/README.md. Abierta desde el disco (file://), la función la rechaza: solo acepta los dominios habilitados.
+-->
+<style>
+  body { margin: 0; background: #f4f6fb; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #18243d; }
+  .formularios { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; max-width: 920px; margin: 32px auto; padding: 0 16px; }
+  .formularios form { display: grid; gap: 12px; align-content: start; padding: 20px; border: 1px solid #d9deea; border-radius: 16px; background: #fff; box-shadow: 0 4px 16px #18243d10; }
+  .formularios h2 { margin: 0; font-size: 20px; }
+  .formularios p { margin: 0; font-size: 14px; color: #55627e; }
+  .formularios label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+  .formularios input, .formularios textarea { font: inherit; font-weight: 400; padding: 10px 12px; border: 1px solid #d9deea; border-radius: 10px; }
+  .formularios button { font: inherit; font-weight: 600; padding: 12px; border: 0; border-radius: 10px; background: #3563f3; color: #fff; cursor: pointer; }
+  .formularios button:disabled { opacity: .6; cursor: wait; }
+  .whatsapp-flotante { position: fixed; right: 20px; bottom: 20px; padding: 14px 18px; border-radius: 999px; background: #128c4b; color: #fff; font-weight: 600; text-decoration: none; box-shadow: 0 8px 24px #0003; }
+</style>
+<!-- Configuración: completar con el número de WhatsApp, la política de privacidad y los datos del consentimiento aprobado. -->
+<script src="amura-leads.js" defer
+  data-whatsapp="5939XXXXXXXX"
+  data-politica="#"
+  data-responsable="[RAZÓN SOCIAL DE NUVAREL]"
+  data-correo-datos="[CORREO DE PROTECCIÓN DE DATOS]"
+  data-version="v1-2026-11"></script>
+</head>
+<body>
+
+<main class="formularios">
+  <form data-amura-lead="contacto" novalidate>
+    <h2>Quiero que me contacten</h2>
+    <p>Déjanos tus datos y un asesor de AMURA te llama.</p>
+    <label>Nombre completo<input name="nombre" autocomplete="name" required maxlength="120"></label>
+    <label>Celular<input name="celular" type="tel" autocomplete="tel" required placeholder="09XXXXXXXX" maxlength="25"></label>
+    <label>Correo (opcional)<input name="email" type="email" autocomplete="email" maxlength="160"></label>
+    <label>¿Qué te interesa? (opcional)<textarea name="mensaje" rows="3" maxlength="2000"></textarea></label>
+    <button type="submit">Quiero que me contacten</button>
+  </form>
+
+  <form data-amura-lead="solicitud-de-informacion" novalidate>
+    <h2>Solicita información</h2>
+    <p>Te enviamos planos, precios y formas de pago de AMURA Apartments.</p>
+    <label>Nombre completo<input name="nombre" autocomplete="name" required maxlength="120"></label>
+    <label>Celular<input name="celular" type="tel" autocomplete="tel" required placeholder="09XXXXXXXX" maxlength="25"></label>
+    <label>Correo<input name="email" type="email" autocomplete="email" maxlength="160"></label>
+    <label>Departamento o tipología de interés (opcional)<input name="unidad" maxlength="60"></label>
+    <label>Presupuesto aproximado en USD (opcional)<input name="presupuesto" inputmode="numeric" maxlength="30"></label>
+    <button type="submit">Quiero información</button>
+  </form>
+</main>
+
+<!-- Botón público de WhatsApp: el conector pide nombre, celular y consentimiento antes de abrir el chat. -->
+<a class="whatsapp-flotante" href="https://wa.me/5939XXXXXXXX">Escríbenos por WhatsApp</a>
+
+</body>
+</html>

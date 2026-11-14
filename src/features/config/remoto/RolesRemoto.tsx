@@ -69,7 +69,7 @@ export default function RolesRemoto({ datos }: { datos: Datos }) {
               <button type="button" aria-pressed={sel === r.id} onClick={() => { setSel(r.id); setDraft(null); setError(null) }}
                 className={cn('w-full rounded-lg px-3 py-2 text-left text-xs', sel === r.id ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted')}>
                 <div className="font-semibold">{r.nombre}</div>
-                <div className="text-[11px] text-muted-foreground">{uso[r.id] ?? 0} usuarios{r.disponible ? '' : ' · no disponible para cuentas nuevas'}</div>
+                <div className="text-xs text-muted-foreground">{uso[r.id] ?? 0} usuarios{r.disponible ? '' : ' · no disponible para cuentas nuevas'}</div>
               </button>
             </li>
           ))}
@@ -139,7 +139,7 @@ export function MatrizAcciones({ seleccion, onChange }: { seleccion: string[]; o
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[820px] text-xs" aria-label="Permisos por módulo y acción">
-        <thead className="bg-muted text-[11px] text-muted-foreground">
+        <thead className="bg-muted text-xs text-muted-foreground">
           <tr><th className="px-3 py-2 text-left font-medium">Módulo</th>{columnas.map((c) => <th key={c} className="px-3 py-2 text-left font-medium">{ACCIONES[c]}</th>)}</tr>
         </thead>
         <tbody>

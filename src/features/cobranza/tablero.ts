@@ -10,6 +10,12 @@ export interface ContratoFila { id: string; codigo: string; clientId: string; cl
 export interface CuotaFila { contratoId: string; numero: number; concepto: string; vencimiento: string | null; vencimientoOriginal: string | null; monto: number }
 export interface PagoFila { id: string; contratoId: string; monto: number; fecha: string; referencia: string; estado: 'registrado' | 'verificado' | 'rechazado' | 'anulado'; registradoPor: string; registradoEn: string; comprobante: string | null; motivo: string | null }
 
+/** Autorización de Finanzas para aplicar excedente al saldo contra entrega. Las anuladas se conservan como historial. */
+export interface AplicacionFila {
+  id: string; contratoId: string; monto: number; motivo: string; soporteRuta: string; soporteNombre: string | null
+  autorizadoPor: string; autorizadoEn: string; anuladoPor: string | null; anuladoEn: string | null; motivoAnulacion: string | null
+}
+
 export interface CuotaCalculada extends CuotaFila {
   esEntrada: boolean
   pagado: number
@@ -39,17 +45,24 @@ export interface ResumenContrato {
   diasAtraso: number
   proxima: CuotaCalculada | null
   saldoEntrega: number
+  /** Excedente sobre la entrada que todavía no se aplica al saldo contra entrega. */
   saldoAFavor: number
+  /** Lo aplicado al saldo contra entrega con autorización de Finanzas. */
+  aplicadoEntrega: number
+  /** Todas las autorizaciones del contrato, también las anuladas. */
+  aplicaciones: AplicacionFila[]
   comprobantesPendientes: number
 }
 
 const cent = (n: number) => Math.round(n * 100) / 100
 
 /** Cuotas con su estado. La entrega (sin fecha) es el 80% bancario y no se cuenta como entrada. */
-export function calcularContrato(c: ContratoFila, cuotas: CuotaFila[], pagos: PagoFila[], hoy: string): ResumenContrato {
+export function calcularContrato(c: ContratoFila, cuotas: CuotaFila[], pagos: PagoFila[], hoy: string, aplicaciones: AplicacionFila[] = []): ResumenContrato {
   const propias = cuotas.filter((x) => x.contratoId === c.id).sort((a, b) => a.numero - b.numero)
   const verificado = pagos.filter((p) => p.contratoId === c.id && p.estado === 'verificado').reduce((t, p) => t + p.monto, 0)
-  const { pagado, excedente } = aplicarPagos(propias, verificado)
+  const suyas = aplicaciones.filter((a) => a.contratoId === c.id)
+  const autorizado = suyas.filter((a) => !a.anuladoEn).reduce((t, a) => t + a.monto, 0)
+  const { pagado, excedente } = aplicarPagos(propias, verificado, autorizado)
   const calc: CuotaCalculada[] = propias.map((q) => {
     const e = estadoCuota({ monto: q.monto, pagado: pagado.get(q.numero) ?? 0, vencimiento: q.vencimiento }, hoy)
     return { ...q, esEntrada: q.vencimiento !== null, pagado: pagado.get(q.numero) ?? 0, saldo: e.saldo, situacion: e.situacion, parcial: e.parcial, atrasoDias: e.atrasoDias }
@@ -71,6 +84,8 @@ export function calcularContrato(c: ContratoFila, cuotas: CuotaFila[], pagos: Pa
     proxima: pendientes.sort((a, b) => (a.vencimiento! < b.vencimiento! ? -1 : 1))[0] ?? null,
     saldoEntrega: suma(calc.filter((q) => !q.esEntrada), (q) => q.saldo),
     saldoAFavor: cent(excedente),
+    aplicadoEntrega: suma(calc.filter((q) => !q.esEntrada), (q) => q.pagado),
+    aplicaciones: suyas,
     comprobantesPendientes: pagos.filter((p) => p.contratoId === c.id && p.estado === 'registrado').length,
   }
 }
@@ -91,8 +106,8 @@ export interface Tablero {
 }
 
 /** Totales de la cartera exigible (contratos firmados). Antes de firmar solo se informa el dinero recibido. */
-export function calcularTablero(contratos: ContratoFila[], cuotas: CuotaFila[], pagos: PagoFila[], hoy: string): Tablero {
-  const res = contratos.filter((c) => c.estado !== 'anulado').map((c) => calcularContrato(c, cuotas, pagos, hoy))
+export function calcularTablero(contratos: ContratoFila[], cuotas: CuotaFila[], pagos: PagoFila[], hoy: string, aplicaciones: AplicacionFila[] = []): Tablero {
+  const res = contratos.filter((c) => c.estado !== 'anulado').map((c) => calcularContrato(c, cuotas, pagos, hoy, aplicaciones))
   const firmados = res.filter((r) => r.contrato.estado === 'firmado')
   const previos = res.filter((r) => r.contrato.estado === 'borrador')
   const mora = Object.fromEntries(TRAMOS_MORA.map((t) => [t.id, 0])) as Tablero['mora']

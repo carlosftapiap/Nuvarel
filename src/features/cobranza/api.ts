@@ -2,7 +2,7 @@ import type { Datos } from '@/features/conexion/datos'
 import type { Reserva } from '@/features/reservas/model'
 import { cargarComprobantes, cargarMovimientos, cargarRecibos, type Comprobante, type Movimiento, type Recibo } from './comprobantes'
 import { cargarReservas } from '@/features/reservas/remoto'
-import type { ContratoFila, CuotaFila, PagoFila } from './tablero'
+import type { AplicacionFila, ContratoFila, CuotaFila, PagoFila } from './tablero'
 
 /** Acceso a datos de cobranza. Lecturas con RLS; las escrituras son funciones del servidor con permiso, motivo y auditoría. */
 type Fila = Record<string, unknown>
@@ -16,6 +16,8 @@ export interface DatosCobranza {
   contratos: ContratoFila[]
   cuotas: CuotaFila[]
   pagos: PagoFila[]
+  /** Excedentes aplicados al saldo contra entrega, también los anulados. */
+  aplicaciones: AplicacionFila[]
   gestiones: Gestion[]
   compromisos: Compromiso[]
   alertas: Alerta[]
@@ -38,7 +40,7 @@ export interface DatosCobranza {
 }
 
 export async function cargarCobranza(d: Datos): Promise<DatosCobranza> {
-  const [contratos, cuotas, pagos, gestiones, compromisos, alertas, clientes, personas, oportunidades, reservas, unidades, comprobantes, recibos, movimientos, ajustes] = await Promise.all([
+  const [contratos, cuotas, pagos, gestiones, compromisos, alertas, clientes, personas, oportunidades, reservas, unidades, comprobantes, recibos, movimientos, ajustes, aplicaciones] = await Promise.all([
     d.select('contracts', { orden: [{ columna: 'codigo' }] }),
     d.select('installments', { orden: [{ columna: 'numero' }] }),
     d.select('payments', { orden: [{ columna: 'registrado_en', asc: false }] }),
@@ -54,6 +56,7 @@ export async function cargarCobranza(d: Datos): Promise<DatosCobranza> {
     cargarRecibos(d),
     cargarMovimientos(d),
     d.select<Fila>('payment_settings', { filtros: { id: 1 } }).catch(() => [] as Fila[]),
+    cargarAplicaciones(d),
   ])
   const nombres = new Map((personas as Fila[]).map((p) => [String(p.id), String(p.nombre)]))
   const cliente = new Map((clientes as Fila[]).map((c) => [String(c.id), String(c.nombre)]))
@@ -86,6 +89,7 @@ export async function cargarCobranza(d: Datos): Promise<DatosCobranza> {
       id: String(p.id), contratoId: String(p.contract_id), monto: Number(p.monto), fecha: String(p.fecha).slice(0, 10), referencia: String(p.referencia),
       estado: p.estado as PagoFila['estado'], registradoPor: String(p.registrado_por), registradoEn: String(p.registrado_en), comprobante: s(p.comprobante_path), motivo: s(p.motivo),
     })),
+    aplicaciones,
     gestiones: (gestiones as Fila[]).map((g) => ({
       id: String(g.id), contratoId: String(g.contract_id), numero: g.numero_cuota === null ? null : Number(g.numero_cuota), tipo: String(g.tipo),
       descripcion: String(g.descripcion), fecha: String(g.fecha), usuario: nombres.get(String(g.user_id)) ?? 'Usuario',
@@ -101,6 +105,13 @@ export async function cargarCobranza(d: Datos): Promise<DatosCobranza> {
     })),
   }
 }
+
+/** Sin la tabla (base anterior a la fase 2) no hay aplicaciones. */
+export const cargarAplicaciones = (d: Datos): Promise<AplicacionFila[]> =>
+  d.select<Fila>('aplicaciones_excedente', { orden: [{ columna: 'autorizado_en' }] }).then((f) => f.map((a) => ({
+    id: String(a.id), contratoId: String(a.contract_id), monto: Number(a.monto), motivo: String(a.motivo), soporteRuta: String(a.soporte_ruta), soporteNombre: s(a.soporte_nombre),
+    autorizadoPor: String(a.autorizado_por), autorizadoEn: String(a.autorizado_en), anuladoPor: s(a.anulado_por), anuladoEn: s(a.anulado_en), motivoAnulacion: s(a.motivo_anulacion),
+  }))).catch(() => [])
 
 export const anularPago = (d: Datos, pago: string, motivo: string) => d.rpc('cobranzas_anular_pago', { p_payment: pago, p_motivo: motivo })
 export const reprogramarCuota = (d: Datos, contrato: string, numero: number, fecha: string, motivo: string) =>

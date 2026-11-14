@@ -10,7 +10,7 @@ import { actualizarCliente, completarProxima, crearCliente, moverEtapa, programa
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import type { Actor } from '../../src/features/inventario/types'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { como, crearDb, crearUsuario, aprobarCumplimiento, celularPrueba } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, sofia: string, cora: string, carlos: string, vera: string, finanzas: string, jarval: string
@@ -28,7 +28,7 @@ async function actorDe(id: string): Promise<Actor> {
 
 let telefono = 990100000
 const entrada = (u: string, o: Partial<ClienteInput> = {}): ClienteInput => ({
-  nombre: 'Cliente de prueba', telefono: `0${++telefono}`, email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [],
+  nombre: 'Cliente de prueba', telefono: celularPrueba(++telefono), email: '', origen: 'whatsapp', origenDetalle: '', unidadesInteres: [],
   presupuesto: null, proposito: null, formaPago: null, asesorId: u, asesor: 'Asesor', ...o,
 })
 
@@ -61,7 +61,7 @@ describe('persistencia', () => {
     const id = await crear(cora, { nombre: 'Lucía Persistente', telefono: '0991112233', origen: 'instagram' })
     expect((await cliente(id)).nombre).toBe('Lucía Persistente')
     const otraSesion = (await cargarClientes(datosPglite(db, cora))).state.clientes.find((c) => c.id === id)!
-    expect(otraSesion).toMatchObject({ nombre: 'Lucía Persistente', telefono: '0991112233', origen: 'instagram', etapa: 'nuevo', asesorId: cora, version: 1 })
+    expect(otraSesion).toMatchObject({ nombre: 'Lucía Persistente', telefono: '+593991112233', origen: 'instagram', etapa: 'nuevo', asesorId: cora, version: 1 })
     expect(otraSesion.atribucion.usuarioId).toBe(cora)
     expect(otraSesion.actividades.map((a) => a.descripcion)).toEqual(['Cliente registrado · origen instagram'])
   })
@@ -174,7 +174,7 @@ describe('permisos y RLS con usuarios de prueba', () => {
   })
 
   it('no se puede escribir directo en las tablas, ni siquiera en un cliente propio', async () => {
-    await expect(como(db, cora, () => db.query(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by) values ('Directo', '0990009999', 'whatsapp', $1, $1)`, [cora]))).rejects.toThrow(/row-level security/)
+    await expect(como(db, cora, () => db.query(`insert into public.clients (nombre, documento, telefono, origen, asesor_id, created_by) values ('Directo', '1715099998', '0990009999', 'whatsapp', $1, $1)`, [cora]))).rejects.toThrow(/row-level security/)
     await expect(como(db, cora, () => db.query(`update public.clients set nombre = 'Cambiado' where id = $1`, [deCora]))).rejects.toThrow(/row-level security/)
     await expect(como(db, cora, () => db.query(`insert into public.client_activities (client_id, tipo, fecha, descripcion, user_id) values ($1, 'nota', (now() at time zone 'America/Guayaquil')::date, 'Directa', $2)`, [deCora, cora]))).rejects.toThrow(/row-level security/)
     await expect(como(db, cora, () => db.query(`insert into public.opportunities (client_id, responsable_id, created_by) values ($1, $2, $2)`, [deCora, cora]))).rejects.toThrow(/row-level security/)
@@ -260,8 +260,8 @@ describe('asignación', () => {
 describe('duplicados', () => {
   it('el teléfono y el correo no se repiten, aunque el otro cliente sea de otro equipo y con otro formato', async () => {
     await crear(cora, { nombre: 'Original', telefono: '0992223344', email: 'original@correo.com' })
-    await expect(crear(carlos, { nombre: 'Copia', telefono: '+593 99 222 3344' })).rejects.toThrow(/Ya existe un cliente con ese teléfono/)
-    await expect(crear(carlos, { nombre: 'Copia', telefono: '', email: 'ORIGINAL@correo.com' })).rejects.toThrow(/Ya existe un cliente con ese correo/)
+    await expect(crear(carlos, { nombre: 'Copia', telefono: '+593 99 222 3344' })).rejects.toThrow(/^Este celular ya se encuentra registrado en AMURA\.$/)
+    await expect(crear(carlos, { nombre: 'Copia', telefono: '0992220000', email: 'ORIGINAL@correo.com' })).rejects.toThrow(/Este cliente ya se encuentra registrado en AMURA/)
     expect(await visibles(carlos)).not.toContain('Copia')
   })
 })
@@ -394,7 +394,7 @@ describe('compatibilidad con cotizaciones, reservas y cobranzas', () => {
   beforeAll(async () => {
     await rpc(admin, `select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`)
     await db.query(`update public.inventory_units set estado = 'disponible', reserva_id = null where codigo in ('E1-P2-A1', 'E1-P2-A2')`)
-    id = await crear(vera, { nombre: 'Flujo completo', email: 'flujo@correo.com' })
+    id = await crear(vera, { nombre: 'Flujo completo', email: 'flujo@correo.com', documento: '1710034065' })
     await rpc(vera, `select public.clientes_mover_etapa($1, null, 'contactado', null, null)`, [id])
     opA = (await rpc<{ id: string }>(vera, `select public.oportunidades_crear($1, 'E1-P2-A1', null) as id`, [id])).id
     opB = (await rpc<{ id: string }>(vera, `select public.oportunidades_crear($1, 'E1-P2-A2', null) as id`, [id])).id
@@ -441,7 +441,7 @@ describe('compatibilidad con cotizaciones, reservas y cobranzas', () => {
   })
 
   it('desistir de la única reserva confirmada lleva al cliente a Perdido, y no se puede anular directo', async () => {
-    const otro = await crear(vera, { nombre: 'Una sola reserva', email: 'una@correo.com' })
+    const otro = await crear(vera, { nombre: 'Una sola reserva', email: 'una@correo.com', documento: '1710034073' })
     const op = (await rpc<{ id: string }>(vera, `select public.oportunidades_crear($1, 'E1-P2-A2', null) as id`, [otro])).id
     const { r } = await cotizarYReservar(op)
     await aprobar(r)
@@ -453,6 +453,7 @@ describe('compatibilidad con cotizaciones, reservas y cobranzas', () => {
 
   it('el contrato y la cobranza siguen funcionando y leen el cliente de la base', async () => {
     const c = (await rpc<{ id: string }>(admin, `select public.contratos_crear($1, $2::date, 'Contrato de prueba de clientes') as id`, [reservaA, hoy()])).id
+    await aprobarCumplimiento(db)
     await rpc(admin, `select public.contratos_firmar($1, 'Firma de prueba', 'contratos/firmado.pdf')`, [c])
     expect((await uno<{ etapa: string }>(`select etapa from public.opportunities where id = $1`, [opA])).etapa).toBe('cobranza')
     expect((await cliente(id)).etapa).toBe('reserva')
@@ -494,8 +495,8 @@ describe('importación desde el navegador', () => {
       local({ nombre: 'Perdido local', telefono: '0994440003', etapa: 'perdido', motivoPerdida: 'Compró en otro proyecto' }),
       local({ nombre: 'Copia de otro equipo', telefono: '+593 99 333 4455' }),
       local({ nombre: 'Copia de mi cartera', telefono: '0993334466' }),
-      local({ nombre: 'Repetido uno', email: 'repetido@correo.com' }),
-      local({ nombre: 'Repetido dos', email: 'REPETIDO@correo.com' }),
+      local({ nombre: 'Repetido uno', telefono: '0994440005', email: 'repetido@correo.com' }),
+      local({ nombre: 'Repetido dos', telefono: '0994440006', email: 'REPETIDO@correo.com' }),
       local({ nombre: 'Con error', telefono: '0994440004', etapa: 'perdido', motivoPerdida: 'x' }),
     ]
   })

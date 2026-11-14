@@ -4,7 +4,7 @@ import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { datosPglite } from './datos-pglite'
-import { crearDb, crearUsuario } from './db'
+import { como, crearDb, crearUsuario } from './db'
 import { cargarInventario, persistirCambios } from '../../src/features/inventario/remoto'
 import { actualizarParametros, aplicarCambioPrecio, aprobarPropuesta, cambiarEstado, crearPropuesta } from '../../src/features/inventario/service'
 import type { Actor } from '../../src/features/inventario/types'
@@ -23,20 +23,16 @@ describe('inventario conectado a Supabase', () => {
   it('carga las 72 unidades con su estado, precios e historial reales', async () => {
     const s = await cargarInventario(datosPglite(db, admin))
     expect(s.units).toHaveLength(72)
-    expect(s.units[0]).toMatchObject({ codigo: 'E1-PB-A1', estado: 'por_confirmar' })
+    expect(s.units[0]).toMatchObject({ codigo: 'E1-PB-A1', estado: 'disponible' })
     expect(s.units[0].precioReferencia).toBeGreaterThan(0)
     expect(s.params.meses).toEqual({ 1: 30, 2: 42 })
   })
 
-  it('cambiar el estado guarda en la base con motivo y queda en el historial', async () => {
-    const datos = datosPglite(db, admin)
-    const prev = await cargarInventario(datos)
-    const next = cambiarEstado(prev, 'E1-PB-A1', 'bloqueado', 'Retención por comité', actorAdmin())
-    await persistirCambios(datos, prev, next)
-    const fila = (await db.query<{ estado: string }>(`select estado from public.inventory_units where codigo = 'E1-PB-A1'`)).rows[0]
-    expect(fila.estado).toBe('bloqueado')
-    const h = await db.query<{ motivo: string }>(`select motivo from public.inventory_status_history where codigo = 'E1-PB-A1' order by fecha desc limit 1`)
-    expect(h.rows[0]).toEqual({ motivo: 'Retención por comité' })
+  it('el estado no se cambia a mano, ni en la pantalla ni en la base', async () => {
+    const prev = await cargarInventario(datosPglite(db, admin))
+    expect(() => cambiarEstado(prev, 'E1-PB-A1', 'reservado', 'Retención por comité', actorAdmin())).toThrow(/se aprueba una reserva/)
+    await expect(como(db, admin, () => db.query(`select public.inventario_cambiar_estado('E1-PB-A1', 'vendido', 'Retención por comité')`))).rejects.toThrow(/lo asignan Reservas/)
+    expect((await db.query<{ estado: string }>(`select estado from public.inventory_units where codigo = 'E1-PB-A1'`)).rows[0].estado).toBe('disponible')
   })
 
   it('cambiar un precio guarda el valor nuevo y el registro de precios', async () => {

@@ -17,11 +17,13 @@ import type { Recibo } from '@/features/cobranza/comprobantes'
 import { ESTADO_FILA, filaReserva, indicadoresReservas, type FilaReserva } from '@/features/cobranza/reservas'
 import { useRefresco } from '@/features/conexion/refresco'
 import MovimientosReserva from '@/features/cobranza/components/MovimientosReserva'
+import ExcedenteEntrega from '@/features/cobranza/components/ExcedenteEntrega'
 import RegistrarPagoCuota from '@/features/cobranza/components/RegistrarPagoCuota'
 import RevisionPago, { type PagoEnRevision } from '@/features/cobranza/components/RevisionPago'
 import { almacenPagos, descargarRecibo, reportarPagoContrato, reportarPagoReserva, type DatosPago } from '@/features/cobranza/comprobantes'
 import RegistrarPagoDialog from '@/features/reservas/components/RegistrarPagoDialog'
 import type { Reserva } from '@/features/reservas/model'
+import { descargarEstadoCuenta } from '@/features/cobranza/estadoCuenta'
 import { calcularTablero, esProxima, filasCuotas, SITUACION, TRAMOS_MORA, type FiltroCuotas, type ResumenContrato } from '@/features/cobranza/tablero'
 import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
@@ -37,7 +39,7 @@ const ESTADO_PAGO: Record<string, { label: string; tono: string }> = {
 const ESTADO_ALERTA: Record<string, string> = { pendiente: 'Pendiente de envío', enviada: 'Enviada', fallida: 'Fallida', cancelada: 'Cancelada' }
 
 function Pastilla({ texto, tono }: { texto: string; tono: string }) {
-  return <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset whitespace-nowrap', tono)}>{texto}</span>
+  return <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset whitespace-nowrap', tono)}>{texto}</span>
 }
 
 export default function CobranzaPage() {
@@ -90,7 +92,7 @@ function Cobranza({ datos }: { datos: Datos }) {
     try { await fn(); setAviso(ok); await cargar(); return true } catch (e) { setError((e as Error).message); await cargar(); return false }
   }, [cargar])
 
-  const tablero = useMemo(() => (d ? calcularTablero(d.contratos, d.cuotas, d.pagos, hoy) : null), [d, hoy])
+  const tablero = useMemo(() => (d ? calcularTablero(d.contratos, d.cuotas, d.pagos, hoy, d.aplicaciones) : null), [d, hoy])
   const filasReservas = useMemo(() => (d?.reservas ?? []).map((r) => filaReserva(r, d!.reservasConContrato, hoy)), [d, hoy])
   const indicadores = useMemo(() => (d ? indicadoresReservas(filasReservas, d.pagos, d.contratosVigentes, d.movimientos) : null), [d, filasReservas])
   if (!d || !tablero || !indicadores) return error ? <FieldError>{error}</FieldError> : <p className="p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 inline size-4 animate-spin" />Cargando cobranza…</p>
@@ -149,7 +151,7 @@ function Cobranza({ datos }: { datos: Datos }) {
           {porVerificar.length > 0 && (
             <section aria-labelledby="co-verificar" className="dashboard-card p-4">
               <h2 id="co-verificar" className="text-sm font-semibold">Pagos por verificar ({porVerificar.length})</h2>
-              <p className="text-[11px] text-muted-foreground">Aún no cuentan como cobrados. Los confirma una persona distinta de quien los registró.</p>
+              <p className="text-xs text-muted-foreground">Aún no cuentan como cobrados. Los confirma una persona distinta de quien los registró.</p>
               <ul className="mt-2 grid gap-1.5 text-xs">
                 {porVerificar.map((p) => {
                   const k = nombreDe(p.contratoId)
@@ -157,7 +159,7 @@ function Cobranza({ datos }: { datos: Datos }) {
                   return (
                     <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2">
                       <span className="min-w-0 flex-1"><b>{k?.cliente}</b> · Dpto. {k ? departamento(k.unidad) : ''} · {fmtUsd2(p.monto)} · {fmtFechaCorta(p.fecha)}</span>
-                      {propio && <span className="text-[11px] text-muted-foreground">Lo verifica otra persona</span>}
+                      {propio && <span className="text-xs text-muted-foreground">Lo verifica otra persona</span>}
                       {(can('cobranzas.verificar') || propio) && <Button size="xs" variant={propio ? 'outline' : 'default'} onClick={() => { setError(null); setAviso(null); setRevisar(p.id) }}>{propio ? 'Ver pago' : 'Revisar pago'}</Button>}
                     </li>
                   )
@@ -179,7 +181,7 @@ function Cobranza({ datos }: { datos: Datos }) {
           {filas.length === 0 ? <div className="module-empty"><p className="text-sm text-muted-foreground">{tablero.contratos.length ? 'No hay cuotas con este filtro.' : 'Todavía no hay contratos en tu alcance.'}</p></div> : (
             <div className="dashboard-card !p-0 overflow-x-auto">
               <table className="w-full min-w-[820px] text-xs">
-                <thead className="bg-muted text-[11px] text-muted-foreground">
+                <thead className="bg-muted text-xs text-muted-foreground">
                   <tr><th className="px-4 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Departamento</th><th className="px-2 py-2 text-left font-medium">Cuota</th><th className="px-2 py-2 text-left font-medium">Vencimiento</th><th className="px-2 py-2 text-right font-medium">Valor</th><th className="px-2 py-2 text-right font-medium">Pagado</th><th className="px-2 py-2 text-right font-medium">Saldo</th><th className="px-4 py-2 text-left font-medium">Estado</th></tr>
                 </thead>
                 <tbody>
@@ -225,19 +227,19 @@ function Cobranza({ datos }: { datos: Datos }) {
           <section className="dashboard-card !p-0 overflow-x-auto">
             <h2 className="px-4 pt-4 text-sm font-semibold">Antigüedad de la mora</h2>
             <table className="mt-3 w-full text-xs">
-              <thead className="bg-muted text-[11px] text-muted-foreground"><tr>{TRAMOS_MORA.map((t) => <th key={t.id} className="px-4 py-2 text-right font-medium">{t.label}</th>)}</tr></thead>
+              <thead className="bg-muted text-xs text-muted-foreground"><tr>{TRAMOS_MORA.map((t) => <th key={t.id} className="px-4 py-2 text-right font-medium">{t.label}</th>)}</tr></thead>
               <tbody><tr>{TRAMOS_MORA.map((t) => <td key={t.id} className="px-4 py-2 text-right tabular-nums">{fmtUsd2(tablero.mora[t.id])}</td>)}</tr></tbody>
             </table>
-            <p className="px-4 py-2 text-[11px] text-muted-foreground">Los tramos dividen el saldo vencido; su suma es el vencido, no una deuda adicional.</p>
+            <p className="px-4 py-2 text-xs text-muted-foreground">Los tramos dividen el saldo vencido; su suma es el vencido, no una deuda adicional.</p>
           </section>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="dashboard-card !p-4 text-xs">
-              <div className="text-[11px] text-muted-foreground">Desembolso bancario esperado (80%)</div>
+              <div className="text-xs text-muted-foreground">Desembolso bancario esperado (80%)</div>
               <div className="mt-1 text-lg font-semibold tabular-nums">{fmtUsd2(tablero.desembolsoEsperado)}</div>
               <p className="mt-1 text-muted-foreground">Saldo contra entrega que normalmente paga el banco del comprador. No es cartera de Nuvarel ni genera alertas de cobro.</p>
             </div>
             <div className="dashboard-card !p-4 text-xs">
-              <div className="text-[11px] text-muted-foreground">Reservas recibidas antes de la firma</div>
+              <div className="text-xs text-muted-foreground">Reservas recibidas antes de la firma</div>
               <div className="mt-1 text-lg font-semibold tabular-nums">{fmtUsd2(tablero.reservasPreFirma)}</div>
               <p className="mt-1 text-muted-foreground">{tablero.contratosPreFirma} contrato(s) en borrador. Su cronograma se vuelve exigible al firmar.</p>
             </div>
@@ -283,7 +285,7 @@ function ReservasCobranza({ filas, d, datos, ejecutar }: { filas: FilaReserva[];
       {lista.length === 0 ? <div className="module-empty"><p className="text-sm text-muted-foreground">No hay solicitudes de reserva en tu alcance.</p></div> : (
         <div className="dashboard-card !p-0 overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="bg-muted text-[11px] text-muted-foreground">
+            <thead className="bg-muted text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Cliente</th>
                 <th className="px-2 py-2 text-left font-medium">Departamento</th>
@@ -302,7 +304,7 @@ function ReservasCobranza({ filas, d, datos, ejecutar }: { filas: FilaReserva[];
                   <td className="px-2 py-2">{d.departamentos.get(f.reserva.unidad) ?? f.reserva.unidad}</td>
                   <td className="px-2 py-2">{f.reserva.codigo}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.acordado)}</td>
-                  <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.pagado)}{f.estado === 'por_verificar' && <div className="text-[11px] text-muted-foreground">reportado, sin confirmar</div>}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.pagado)}{f.estado === 'por_verificar' && <div className="text-xs text-muted-foreground">reportado, sin confirmar</div>}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.saldo)}</td>
                   <td className="px-2 py-2"><Pastilla texto={ESTADO_FILA[f.estado].label} tono={ESTADO_FILA[f.estado].tono} />{f.vencida && <span className="ml-1"><Pastilla texto="Vencida" tono="bg-rose-50 text-rose-700 ring-rose-200" /></span>}</td>
                   <td className="px-4 py-2">
@@ -319,7 +321,7 @@ function ReservasCobranza({ filas, d, datos, ejecutar }: { filas: FilaReserva[];
           </table>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">Una solicitud no es un ingreso ni una cuenta por cobrar contractual: el cronograma se vuelve exigible al firmar el contrato. Registrar un pago no lo confirma; Finanzas verifica el ingreso.</p>
+      <p className="text-xs text-muted-foreground">Una solicitud no es un ingreso ni una cuenta por cobrar contractual: el cronograma se vuelve exigible al firmar el contrato. Registrar un pago no lo confirma; Finanzas verifica el ingreso.</p>
       <RegistrarPagoDialog reserva={pago} onClose={() => setPago(null)}
         onConfirm={(p) => { const r = pago!; setPago(null); void ejecutar(() => reportarPagoReserva(datos, almacenPagos(conexion), r.id, p), `Pago de ${r.codigo} registrado · pendiente de verificación de Finanzas`) }} />
       {movimientos && <MovimientosReserva reserva={movimientos} movimientos={d.movimientos.filter((m) => m.reservaId === movimientos.id)} datos={datos} almacen={almacenPagos(conexion)} ejecutar={ejecutar} onClose={() => setMovimientos(null)} />}
@@ -341,14 +343,14 @@ function Alertas({ alertas }: { alertas: api.Alerta[] }) {
   return (
     <div className="dashboard-card !p-0 overflow-x-auto">
       <table className="w-full text-xs">
-        <thead className="bg-muted text-[11px] text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Creada</th><th className="px-2 py-2 text-left font-medium">Asunto</th><th className="px-2 py-2 text-left font-medium">Destinatario</th><th className="px-4 py-2 text-left font-medium">Estado</th></tr></thead>
+        <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Creada</th><th className="px-2 py-2 text-left font-medium">Asunto</th><th className="px-2 py-2 text-left font-medium">Destinatario</th><th className="px-4 py-2 text-left font-medium">Estado</th></tr></thead>
         <tbody>
           {alertas.map((a) => (
             <tr key={a.id} className="border-t border-border align-top">
               <td className="px-4 py-2 tabular-nums">{new Date(a.creadaEn).toLocaleString('es-EC')}</td>
               <td className="px-2 py-2">{a.asunto}</td>
               <td className="px-2 py-2">{a.destinatario}</td>
-              <td className="px-4 py-2">{ESTADO_ALERTA[a.estado] ?? a.estado}{a.error && <div className="text-[11px] text-muted-foreground">{a.error}</div>}{a.intentos > 0 && <div className="text-[11px] text-muted-foreground">{a.intentos} intento(s)</div>}</td>
+              <td className="px-4 py-2">{ESTADO_ALERTA[a.estado] ?? a.estado}{a.error && <div className="text-xs text-muted-foreground">{a.error}</div>}{a.intentos > 0 && <div className="text-xs text-muted-foreground">{a.intentos} intento(s)</div>}</td>
             </tr>
           ))}
         </tbody>
@@ -374,6 +376,12 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, departamento, reciboDe, 
   const [comp, setComp] = useState({ monto: '', fecha: '', numero: '', motivo: '' })
   const [repro, setRepro] = useState({ numero: '', fecha: '', motivo: '' })
   const num = (s: string) => Number(s.replace(',', '.'))
+  const [generando, setGenerando] = useState(false)
+  const estadoCuenta = async () => {
+    setGenerando(true)
+    try { await descargarEstadoCuenta(datos, r, d, hoyGuayaquil()) } catch (e) { void ejecutar(() => Promise.reject(e), '') }
+    setGenerando(false)
+  }
 
   return (
     <Sheet open onOpenChange={(o) => { if (!o) onClose() }}>
@@ -384,6 +392,7 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, departamento, reciboDe, 
               <SheetTitle className="text-base">{c.cliente} · Dpto. {departamento}</SheetTitle>
               <SheetDescription>{c.codigo} · {c.estado === 'firmado' ? 'Firmado: cronograma exigible' : 'Borrador: aún no exigible'} · Responsable {c.responsable}</SheetDescription>
             </div>
+            <Button size="sm" variant="outline" disabled={generando} onClick={() => void estadoCuenta()}>{generando ? <Loader2 className="animate-spin" /> : <Download />}Estado de cuenta</Button>
             <button type="button" aria-label="Cerrar" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
           </div>
         </SheetHeader>
@@ -394,34 +403,35 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, departamento, reciboDe, 
             <Kpi t="Saldo de entrada" v={fmtUsd2(r.saldoEntrada)} d={`Pactado ${fmtUsd2(r.pactadoEntrada)}`} />
             <Kpi t="Cobrado confirmado" v={fmtUsd2(r.cobradoEntrada)} d="Pagos verificados" />
             <Kpi t="Vencido" v={fmtUsd2(r.vencido)} d={r.diasAtraso ? `${r.diasAtraso} días de atraso` : 'Sin atraso'} tone={r.vencido ? 'text-rose-700' : undefined} />
-            <Kpi t="Saldo a favor" v={fmtUsd2(r.saldoAFavor)} d="Excedente pendiente de aplicación" />
+            <Kpi t="Saldo a favor" v={fmtUsd2(r.saldoAFavor)} d="Excedente sin aplicar al 80 %" />
           </div>
 
           <section>
             <h3 className="mb-2 text-xs font-semibold">Cronograma de la entrada del 20 %</h3>
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-xs">
-                <thead className="bg-muted text-[11px] text-muted-foreground"><tr><th className="px-3 py-1.5 text-left font-medium">Cuota</th><th className="px-2 py-1.5 text-left font-medium">Vencimiento</th><th className="px-2 py-1.5 text-right font-medium">Monto</th><th className="px-2 py-1.5 text-right font-medium">Aplicado</th><th className="px-2 py-1.5 text-right font-medium">Saldo</th><th className="px-3 py-1.5 text-left font-medium">Estado</th></tr></thead>
+                <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="px-3 py-1.5 text-left font-medium">Cuota</th><th className="px-2 py-1.5 text-left font-medium">Vencimiento</th><th className="px-2 py-1.5 text-right font-medium">Monto</th><th className="px-2 py-1.5 text-right font-medium">Aplicado</th><th className="px-2 py-1.5 text-right font-medium">Saldo</th><th className="px-3 py-1.5 text-left font-medium">Estado</th></tr></thead>
                 <tbody>
                   {r.cuotas.filter((q) => q.esEntrada).map((q) => (
                     <tr key={q.numero} className="border-t border-border">
                       <td className="px-3 py-1.5">{q.concepto} <span className="text-muted-foreground">(nº {q.numero})</span></td>
-                      <td className="px-2 py-1.5 tabular-nums">{fmtFechaCorta(q.vencimiento)}{q.vencimientoOriginal && <div className="text-[10px] text-muted-foreground">Original {fmtFechaCorta(q.vencimientoOriginal)}</div>}</td>
+                      <td className="px-2 py-1.5 tabular-nums">{fmtFechaCorta(q.vencimiento)}{q.vencimientoOriginal && <div className="text-xs text-muted-foreground">Original {fmtFechaCorta(q.vencimientoOriginal)}</div>}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{fmtUsd2(q.monto)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{fmtUsd2(q.pagado)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums">{fmtUsd2(q.saldo)}</td>
                       <td className="px-3 py-1.5">
                         <Pastilla texto={c.estado === 'firmado' ? SITUACION[q.situacion].label : q.situacion === 'pagada' ? 'Pagada' : 'No exigible'} tono={c.estado === 'firmado' ? SITUACION[q.situacion].tono : 'bg-slate-50 text-slate-600 ring-slate-200'} />
                         {q.parcial && <span className="ml-1"><Pastilla texto="Abono parcial" tono="bg-sky-50 text-sky-800 ring-sky-200" /></span>}
-                        {q.situacion === 'vencida' && c.estado === 'firmado' && <span className="ml-1 text-[10px] text-rose-700">{q.atrasoDias} d</span>}
+                        {q.situacion === 'vencida' && c.estado === 'firmado' && <span className="ml-1 text-xs text-rose-700">{q.atrasoDias} d</span>}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">Saldo contra entrega (80%, desembolso bancario esperado): {fmtUsd2(r.saldoEntrega)}. No es cartera de Nuvarel.</p>
           </section>
+
+          <ExcedenteEntrega r={r} datos={datos} almacen={almacenPagos(conexion)} nombres={d.nombres} ejecutar={ejecutar} />
 
           <section>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -435,12 +445,12 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, departamento, reciboDe, 
                     <span className="font-medium tabular-nums">{fmtUsd2(p.monto)}</span>
                     <span className="text-muted-foreground">{fmtFechaCorta(p.fecha)} · ref. {p.referencia}</span>
                     <Pastilla texto={ESTADO_PAGO[p.estado].label} tono={ESTADO_PAGO[p.estado].tono} />
-                    {p.motivo && <span className="text-[11px] text-muted-foreground">{p.motivo}</span>}
+                    {p.motivo && <span className="text-xs text-muted-foreground">{p.motivo}</span>}
                     <span className="ml-auto flex gap-1.5">
-                      {reciboDe(p) && p.estado === 'verificado' && <Button size="sm" variant="outline" onClick={() => void descargarRecibo(almacenPagos(conexion), reciboDe(p)!).catch(() => {})}><Download />Recibo {reciboDe(p)!.numero}</Button>}
+                      {reciboDe(p) && p.estado === 'verificado' && <Button size="sm" variant="outline" onClick={() => void descargarRecibo(almacenPagos(conexion), reciboDe(p)!, null, datos).catch(() => {})}><Download />Recibo {reciboDe(p)!.numero}</Button>}
                       {(p.estado === 'registrado' ? can('cobranzas.verificar') || p.registradoPor === actor.id : !!reciboDe(p) || d.comprobantes.some((k) => k.pagoId === p.id)) &&
                         <Button size="sm" variant={p.estado === 'registrado' && p.registradoPor !== actor.id ? 'default' : 'outline'} onClick={() => onRevisar(p.id)}>{p.estado === 'registrado' ? 'Revisar pago' : 'Ver pago'}</Button>}
-                      {p.estado === 'registrado' && p.registradoPor === actor.id && <span className="text-[11px] text-muted-foreground">Lo verifica otra persona</span>}
+                      {p.estado === 'registrado' && p.registradoPor === actor.id && <span className="text-xs text-muted-foreground">Lo verifica otra persona</span>}
                     </span>
                   </li>
                 ))}
@@ -525,7 +535,7 @@ function Detalle({ r, d, datos, ejecutar, error, aviso, departamento, reciboDe, 
                   onClick={() => void ejecutar(() => api.reprogramarCuota(datos, c.id, Number(repro.numero), repro.fecha, repro.motivo.trim()), 'Cuota reprogramada')
                     .then((ok) => { if (ok) setRepro({ numero: '', fecha: '', motivo: '' }) })}>Reprogramar</Button>
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">Conserva la fecha original y los pagos; queda en auditoría con tu usuario y motivo.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Conserva la fecha original y los pagos; queda en auditoría con tu usuario y motivo.</p>
             </section>
           )}
             </div>
@@ -556,13 +566,13 @@ function MotivoDialog({ p, onClose, onEnviar }: { p: Pedir; onClose: () => void;
 }
 
 function Kpi({ t, v, d, tone, destacado, onClick, activo }: { t: string; v: string; d: string; tone?: string; destacado?: boolean; onClick?: () => void; activo?: boolean }) {
-  const contenido = <><div className="text-[11px] text-muted-foreground">{t}</div><div className={cn('mt-1 text-lg font-semibold tabular-nums tracking-tight', tone, destacado && 'text-primary')}>{v}</div><div className="mt-0.5 text-[11px] text-muted-foreground">{d}</div></>
+  const contenido = <><div className="text-xs text-muted-foreground">{t}</div><div className={cn('mt-1 text-lg font-semibold tabular-nums tracking-tight', tone, destacado && 'text-primary')}>{v}</div><div className="mt-0.5 text-xs text-muted-foreground">{d}</div></>
   if (onClick) return <button type="button" aria-pressed={activo} onClick={onClick} className={cn('dashboard-card !p-4 text-left hover:bg-muted/30', activo && 'ring-2 ring-primary/50')}>{contenido}</button>
   return (
     <div className={cn('dashboard-card !p-4', destacado && 'ring-1 ring-primary/30')}>
-      <div className="text-[11px] text-muted-foreground">{t}</div>
+      <div className="text-xs text-muted-foreground">{t}</div>
       <div className={cn('mt-1 text-lg font-semibold tabular-nums tracking-tight', tone, destacado && 'text-primary')}>{v}</div>
-      <div className="mt-0.5 text-[11px] text-muted-foreground">{d}</div>
+      <div className="mt-0.5 text-xs text-muted-foreground">{d}</div>
     </div>
   )
 }

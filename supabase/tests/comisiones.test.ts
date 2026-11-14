@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
-import { como, crearDb, crearUsuario } from './db'
+import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, carlos: string, cora: string
@@ -10,7 +10,7 @@ let n = 990800000
 
 const uno = async <T>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows[0]
 const rpc = <T = unknown>(u: string, sql: string, p: unknown[] = []) => como(db, u, async () => (await db.query<T>(sql, p)).rows[0])
-const nuevoCliente = async (u: string, nombre: string) => (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: `0${++n}`, origen: 'whatsapp' }), u])).id
+const nuevoCliente = async (u: string, nombre: string) => (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'whatsapp' }), u])).id
 const unidadLibre = async () => (await uno<{ codigo: string }>(
   `select codigo from public.inventory_units where estado = 'disponible' and codigo not in (select codigo_unidad from public.reservations where estado in ('solicitada', 'pago_verificado', 'confirmada')) order by codigo limit 1`)).codigo
 
@@ -45,6 +45,7 @@ describe('comisión base sobre el valor total de la venta', () => {
     const r = await reservaAprobada(carlos, c, await unidadLibre())
     const id = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato de prueba') as id`, [r, hoyGuayaquil()])).id
     const k = await uno<{ id: string; codigo: string; precio: string }>(`select id, codigo, precio from public.contracts where id = $1`, [id])
+    await aprobarCumplimiento(db)
     await rpc(legal, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'x.pdf')`, [k.id, hoyGuayaquil()])
     const filas = await rpc<{ j: { contrato: string; monto: number; porcentaje: number }[] }>(gerente, `select public.comisiones_base_listar() as j`)
     const fila = filas.j.find((x) => x.contrato === k.codigo)!
@@ -67,6 +68,7 @@ describe('comisión base sobre el valor total de la venta', () => {
     const c = await nuevoCliente(carlos, 'Venta Anulada')
     const r = await reservaAprobada(carlos, c, await unidadLibre())
     const id = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato que se anulará') as id`, [r, hoyGuayaquil()])).id
+    await aprobarCumplimiento(db)
     await rpc(legal, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'x.pdf')`, [id, hoyGuayaquil()])
     const antes = await rpc<{ j: { contrato: string; porcentaje: number }[] }>(gerente, `select public.comisiones_base_listar() as j`)
     expect(antes.j.some((x) => x.porcentaje === 3.1)).toBe(true)

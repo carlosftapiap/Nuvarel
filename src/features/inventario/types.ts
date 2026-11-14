@@ -21,14 +21,11 @@ export interface UnitSeed {
   precioReferencia: number
 }
 
-export type EstadoComercial =
-  | 'por_confirmar'
-  | 'disponible'
-  | 'bloqueado'
-  | 'reservado'
-  | 'promesa'
-  | 'vendido'
-  | 'no_disponible'
+/** Estado de la unidad en el inventario. Aprobación, pago y firma son etapas de la reserva y del contrato, no de la unidad. */
+export type EstadoComercial = 'disponible' | 'reservado' | 'vendido'
+
+/** Estados que pueden aparecer en el historial anterior a la simplificación (auditoría). */
+export type EstadoHistorico = EstadoComercial | 'por_confirmar' | 'bloqueado' | 'promesa' | 'no_disponible'
 
 /** Solicitud de reserva en trámite. No cambia el estado guardado de la unidad. `cotizacionId` solo llega a quien tiene acceso a ese cliente. */
 export interface SolicitudActiva {
@@ -110,8 +107,8 @@ export interface StatusHistoryEntry {
   usuario: string
   rol: Rol
   codigo: string
-  de: EstadoComercial
-  a: EstadoComercial
+  de: EstadoHistorico
+  a: EstadoHistorico
   motivo: string
   reservaId: string | null
 }

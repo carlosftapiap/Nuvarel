@@ -11,7 +11,7 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTi
 import { Textarea } from '@/components/ui/textarea'
 import { fmtFechaCorta } from '@/features/financiamiento/plan'
 import { dataFlags, ESTADO_DOCUMENTO, estadoDocumento, FUENTES } from '../data/data-quality'
-import { ESTADOS, ESTADOS_EFECTIVOS, ESTADOS_PRECIO_BLOQUEADO, estadoEfectivo, MOTIVO_SIN_CAMBIO, TRANSICIONES_MANUALES } from '../estados'
+import { ESTADOS, ESTADOS_EFECTIVOS, etiquetaEstado, ESTADOS_PRECIO_BLOQUEADO, estadoEfectivo, MOTIVO_SIN_CAMBIO, TRANSICIONES_MANUALES } from '../estados'
 import { calcularPrecio, etiquetaPagoFirma, fmtCuotas, fmtFecha, fmtM2, fmtNum, fmtPct, fmtUsd, fmtUsd2, NOTA_RESERVA, RESERVA_PREDETERMINADA, round2, type PriceBreakdown } from '../pricing'
 import { cambiarEstado, estadoPrecio, guardarCambioPrecio, previsualizarCambioPrecio } from '../service'
 import { useInventory } from '../store'
@@ -48,7 +48,7 @@ export default function UnitDetailSheet({
     <Sheet open={!!codigo} onOpenChange={(o) => { if (!o) onClose() }}>
       <SheetContent showCloseButton={false} className="w-full gap-0 overflow-y-auto p-0 data-[side=right]:sm:max-w-xl">
         <SheetHeader className="sticky top-0 z-10 border-b border-border bg-popover/95 px-5 py-4 backdrop-blur">
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Edificio {u.edificio} · {pisoLabel(u.piso)}</span>
             <span className="ml-auto flex gap-1">
               <Button variant="ghost" size="icon-xs" aria-label="Unidad anterior" disabled={idx <= 0} onClick={() => onNavigate(state.units[idx - 1].codigo)}><ChevronLeft /></Button>
@@ -70,11 +70,11 @@ export default function UnitDetailSheet({
 
           {/* 2. Precio y simulador */}
           <section className="rounded-xl border border-border bg-card p-4" aria-labelledby="ficha-precio">
-            <h3 id="ficha-precio" className="text-[11px] font-medium text-muted-foreground">
+            <h3 id="ficha-precio" className="text-xs font-medium text-muted-foreground">
               Precio de venta · <span className={ETIQUETA_PRECIO[vigencia.tipo].tono}>{ETIQUETA_PRECIO[vigencia.tipo].label}</span> · vigente desde {fmtFechaCorta(vigencia.fecha)}
             </h3>
             <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">{fmtUsd(p.precioVenta)}</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">{fmtUsd2(p.usdM2)}/m² × {fmtNum(p.areaVendibleM2)} m² (área + bodega){p.valorPatio ? ` + patio ${fmtUsd(p.valorPatio)}` : ''}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{fmtUsd2(p.usdM2)}/m² × {fmtNum(p.areaVendibleM2)} m² (área + bodega){p.valorPatio ? ` + patio ${fmtUsd(p.valorPatio)}` : ''}</p>
             <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 sm:grid-cols-4">
               <Dato label="Área + bodega">{fmtUsd(p.precioAreaBodega)}</Dato>
               <Dato label="Valor patio">{p.valorPatio ? fmtUsd(p.valorPatio) : '—'}</Dato>
@@ -83,7 +83,7 @@ export default function UnitDetailSheet({
             </dl>
             {can('inventario.editar_precios') && (
               precioBloqueado
-                ? <p className="mt-3 flex items-center gap-1.5 rounded-md bg-muted px-3 py-2 text-[11px] text-muted-foreground"><Lock className="size-3 shrink-0" />Precio congelado: la unidad está {ESTADOS[u.estado].label.toLowerCase()}.</p>
+                ? <p className="mt-3 flex items-center gap-1.5 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"><Lock className="size-3 shrink-0" />Precio congelado: la unidad está {ESTADOS[u.estado].label.toLowerCase()}.</p>
                 : <SimuladorPrecio key={`precio-${u.codigo}`} u={u} actual={p} onMessage={onMessage} />
             )}
           </section>
@@ -136,7 +136,7 @@ export default function UnitDetailSheet({
                 )
               })}
             </ul>
-            <p className="mt-2 text-[10px] text-muted-foreground">Fuentes: {FUENTES.lista}; {FUENTES.bodegas}; {FUENTES.planos}.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Fuentes: {FUENTES.lista}; {FUENTES.bodegas}; {FUENTES.planos}.</p>
           </section>
 
           <section aria-labelledby="ficha-historial">
@@ -146,13 +146,13 @@ export default function UnitDetailSheet({
             ) : (
               <ol className="grid gap-2 text-xs">
                 {[...historialPrecios.map(({ h, c }) => ({ fecha: h.fecha, key: h.id, origen: TIPO[h.tipo], texto: <>Precio {fmtUsd(c.antesPrecio)} → <b>{fmtUsd(c.despuesPrecio)}</b> (USD/m² {fmtNum(c.antesUsdM2)} → {fmtNum(c.despuesUsdM2)})</>, quien: null, traza: h, motivo: h.motivo })),
-                  ...historialEstados.map((s) => ({ fecha: s.fecha, key: s.id, origen: 'Cambio de estado', texto: <>Estado {ESTADOS[s.de].label} → <b>{ESTADOS[s.a].label}</b></>, quien: s.usuario, traza: null, motivo: s.motivo }))]
+                  ...historialEstados.map((s) => ({ fecha: s.fecha, key: s.id, origen: 'Cambio de estado', texto: <>Estado {etiquetaEstado(s.de)} → <b>{etiquetaEstado(s.a)}</b></>, quien: s.usuario, traza: null, motivo: s.motivo }))]
                   .sort((a, b) => b.fecha.localeCompare(a.fecha))
                   .map((e) => (
                     <li key={e.key} className="rounded-lg border border-border p-2.5">
                       <div>{e.texto}</div>
                       {e.traza && <div className="mt-1 grid"><TrazaTexto h={e.traza} propuestas={state.propuestas} /></div>}
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">{e.origen} · {fmtFecha(e.fecha)}{e.quien ? ` · ${e.quien}` : ''} · {e.motivo}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{e.origen} · {fmtFecha(e.fecha)}{e.quien ? ` · ${e.quien}` : ''} · {e.motivo}</div>
                     </li>
                   ))}
               </ol>
@@ -187,7 +187,7 @@ function EstadoComercialSeccion({ u, onMessage }: { u: Unit; onMessage: (m: stri
     <section aria-labelledby="ficha-estado" className="rounded-xl border border-border p-4">
       <h3 id="ficha-estado" className="text-sm font-semibold">Disponibilidad</h3>
       <p className="mt-1 text-xs text-muted-foreground"><b className="text-foreground">{ESTADOS_EFECTIVOS[estadoEfectivo(u)].label}.</b> {ESTADOS_EFECTIVOS[estadoEfectivo(u)].descripcion}.</p>
-      {u.solicitud && estadoEfectivo(u) === 'en_proceso_reserva' && (
+      {u.solicitud && (
         <p className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-yellow-50 px-3 py-2 text-xs text-yellow-900">
           Solicitud {u.solicitud.codigo}{u.solicitud.vigenciaHasta && u.solicitud.vigenciaHasta < hoyGuayaquil() ? ' · cotización vencida: sigue activa hasta que se anule en Reservas' : ''}.
           {u.solicitud.cotizacionId && can('cotizaciones.crear') && <Button size="xs" variant="outline" asChild><Link to={`/venta?cotizacion=${u.solicitud.cotizacionId}`}>Continuar operación</Link></Button>}
@@ -200,14 +200,14 @@ function EstadoComercialSeccion({ u, onMessage }: { u: Unit; onMessage: (m: stri
             <summary className="cursor-pointer text-xs font-medium">Solicitar cambio de estado</summary>
             <div className="mt-3 grid gap-2">
               <div className="grid gap-1">
-                <Label htmlFor="ficha-nuevo-estado" className="text-[11px]">Cambiar a</Label>
+                <Label htmlFor="ficha-nuevo-estado" className="text-xs">Cambiar a</Label>
                 <Select value={nuevoEstado} onValueChange={setNuevoEstado}>
                   <SelectTrigger id="ficha-nuevo-estado" className="h-8 w-full text-xs"><SelectValue placeholder="Selecciona el nuevo estado" /></SelectTrigger>
                   <SelectContent>{opciones.map((t) => <SelectItem key={t} value={t}>{ESTADOS[t].label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              {nuevoEstado && <p className="flex flex-wrap items-center gap-1.5 text-[11px]">{ESTADOS[u.estado].label}<ArrowRight className="size-3" aria-hidden="true" /><b>{ESTADOS[nuevoEstado as EstadoComercial].label}</b><span className="text-muted-foreground">· Responsable: {actor.nombre}</span></p>}
-              <Label htmlFor="ficha-motivo" className="text-[11px]">Motivo</Label>
+              {nuevoEstado && <p className="flex flex-wrap items-center gap-1.5 text-xs">{ESTADOS[u.estado].label}<ArrowRight className="size-3" aria-hidden="true" /><b>{ESTADOS[nuevoEstado as EstadoComercial].label}</b><span className="text-muted-foreground">· Responsable: {actor.nombre}</span></p>}
+              <Label htmlFor="ficha-motivo" className="text-xs">Motivo</Label>
               <Textarea id="ficha-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Disponibilidad confirmada por Inmobiliaria Jarval" />
               <FieldError>{error}</FieldError>
               <Button size="sm" className="justify-self-end" disabled={!nuevoEstado || motivo.trim().length < 5} onClick={guardar}>Guardar estado</Button>
@@ -259,24 +259,24 @@ function SimuladorPrecio({ u, actual, onMessage }: { u: Unit; actual: PriceBreak
     <div className="mt-4 grid gap-2 border-t border-border pt-3">
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor="ficha-usd-m2" className="text-xs font-medium">Simular nuevo USD/m²</Label>
-        {sim && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Cambios sin guardar</span>}
+        {sim && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Cambios sin guardar</span>}
       </div>
       <Input id="ficha-usd-m2" inputMode="decimal" className="h-9 sm:max-w-40" value={valor} placeholder={fmtNum(u.usdM2)} onChange={(e) => setValor(e.target.value)} />
       <FieldError>{preview.error}</FieldError>
-      {valor.trim() && !preview.error && !sim && <p className="text-[11px] text-muted-foreground">Es el precio por m² actual: no hay cambios.</p>}
+      {valor.trim() && !preview.error && !sim && <p className="text-xs text-muted-foreground">Es el precio por m² actual: no hay cambios.</p>}
       {sim && (
         <div aria-live="polite" className="grid gap-2 rounded-lg bg-muted/50 p-3 text-xs" aria-label="Vista previa del precio">
           <p className="flex flex-wrap items-center gap-2 text-base tabular-nums">
             <span className="text-muted-foreground">{fmtUsd(actual.precioVenta)}</span><ArrowRight className="size-4" aria-hidden="true" /><b>{fmtUsd(sim.precioVenta)}</b>
             <span className={`text-xs font-medium ${diferencia >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{diferencia >= 0 ? '+' : '−'}{fmtUsd(Math.abs(diferencia))} ({fmtPct(round2((sim.precioVenta / actual.precioVenta - 1) * 100))})</span>
           </p>
-          <dl className="grid gap-1 text-[11px]">
+          <dl className="grid gap-1 text-xs">
             <Comparacion t="Pago a la firma" a={fmtUsd2(actual.reserva)} b={fmtUsd2(sim.reserva)} />
             <Comparacion t="Cuota de entrada" a={fmtUsd2(actual.cuotaMensual)} b={fmtUsd2(sim.cuotaMensual)} />
             <Comparacion t="Saldo contra entrega" a={fmtUsd2(actual.contraEntrega)} b={fmtUsd2(sim.contraEntrega)} />
           </dl>
           <ReglaPrecios />
-          <Label htmlFor="ficha-precio-motivo" className="text-[11px]">Motivo del cambio</Label>
+          <Label htmlFor="ficha-precio-motivo" className="text-xs">Motivo del cambio</Label>
           <Textarea id="ficha-precio-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Ajuste aprobado en comité" />
           <FieldError>{error}</FieldError>
           <div className="flex justify-end gap-2">
@@ -308,7 +308,7 @@ function FormaPago({ p, firmaPct, cuotasPct }: { p: PriceBreakdown; firmaPct: nu
         <Parte t={`Contra entrega · ${p.contraEntregaPct} %`} v={fmtUsd2(p.contraEntrega)} h="Financiamiento o saldo" />
       </div>
       <div className="mt-2 grid gap-1.5 rounded-lg border border-border p-3 text-xs">
-        <Label htmlFor="ficha-reserva" className="text-[11px] font-medium">Reserva (USD)</Label>
+        <Label htmlFor="ficha-reserva" className="text-xs font-medium">Reserva (USD)</Label>
         <Input id="ficha-reserva" inputMode="decimal" className="h-8 sm:max-w-40" value={reservaTxt} placeholder={String(RESERVA_PREDETERMINADA)} onChange={(e) => setReservaTxt(e.target.value)} />
         {excede
           ? <FieldError>La reserva no puede superar el pago a la firma de {fmtUsd2(p.reserva)}.</FieldError>
@@ -322,15 +322,15 @@ function FormaPago({ p, firmaPct, cuotasPct }: { p: PriceBreakdown; firmaPct: nu
 
 function DocEstado({ cargado }: { cargado: boolean }) {
   const e = ESTADO_DOCUMENTO[estadoDocumento(cargado)]
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${e.tono}`}>{e.label}</span>
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${e.tono}`}>{e.label}</span>
 }
 
 function Parte({ t, v, h }: { t: string; v: string; h: string }) {
   return (
     <div className="rounded-lg border border-border bg-muted/40 p-2.5">
-      <div className="text-[11px] text-muted-foreground">{t}</div>
+      <div className="text-xs text-muted-foreground">{t}</div>
       <div className="mt-1 text-sm font-semibold tabular-nums">{v}</div>
-      <div className="mt-0.5 text-[11px] text-muted-foreground">{h}</div>
+      <div className="mt-0.5 text-xs text-muted-foreground">{h}</div>
     </div>
   )
 }

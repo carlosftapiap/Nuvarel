@@ -11,6 +11,7 @@ import RolesRemoto from '@/features/config/remoto/RolesRemoto'
 import UsuariosRemoto, { AuditoriaRemota } from '@/features/config/remoto/UsuariosRemoto'
 import { InventoryProvider } from '@/features/inventario/store'
 import type { Actor } from '@/features/inventario/types'
+import ConfiguracionPage from '@/pages/ConfiguracionPage'
 import InventarioPage from '@/pages/InventarioPage'
 import { datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario } from './db'
@@ -46,41 +47,31 @@ beforeAll(async () => {
 }, 60_000)
 
 describe('Configuración: Usuarios', () => {
-  const acciones = () => ({ enviarRecuperacion: vi.fn(async () => {}), crearUsuario: vi.fn(async () => {}), cambiarClave: vi.fn(async () => {}) })
+  const acciones = () => ({ crearUsuario: vi.fn(async () => {}), cambiarClave: vi.fn(async () => {}) })
 
-  it('crea un usuario solo con nombre, correo y rol, y le envía el enlace; no ofrece JARVAL', async () => {
+  it('crea un usuario solo con nombre, correo, contraseña inicial y rol; no ofrece JARVAL', async () => {
     const a = acciones()
     await abrir(admin, <UsuariosRemoto datos={datosPglite(db, admin)} acciones={a} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Crear usuario' }))
     const d = await screen.findByRole('dialog', { name: 'Crear usuario' })
     expect(within(within(d).getByLabelText('Rol')).queryByRole('option', { name: /JARVAL/ })).toBeNull()
-    for (const quitado of [/Contraseña/, /Motivo/, 'Alcance de datos', 'Equipo']) expect(within(d).queryByLabelText(quitado)).toBeNull()
-    const crear = within(d).getByRole('button', { name: 'Crear y enviar enlace' })
-    escribir('Nombre', 'Nora Nueva')
-    escribir('Correo', 'correo-malo')
+    for (const quitado of [/Motivo/, 'Alcance de datos', 'Equipo']) expect(within(d).queryByLabelText(quitado)).toBeNull()
+    const crear = within(d).getByRole('button', { name: 'Crear usuario' })
+    escribir('Nombre completo', 'Nora Nueva')
+    escribir('Correo electrónico', 'correo-malo')
+    escribir(/Contraseña inicial/, 'Clave-Inicial-1')
     expect(crear).toBeDisabled()
-    escribir('Correo', 'NORA@amura.ec')
+    escribir('Correo electrónico', 'NORA@amura.ec')
+    escribir(/Contraseña inicial/, 'corta')
+    expect(crear).toBeDisabled()
+    escribir(/Contraseña inicial/, 'Clave-Inicial-1')
     escribir('Rol', 'corredor')
     fireEvent.click(crear)
-    expect(await screen.findByText('Usuario nora@amura.ec creado. Se envió el enlace para crear su contraseña.')).toBeInTheDocument()
-    expect(a.crearUsuario).toHaveBeenCalledWith({ nombre: 'Nora Nueva', email: 'nora@amura.ec', rolId: 'corredor' })
-    expect(a.enviarRecuperacion).toHaveBeenCalledWith('nora@amura.ec')
+    expect(await screen.findByText('Usuario nora@amura.ec creado y activo. Ya puede iniciar sesión con su correo y contraseña.')).toBeInTheDocument()
+    expect(a.crearUsuario).toHaveBeenCalledWith({ nombre: 'Nora Nueva', email: 'nora@amura.ec', password: 'Clave-Inicial-1', rolId: 'corredor' })
   })
 
-  it('si el correo falla, avisa que la cuenta ya existe y que el enlace se puede reenviar', async () => {
-    const a = acciones()
-    a.enviarRecuperacion.mockRejectedValueOnce(new Error('Límite de correos'))
-    await abrir(admin, <UsuariosRemoto datos={datosPglite(db, admin)} acciones={a} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Crear usuario' }))
-    await screen.findByRole('dialog', { name: 'Crear usuario' })
-    escribir('Nombre', 'Lía Nueva')
-    escribir('Correo', 'lia@amura.ec')
-    fireEvent.click(screen.getByRole('button', { name: 'Crear y enviar enlace' }))
-    expect(await screen.findByText(/creado, pero no se pudo enviar el enlace/)).toBeInTheDocument()
-    expect(a.crearUsuario).toHaveBeenCalledTimes(1)
-  })
-
-  it('las opciones avanzadas cambian alcance y asignan contraseña sin estorbar lo habitual', async () => {
+  it('las opciones avanzadas cambian el alcance sin estorbar lo habitual', async () => {
     const a = acciones()
     await abrir(admin, <UsuariosRemoto datos={datosPglite(db, admin)} acciones={a} />)
     const fila = (await screen.findAllByText('Vera Vendedora'))[0].closest('tr')!
@@ -90,15 +81,6 @@ describe('Configuración: Usuarios', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(await screen.findByText('Acceso de Vera Vendedora actualizado')).toBeInTheDocument()
     expect((await db.query(`select alcance from public.profiles where id = $1`, [vera])).rows[0]).toEqual({ alcance: 'equipo' })
-
-    const fila2 = (await screen.findAllByText('Vera Vendedora'))[0].closest('tr')!
-    fireEvent.click(within(fila2).getByRole('button', { name: 'Cambiar rol' }))
-    await screen.findByRole('dialog', { name: /Cambiar rol/ })
-    fireEvent.click(screen.getByRole('button', { name: 'Asignar contraseña manualmente' }))
-    await screen.findByRole('dialog', { name: /Asignar contraseña/ })
-    escribir(/Nueva contraseña/, 'Otra-Clave-22')
-    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
-    await waitFor(() => expect(a.cambiarClave).toHaveBeenCalledWith({ usuarioId: vera, password: 'Otra-Clave-22', motivo: 'Contraseña asignada por un administrador' }))
   })
 
   it('un error del servidor se muestra dentro del formulario', async () => {
@@ -107,11 +89,10 @@ describe('Configuración: Usuarios', () => {
     await abrir(admin, <UsuariosRemoto datos={datosPglite(db, admin)} acciones={a} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Crear usuario' }))
     const d = await screen.findByRole('dialog', { name: 'Crear usuario' })
-    escribir('Nombre', 'Nora Nueva')
-    escribir('Correo', 'nora@amura.ec')
-    fireEvent.click(screen.getByRole('button', { name: 'Crear y enviar enlace' }))
+    escribir('Nombre completo', 'Nora Nueva')
+    escribir('Correo electrónico', 'nora@amura.ec'); escribir(/Contraseña inicial/, 'Clave-Inicial-1')
+    fireEvent.click(screen.getByRole('button', { name: 'Crear usuario' }))
     expect(await within(d).findByText('Ya existe una cuenta con ese correo')).toBeInTheDocument()
-    expect(a.enviarRecuperacion).not.toHaveBeenCalled()
   })
 })
 
@@ -167,6 +148,21 @@ describe('Configuración: Equipos', () => {
     expect(await screen.findByText('Equipo Equipo Sur guardado')).toBeInTheDocument()
     expect(await screen.findByText(/Supervisor: Sofía Supervisora/)).toBeInTheDocument()
     expect(onCambio).toHaveBeenCalled()
+  })
+
+  it('al asignar un vendedor a un equipo, el equipo lo muestra de inmediato', async () => {
+    await abrir(admin, <ConfiguracionPage />)
+    const equipo = (await screen.findByText('Equipo Sur')).closest('li')!
+    expect(within(equipo).getByText(/Sin integrantes/)).toBeInTheDocument()
+    const fila = (await screen.findAllByText('Vera Vendedora'))[0].closest('tr')!
+    fireEvent.click(within(fila).getByRole('button', { name: 'Cambiar rol' }))
+    await screen.findByRole('dialog', { name: /Cambiar rol/ })
+    const sur = within(screen.getByLabelText(/^Equipo .su Supervisor/)).getByRole('option', { name: 'Equipo Sur' }) as HTMLOptionElement
+    escribir(/^Equipo .su Supervisor/, sur.value)
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(await screen.findByText('Acceso de Vera Vendedora actualizado')).toBeInTheDocument()
+    await waitFor(() => expect(within(screen.getByText('Equipo Sur').closest('li')!).getByText('Vera Vendedora')).toBeInTheDocument())
+    expect(within(screen.getByText('Equipo Sur').closest('li')!).queryByText(/Sin integrantes/)).toBeNull()
   })
 })
 

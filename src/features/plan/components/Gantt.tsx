@@ -82,7 +82,7 @@ export default function Gantt({ d, acts, onAbrir }: { d: DatosPlan; acts: Activi
   if (!acts.length) return <div className="module-empty"><p className="text-sm text-muted-foreground">No hay actividades para mostrar.</p></div>
   return (
     <div className="grid gap-2">
-      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <div className="flex gap-1" role="group" aria-label="Escala del Gantt">
           {(['semana', 'mes', 'trimestre'] as Escala[]).map((e) => (
             <button key={e} type="button" aria-pressed={escala === e} onClick={() => setEscala(e)} className={cn('rounded-full border px-3 py-1 capitalize', escala === e ? 'border-primary bg-secondary text-secondary-foreground' : 'border-border hover:bg-muted')}>{e === 'semana' ? 'Semanal' : e === 'mes' ? 'Mensual' : 'Trimestral'}</button>
@@ -95,7 +95,7 @@ export default function Gantt({ d, acts, onAbrir }: { d: DatosPlan; acts: Activi
       </div>
       <div className="dashboard-card !p-0 overflow-auto" style={{ maxHeight: '70vh' }}>
         <div className="relative" style={{ width: IZQ + ancho }}>
-          <div className="sticky top-0 z-20 flex h-8 border-b border-border bg-white text-[10px] text-muted-foreground">
+          <div className="sticky top-0 z-20 flex h-8 border-b border-border bg-white text-xs text-muted-foreground">
             <div className="sticky left-0 z-30 flex shrink-0 items-center border-r border-border bg-white px-3 font-medium" style={{ width: IZQ }}>Actividad</div>
             <div className="relative" style={{ width: ancho }}>
               {marcas.map((m) => <span key={m.x} className="absolute top-2 whitespace-nowrap" style={{ left: m.x + 3 }}>{m.t}</span>)}
@@ -117,7 +117,7 @@ export default function Gantt({ d, acts, onAbrir }: { d: DatosPlan; acts: Activi
               if (f.tipo === 'fase') {
                 return (
                   <div key={`g-${f.id}`} className="absolute left-0 flex items-center border-b border-border bg-slate-50" style={{ top: i * ALTO, height: ALTO, width: IZQ + ancho }}>
-                    <button type="button" className="sticky left-0 flex h-full shrink-0 items-center gap-1 border-r border-border bg-slate-50 px-2 text-left text-[11px] font-semibold" style={{ width: IZQ }} onClick={() => alternar(f.id)} aria-expanded={!cerrados.has(f.id)}>
+                    <button type="button" className="sticky left-0 flex h-full shrink-0 items-center gap-1 border-r border-border bg-slate-50 px-2 text-left text-xs font-semibold" style={{ width: IZQ }} onClick={() => alternar(f.id)} aria-expanded={!cerrados.has(f.id)}>
                       {cerrados.has(f.id) ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}<span className="truncate">{f.titulo}</span><span className="ml-auto font-normal text-muted-foreground">{f.total}</span>
                     </button>
                   </div>
@@ -128,7 +128,7 @@ export default function Gantt({ d, acts, onAbrir }: { d: DatosPlan; acts: Activi
               const color = colorBarra[s.color]
               return (
                 <div key={a.id} className="absolute left-0 flex items-center border-b border-border/60 hover:bg-muted/30" style={{ top: i * ALTO, height: ALTO, width: IZQ + ancho }}>
-                  <div className="sticky left-0 z-10 flex h-full shrink-0 items-center gap-1 border-r border-border bg-white px-2 text-[11px]" style={{ width: IZQ, paddingLeft: 8 + f.nivel * 14 }}>
+                  <div className="sticky left-0 z-10 flex h-full shrink-0 items-center gap-1 border-r border-border bg-white px-2 text-xs" style={{ width: IZQ, paddingLeft: 8 + f.nivel * 14 }}>
                     {f.tieneHijas ? <button type="button" aria-label={cerrados.has(a.id) ? 'Expandir' : 'Contraer'} onClick={() => alternar(a.id)}>{cerrados.has(a.id) ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}</button> : <span className="w-3.5" />}
                     <button type="button" className="flex min-w-0 items-center gap-1.5 text-left hover:underline" onClick={() => onAbrir(a)}>
                       <span className="font-mono font-semibold">{a.codigo}</span><span className="truncate">{a.nombre}</span>
@@ -144,7 +144,7 @@ export default function Gantt({ d, acts, onAbrir }: { d: DatosPlan; acts: Activi
                           <span className="block h-full" style={{ width: `${a.avance ?? 0}%`, background: color }} />
                         </button>
                       ))}
-                    {(!a.planInicio || !a.planFin) && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] italic text-muted-foreground">Fechas pendientes</span>}
+                    {(!a.planInicio || !a.planFin) && <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs italic text-muted-foreground">Fechas pendientes</span>}
                   </div>
                 </div>
               )

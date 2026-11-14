@@ -21,8 +21,8 @@ export interface FilaReserva {
 export const ESTADO_FILA: Record<FilaReserva['estado'], { label: string; tono: string }> = {
   pendiente_pago: { label: 'Pendiente de pago', tono: 'bg-amber-50 text-amber-800 ring-amber-200' },
   por_verificar: { label: 'Pago por verificar', tono: 'bg-yellow-100 text-yellow-800 ring-yellow-300' },
-  por_aprobar: { label: 'Pago verificado · por aprobar', tono: 'bg-sky-50 text-sky-800 ring-sky-200' },
-  aprobada: { label: 'Aprobada', tono: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+  por_aprobar: { label: 'Pago verificado · excepción por autorizar', tono: 'bg-sky-50 text-sky-800 ring-sky-200' },
+  aprobada: { label: 'Confirmada', tono: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
   en_contrato: { label: 'Con contrato', tono: 'bg-violet-50 text-violet-700 ring-violet-200' },
   anulada: { label: 'Anulada', tono: 'bg-slate-100 text-slate-600 ring-slate-200' },
 }

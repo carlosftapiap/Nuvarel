@@ -40,7 +40,7 @@ export default function DatosLocalesAviso({ solo }: { solo: string }) {
               {grupos.map((g) => (
                 <section key={g.clave} aria-label={g.titulo}>
                   <h3 className="text-sm font-semibold">{g.titulo}: {g.registros.length}</h3>
-                  <p className="mb-1 text-[11px] text-muted-foreground">{g.desde ? `Del ${fmtFechaCorta(g.desde)} al ${fmtFechaCorta(g.hasta!)}` : 'Sin fechas'}</p>
+                  <p className="mb-1 text-xs text-muted-foreground">{g.desde ? `Del ${fmtFechaCorta(g.desde)} al ${fmtFechaCorta(g.hasta!)}` : 'Sin fechas'}</p>
                   <ul className="grid max-h-48 gap-1 overflow-auto rounded-lg border border-border p-2 text-xs">
                     {g.registros.map((r, i) => <li key={i}><b>{r.referencia || 'Sin referencia'}</b> · {r.detalle}{r.fecha ? ` · ${fmtFechaCorta(r.fecha)}` : ''}{r.usuario ? ` · ${r.usuario}` : ''}</li>)}
                   </ul>

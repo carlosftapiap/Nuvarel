@@ -4,7 +4,7 @@ import type { PGlite } from '@electric-sql/pglite'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { cargarVentas } from '../../src/features/ventas/remoto'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { como, crearDb, crearUsuario, aprobarCumplimiento } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, vera: string, nuevo: string
@@ -14,8 +14,8 @@ const CODIGO = 'E1-P3-A2'
 const uno = async <T>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows[0]
 const rpc = <T = unknown>(u: string, sql: string, p: unknown[] = []) => como(db, u, async () => (await db.query<T>(sql, p)).rows[0])
 const unidad = () => uno<{ estado: string }>(`select estado from public.inventory_units where codigo = $1`, [CODIGO]).then((x) => x.estado)
-interface Tramo { id: string; estado: string; cumple: boolean; monto: number }
-interface Comision { contrato: string; estado: string; corredor: string | null; porcentaje: number; monto_total: number; tramos: Tramo[] }
+interface Tramo { id: string; estado: string; cumple: boolean; lista_para_pago: boolean; monto: number }
+interface Comision { contrato: string; estado: string; beneficiario: string | null; corredor: string | null; porcentaje: number; monto_total: number; tramos: Tramo[] }
 const comision = async (u: string, codigo: string) =>
   (await rpc<{ j: { comisiones: Comision[] } }>(u, `select public.comisiones_listar() as j`)).j.comisiones.find((c) => c.contrato === codigo)
 const corredorFila = async (u: string, id: string) =>
@@ -37,9 +37,9 @@ beforeAll(async () => {
 describe('AMURA de principio a fin, con cada rol y sin atajos', () => {
   let corredor: string, cliente: string, op: string, cot: string, reserva: string, contrato: string, codigoContrato: string, precio: number
 
-  it('Inventario: gerencia valida la disponibilidad; administración cambia el precio y queda oficial', async () => {
-    await expect(rpc(vera, `select public.inventario_cambiar_estado($1, 'disponible', 'Intento de vendedora')`, [CODIGO])).rejects.toThrow(/Sin permiso/)
-    await rpc(gerente, `select public.inventario_cambiar_estado($1, 'disponible', 'Disponibilidad validada')`, [CODIGO])
+  it('Inventario: la unidad está disponible; administración cambia el precio y queda oficial', async () => {
+    await expect(rpc(vera, `select public.inventario_cambiar_estado($1, 'reservado', 'Intento de vendedora')`, [CODIGO])).rejects.toThrow(/Sin permiso/)
+    await expect(rpc(gerente, `select public.inventario_cambiar_estado($1, 'reservado', 'Intento manual')`, [CODIGO])).rejects.toThrow(/lo asignan Reservas/)
     await rpc(admin, `select public.inventario_ajustar_precio('fijar', 2300, 'Precio aprobado por administración', array[$1])`, [CODIGO])
     expect(await unidad()).toBe('disponible')
     expect(Number((await uno<{ usd_m2: string }>(`select usd_m2 from public.inventory_units where codigo = $1`, [CODIGO])).usd_m2)).toBe(2300)
@@ -51,7 +51,7 @@ describe('AMURA de principio a fin, con cada rol y sin atajos', () => {
   })
 
   it('Clientes: se registra con su corredor de origen y la vendedora como asesora', async () => {
-    cliente = (await rpc<{ id: string }>(gerente, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Compradora Real', telefono: '0991112000', origen: 'corredor', origen_detalle: 'Aliado Inmobiliario', corredor_origen_id: corredor }), vera])).id
+    cliente = (await rpc<{ id: string }>(gerente, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Compradora Real', telefono: '0991112000', documento: '1721120002', origen: 'corredor', origen_detalle: 'Aliado Inmobiliario', corredor_origen_id: corredor }), vera])).id
     expect((await corredorFila(gerente, corredor))?.clientes).toBe(1)
     expect(await como(db, vera, async () => (await db.query(`select 1 from public.clients where id = $1`, [cliente])).rows.length)).toBe(1)
   })
@@ -80,7 +80,7 @@ describe('AMURA de principio a fin, con cada rol y sin atajos', () => {
     await expect(rpc(admin, `select public.inventario_ajustar_precio('fijar', 2500, 'Precio con reserva vigente', array[$1])`, [CODIGO])).rejects.toThrow()
   })
 
-  it('Ventas: el contrato imputa la reserva al 6 %; al firmar, unidad prometida y comisión con porcentaje fijado', async () => {
+  it('Ventas: el contrato imputa la reserva al 6 %; al firmar, unidad vendida y comisión con porcentaje fijado', async () => {
     contrato = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato de la venta') as id`, [reserva, hoy])).id
     codigoContrato = (await uno<{ codigo: string }>(`select codigo from public.contracts where id = $1`, [contrato])).codigo
     const cuotas = (await db.query<{ numero: number; monto: number; concepto: string }>(`select numero, monto::float as monto, concepto from public.installments where contract_id = $1 order by numero`, [contrato])).rows
@@ -91,8 +91,9 @@ describe('AMURA de principio a fin, con cada rol y sin atajos', () => {
     expect(sum((c) => /Saldo/.test(c.concepto))).toBe(Math.round(precio * 80) / 100)
     expect((await comision(gerente, codigoContrato))?.estado).toBe('calculada')
 
+    await aprobarCumplimiento(db)
     await rpc(legal, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'contrato.pdf')`, [contrato, hoy])
-    expect(await unidad()).toBe('promesa')
+    expect(await unidad()).toBe('vendido')
     const c = (await comision(gerente, codigoContrato))!
     expect(c).toMatchObject({ estado: 'vigente', corredor: 'Aliado Inmobiliario', porcentaje: 2.6 })
     expect(c.monto_total).toBeCloseTo(Math.round(precio * 2.6) / 100, 2)
@@ -102,33 +103,34 @@ describe('AMURA de principio a fin, con cada rol y sin atajos', () => {
     expect(v).toMatchObject({ corredorOrigen: 'Aliado Inmobiliario', asesor: 'Vera Vendedora' })
   })
 
-  it('Cobranzas: un pago sin verificar no cuenta; verificado, alimenta las condiciones de Comisiones', async () => {
+  it('Cobranzas: un pago sin verificar no cuenta; verificado, completa el 6 % y la comisión del vendedor queda lista para pago', async () => {
     const t = () => comision(gerente, codigoContrato).then((c) => c!.tramos[0])
-    const id1 = (await t()).id
-    await rpc(finanzas, `select public.comisiones_registrar_honorario($1, 500, $2::date, 'FACT-1')`, [id1, hoy])
     expect((await t()).cumple).toBe(false)
-    const falta = Math.round((precio * 0.1 - 600) * 100) / 100
-    const p = (await rpc<{ id: string }>(admin, `select public.cobranzas_reportar_pago($1::uuid, $2, $3::date, 'Banco de prueba', 'PAGO-10', jsonb_build_object('ruta', 'contratos/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10)) as id`, [contrato, falta, hoy])).id
+    const falta = Math.round((precio * 0.06 - 600) * 100) / 100
+    const p = (await rpc<{ id: string }>(admin, `select public.cobranzas_reportar_pago($1::uuid, $2, $3::date, 'Banco de prueba', 'PAGO-6', jsonb_build_object('ruta', 'contratos/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10)) as id`, [contrato, falta, hoy])).id
     expect((await t()).cumple).toBe(false)
     await rpc(finanzas, `select public.cobranzas_confirmar_pago($1, true, 'Ingreso conciliado')`, [p])
     expect((await t()).cumple).toBe(true)
   })
 
-  it('Comisiones: sin política no se liquida; con aprobación, habilita Gerencia y confirma Finanzas', async () => {
-    const id1 = (await comision(gerente, codigoContrato))!.tramos[0].id
-    await expect(rpc(gerente, `select public.comisiones_habilitar($1, 'Sin política aprobada')`, [id1])).rejects.toThrow(/aprobación formal/)
-    await rpc(admin, `select public.comisiones_aprobar_politica('Acta de Dirección', 'Dirección aprobó la política')`)
-    await rpc(gerente, `select public.comisiones_habilitar($1, 'Conciliado con Administración')`, [id1])
-    await rpc(finanzas, `select public.comisiones_confirmar_pago($1, $2::date, 'Aliado Inmobiliario', 'TRF-COM-1', true)`, [id1, hoy])
-    expect((await comision(gerente, codigoContrato))!.tramos.map((t) => t.estado)).toEqual(['pagada', 'pendiente'])
+  it('Comisiones: a nombre del responsable de la venta; bloqueada hasta la formalización contractual; después Finanzas confirma con comprobante', async () => {
+    const c = (await comision(gerente, codigoContrato))!
+    const id1 = c.tramos[0].id
+    expect(c).toMatchObject({ beneficiario: 'Vera Vendedora', corredor: 'Aliado Inmobiliario' })
+    expect(c.tramos[0]).toMatchObject({ cumple: true, lista_para_pago: true })
+    await rpc(admin, `select public.comisiones_aprobar_politica('Política de comisiones', 'Dirección aprobó la política')`)
+    await expect(rpc(finanzas, `select public.comisiones_confirmar_pago($1, $2::date, '', 'TRF-COM-1', true)`, [id1, hoy])).rejects.toThrow(/pendiente de formalización contractual/)
+    // Lo que haría una migración autorizada tras formalizar el beneficiario contractual. Solo en pruebas.
+    await db.query(`update public.comision_parametros set pagos_vendedor_habilitados = true`)
+    await rpc(finanzas, `select public.comisiones_confirmar_pago($1, $2::date, '', 'TRF-COM-1', true)`, [id1, hoy])
+    await db.query(`update public.comision_parametros set pagos_vendedor_habilitados = false`)
+    expect((await comision(gerente, codigoContrato))!.tramos.map((t) => t.estado)).toEqual(['pagada'])
   })
 
-  it('Escritura: la unidad queda vendida y el segundo tramo cumple su hito', async () => {
+  it('Escritura: la unidad queda vendida; la comisión ya devengada y pagada no depende de ella', async () => {
     await rpc(legal, `select public.contratos_registrar_hito($1, 'escritura', $2::date, 'NOT-1', 'Escritura inscrita')`, [contrato, hoy])
     expect(await unidad()).toBe('vendido')
-    const id2 = (await comision(gerente, codigoContrato))!.tramos[1].id
-    await rpc(finanzas, `select public.comisiones_registrar_honorario($1, 500, $2::date, 'FACT-2')`, [id2, hoy])
-    expect((await comision(gerente, codigoContrato))!.tramos[1].cumple).toBe(true)
+    expect((await comision(gerente, codigoContrato))!.tramos.map((t) => t.estado)).toEqual(['pagada'])
   })
 
   it('El corredor con cuenta vinculada ve su comisión, aunque su perfil tenga otro identificador', async () => {
@@ -142,7 +144,7 @@ describe('AMURA de principio a fin, con cada rol y sin atajos', () => {
   it('Un corredor con cuenta y sin perfil lo obtiene al registrar su primer cliente, y queda como origen', async () => {
     const otro = await crearUsuario(db, 'Omar Corredor', 'corredor')
     await db.query(`delete from public.corredores where usuario_id = $1`, [otro])
-    const c = (await rpc<{ id: string }>(otro, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Cliente de Omar', telefono: '0991112999', origen: 'corredor', origen_detalle: 'Omar' }), otro])).id
+    const c = (await rpc<{ id: string }>(otro, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Cliente de Omar', telefono: '0991112999', documento: '1721129995', origen: 'corredor', origen_detalle: 'Omar' }), otro])).id
     const f = await uno<{ corredor_origen_id: string; usuario_id: string }>(`select k.corredor_origen_id, r.usuario_id from public.clients k join public.corredores r on r.id = k.corredor_origen_id where k.id = $1`, [c])
     expect(f.usuario_id).toBe(otro)
   })

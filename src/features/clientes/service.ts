@@ -1,4 +1,5 @@
 import { assertCan, can, puedeVerDe } from '@/app/permissions'
+import { errorCelular, MENSAJE_CELULAR_REPETIDO, normalizarCelular } from './celular'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import type { Actor, InventoryState } from '@/features/inventario/types'
 import { ETAPAS, ETAPAS_EMBUDO, nombreCompleto, TIPOS_ACTIVIDAD, type NombresCliente, type Actividad, type Cliente, type ClientesState, type Etapa, type FormaPago, type Origen, type ProximaActividad, type Proposito, type TipoActividad } from './model'
@@ -72,7 +73,8 @@ export interface ClienteInput extends NombresCliente {
   corredorOrigenId?: string | null
 }
 
-export function validarCliente(input: ClienteInput, inventario?: InventoryState): string[] {
+/** `telefonoAnterior`: al editar, el celular solo se valida si cambió (las fichas antiguas sin celular se pueden seguir editando). */
+export function validarCliente(input: ClienteInput, inventario?: InventoryState, telefonoAnterior?: string): string[] {
   const e: string[] = []
   if (input.primerNombre === undefined) {
     if (input.nombre.trim().length < 3) e.push('Ingresa el nombre del cliente.')
@@ -80,8 +82,10 @@ export function validarCliente(input: ClienteInput, inventario?: InventoryState)
     if (!input.primerNombre.trim()) e.push('Ingresa el primer nombre del cliente.')
     if (!(input.primerApellido ?? '').trim()) e.push('Ingresa el primer apellido del cliente.')
   }
-  if (!input.telefono.trim() && !input.email.trim()) e.push('Ingresa al menos un teléfono o un correo.')
-  if (input.telefono.trim() && !/^[+\d][\d\s-]{6,19}$/.test(input.telefono.trim())) e.push('El teléfono no es válido.')
+  if (telefonoAnterior === undefined || (normalizarCelular(input.telefono) ?? input.telefono.trim()) !== telefonoAnterior.trim()) {
+    const errorCel = errorCelular(input.telefono)
+    if (errorCel) e.push(errorCel)
+  }
   if (input.email.trim() && !EMAIL.test(input.email.trim())) e.push('El correo no es válido.')
   if ((input.origen === 'referido' || input.origen === 'corredor') && !input.origenDetalle.trim()) {
     e.push(input.origen === 'referido' ? 'Indica quién lo refirió.' : 'Indica el corredor que lo trajo.')
@@ -95,8 +99,8 @@ export function validarCliente(input: ClienteInput, inventario?: InventoryState)
   return e
 }
 
-/** Normaliza el teléfono para detectar duplicados (solo dígitos, últimos 9). */
-const telKey = (t: string) => t.replace(/\D/g, '').slice(-9)
+/** Clave del celular para detectar duplicados: 09XXXXXXXX y +5939XXXXXXXX son el mismo número. */
+const telKey = (t: string) => normalizarCelular(t) ?? t.replace(/\D/g, '')
 
 export function buscarDuplicado(state: ClientesState, input: Pick<ClienteInput, 'telefono' | 'email'>, excluirId?: string) {
   return state.clientes.find((c) => c.id !== excluirId && (
@@ -116,6 +120,8 @@ function verificarAsignacion(asesorId: string, actor: Actor) {
 function avisarDuplicado(state: ClientesState, input: Pick<ClienteInput, 'telefono' | 'email'>, actor: Actor, excluirId?: string) {
   const dup = buscarDuplicado(state, input, excluirId)
   if (!dup) return
+  // Un celular, una sola ficha: el mismo mensaje para todos, sin datos del otro cliente.
+  if (input.telefono.trim() && telKey(dup.telefono) === telKey(input.telefono)) throw new ClienteError(MENSAJE_CELULAR_REPETIDO)
   if (clientesVisibles([dup], actor).length) throw new ClienteError(`Ya existe un cliente con ese teléfono o correo: ${dup.nombre} (asesor ${dup.asesor}).`)
   throw new ClienteError('Ese teléfono o correo ya está registrado por otro equipo. Solicita a tu supervisor o a gerencia que revise el caso.')
 }
@@ -128,7 +134,7 @@ function limpiar(input: ClienteInput) {
   }
   return {
     ...nombres,
-    nombre: nombreCompleto(nombres) || input.nombre.trim(), documento: input.documento?.trim() ?? '', corredorOrigenId: input.corredorOrigenId ?? null, telefono: input.telefono.trim(), email: input.email.trim().toLowerCase(),
+    nombre: nombreCompleto(nombres) || input.nombre.trim(), documento: input.documento?.trim() ?? '', corredorOrigenId: input.corredorOrigenId ?? null, telefono: normalizarCelular(input.telefono) ?? input.telefono.trim(), email: input.email.trim().toLowerCase(),
     origen: input.origen, origenDetalle: input.origenDetalle.trim(), unidadesInteres: [...new Set(input.unidadesInteres)],
     presupuesto: input.presupuesto, proposito: input.proposito, formaPago: input.formaPago, asesorId: input.asesorId, asesor: input.asesor.trim(),
   }
@@ -159,7 +165,7 @@ export function actualizarCliente(state: ClientesState, id: string, input: Clien
     if ((input.motivoAsignacion ?? '').trim().length < 5) throw new ClienteError('Indica el motivo de la reasignación.')
   }
   // Un cliente antiguo se puede editar sin dividir su nombre; se completa cuando se conozcan los datos.
-  const errores = validarCliente({ ...input, conservaNombreAnterior: !c.primerNombre }, inventario)
+  const errores = validarCliente({ ...input, conservaNombreAnterior: !c.primerNombre }, inventario, c.telefono)
   if (errores.length) throw new ClienteError(errores.join(' '))
   avisarDuplicado(state, input, actor, id)
   const cambios: Actividad[] = []
@@ -245,6 +251,13 @@ export function completarProxima(state: ClientesState, id: string, resultado: st
   return programarProxima(s, id, null, actor)
 }
 
+/** Contacto confirmado por WhatsApp: queda como mensaje; si era el primer contacto programado de un lead, ya está hecho. */
+export function registrarContactoWhatsApp(state: ClientesState, id: string, actor: Actor): ClientesState {
+  const c = buscar(state, id, actor)
+  const s = registrarActividad(state, id, { tipo: 'mensaje', descripcion: 'Contacto por WhatsApp', fecha: hoyGuayaquil() }, actor)
+  return c.proxima?.descripcion.startsWith('Primer contacto') ? programarProxima(s, id, null, actor) : s
+}
+
 /* -------------------------------------------------------------- cotizaciones */
 
 /** Vincula una cotización emitida al cliente y lo avanza a "Cotización" si estaba en una etapa anterior. */
@@ -275,6 +288,14 @@ export function urgencia(c: Cliente, hoy = hoyGuayaquil()): Urgencia {
   const [y, m, d] = hoy.split('-').map(Number)
   const semana = new Date(Date.UTC(y, m - 1, d + 7)).toISOString().slice(0, 10)
   return c.proxima.fecha <= semana ? 'semana' : 'despues'
+}
+
+const ORDEN_URGENCIA: Record<Urgencia, number> = { vencida: 0, hoy: 1, semana: 2, despues: 3, sin_actividad: 4 }
+
+/** Lista de trabajo: primero lo atrasado y lo de hoy, después lo próximo, los que no tienen siguiente paso y al final los perdidos. */
+export function ordenarPorUrgencia(clientes: Cliente[], hoy = hoyGuayaquil()) {
+  const peso = (c: Cliente) => (c.etapa === 'perdido' ? 9 : ORDEN_URGENCIA[urgencia(c, hoy)])
+  return [...clientes].sort((a, b) => peso(a) - peso(b) || (a.proxima?.fecha ?? '').localeCompare(b.proxima?.fecha ?? '') || a.nombre.localeCompare(b.nombre))
 }
 
 export function resumenClientes(clientes: Cliente[], hoy = hoyGuayaquil()) {

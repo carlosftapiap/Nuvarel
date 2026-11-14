@@ -93,10 +93,10 @@ export default function ImportDialog({ open, onOpenChange, onDone }: { open: boo
                   <Chip label="Errores" value={validacion.conErrores} tone="text-rose-700" />
                 </div>
                 {validacion.faltantes.length > 0 && validacion.faltantes.length < 72 && (
-                  <p className="text-[11px] text-muted-foreground">{validacion.faltantes.length} unidades no vienen en el archivo y se mantienen sin cambios.</p>
+                  <p className="text-xs text-muted-foreground">{validacion.faltantes.length} unidades no vienen en el archivo y se mantienen sin cambios.</p>
                 )}
                 <div className="max-h-72 overflow-auto rounded-lg border border-border">
-                  <table className="w-full text-[11px]">
+                  <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-muted text-muted-foreground">
                       <tr><th className="p-2 text-left font-medium">Fila</th><th className="p-2 text-left font-medium">Unidad</th><th className="p-2 text-left font-medium">Cambios</th><th className="p-2 text-left font-medium">Validación</th></tr>
                     </thead>
@@ -151,7 +151,7 @@ export default function ImportDialog({ open, onOpenChange, onDone }: { open: boo
 function Chip({ label, value, tone = 'text-foreground' }: { label: string; value: number; tone?: string }) {
   return (
     <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`text-lg font-semibold tabular-nums ${tone}`}>{value}</div>
     </div>
   )

@@ -32,7 +32,7 @@ function ParrafoHtml({ p }: { p: Parrafo }) {
 
 function BloquesHtml({ bloques }: { bloques: Bloque[] }) {
   return bloques.map((b, i) => {
-    if (b.tipo === 'salto') return <div key={i} className="my-8 border-t border-dashed border-slate-300 text-center text-[10px] uppercase tracking-widest text-slate-400">nueva página</div>
+    if (b.tipo === 'salto') return <div key={i} className="my-8 border-t border-dashed border-slate-300 text-center text-xs uppercase tracking-widest text-slate-400">nueva página</div>
     if (b.tipo === 'parrafo') return <ParrafoHtml key={i} p={b} />
     return (
       <table key={i} className="my-1 border-collapse" style={{ tableLayout: 'fixed', width: b.columnas.length ? `${b.columnas.reduce((s, c) => s + c, 0)}pt` : '100%', maxWidth: '100%' }}>

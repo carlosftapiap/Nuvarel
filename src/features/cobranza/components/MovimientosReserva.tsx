@@ -69,7 +69,7 @@ export default function MovimientosReserva({ reserva, movimientos, datos, almace
               </div>
               {resolver?.id === m.id && (
                 <div className="mt-2 grid gap-1.5">
-                  <Label htmlFor="mv-resolver" className="text-[11px]">Motivo *</Label>
+                  <Label htmlFor="mv-resolver" className="text-xs">Motivo *</Label>
                   <Textarea id="mv-resolver" rows={2} value={motivoResolver} onChange={(e) => setMotivoResolver(e.target.value)} />
                   <Button size="xs" className="justify-self-end" disabled={enviando || motivoResolver.trim().length < 5} onClick={() => void enviar(() => resolverMovimiento(datos, m.id, resolver.autorizar, motivoResolver.trim()), resolver.autorizar ? 'Movimiento autorizado' : 'Movimiento rechazado')}>{resolver.autorizar ? 'Confirmar autorización' : 'Confirmar rechazo'}</Button>
                 </div>
@@ -80,15 +80,15 @@ export default function MovimientosReserva({ reserva, movimientos, datos, almace
           {can('cobranzas.registrar') && round2(recibido - usado) > 0 && (
             <section className="grid gap-2 rounded-lg border border-dashed border-border p-3">
               <div className="grid gap-2 sm:grid-cols-3">
-                <div className="grid gap-1"><Label htmlFor="mv-tipo" className="text-[11px]">Tipo *</Label>
+                <div className="grid gap-1"><Label htmlFor="mv-tipo" className="text-xs">Tipo *</Label>
                   <select id="mv-tipo" className="h-8 rounded-md border border-border bg-white px-2" value={tipo} onChange={(e) => setTipo(e.target.value as Movimiento['tipo'])}><option value="devolucion">Devolución</option><option value="retencion">Retención</option></select>
                 </div>
-                <div className="grid gap-1"><Label htmlFor="mv-monto" className="text-[11px]">Monto (USD) *</Label><Input id="mv-monto" className="h-8" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} /></div>
-                <div className="grid gap-1"><Label htmlFor="mv-fecha" className="text-[11px]">Fecha *</Label><Input id="mv-fecha" className="h-8" type="date" max={hoyGuayaquil()} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
+                <div className="grid gap-1"><Label htmlFor="mv-monto" className="text-xs">Monto (USD) *</Label><Input id="mv-monto" className="h-8" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} /></div>
+                <div className="grid gap-1"><Label htmlFor="mv-fecha" className="text-xs">Fecha *</Label><Input id="mv-fecha" className="h-8" type="date" max={hoyGuayaquil()} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
               </div>
-              <div className="grid gap-1"><Label htmlFor="mv-ref" className="text-[11px]">Referencia *</Label><Input id="mv-ref" className="h-8" value={referencia} onChange={(e) => setReferencia(e.target.value)} /></div>
-              <div className="grid gap-1"><Label htmlFor="mv-motivo" className="text-[11px]">Motivo *</Label><Textarea id="mv-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
-              <div className="grid gap-1"><Label htmlFor="mv-archivo" className="text-[11px]">Soporte: foto o PDF *</Label><Input id="mv-archivo" className="h-8" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} /></div>
+              <div className="grid gap-1"><Label htmlFor="mv-ref" className="text-xs">Referencia *</Label><Input id="mv-ref" className="h-8" value={referencia} onChange={(e) => setReferencia(e.target.value)} /></div>
+              <div className="grid gap-1"><Label htmlFor="mv-motivo" className="text-xs">Motivo *</Label><Textarea id="mv-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
+              <div className="grid gap-1"><Label htmlFor="mv-archivo" className="text-xs">Soporte: foto o PDF *</Label><Input id="mv-archivo" className="h-8" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} /></div>
               <FieldError>{errorArchivo(archivo)}</FieldError>
               <Button size="sm" className="justify-self-end" disabled={!listo || enviando} onClick={() => void enviar(() => registrarMovimiento(datos, almacen, reserva.id, { tipo, monto: montoNum, fecha, referencia: referencia.trim(), motivo: motivo.trim(), archivo: archivo! }), 'Movimiento registrado: queda por autorizar')}>Registrar movimiento</Button>
             </section>

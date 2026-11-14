@@ -6,7 +6,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { crearDb, GRANTS_SUPABASE, STUB_SUPABASE } from './db'
 
 const RAIZ = path.resolve(__dirname, '..')
-const ARCHIVO = path.join(RAIZ, 'instalacion/verificar_despliegue.sql')
+const ARCHIVO = path.join(RAIZ, 'sql_produccion/VERIFICAR_DESPLIEGUE.sql')
 const q = (t: string) => `'${t.replace(/'/g, "''")}'`
 
 /** Consulta de solo lectura: compara la base con lo que deja una instalación limpia del repositorio. */
@@ -100,24 +100,41 @@ describe('verificación de despliegue', () => {
   })
 })
 
+const leer = (f: string) => fs.readFileSync(path.join(RAIZ, f), 'utf8')
+// Lo que falta en producción, en el orden del despliegue.
+const PENDIENTES = ['20261112010000_correo_destinatario_efectivo.sql', '20261113000000_pagos_anticipados.sql', '20261114000000_cumplimiento.sql', '20261116000000_notificaciones.sql', '20261117000000_clientes_unicos_reasignacion.sql', '20261118000000_precios_lista_oficial.sql', '20261118010000_inventario_tres_estados.sql', '20261119000000_reserva_confirmacion_automatica.sql', '20261120000000_celular_unico_identificacion.sql', '20261121000000_supervisor_vende.sql', '20261122000000_comisiones_vendedor.sql', '20261123000000_captacion_leads.sql']
+// Diferencias que devolvió verificar_despliegue.sql en producción (2026-11-11, por la CLI). Solo cambia con una nueva medición.
+const MEDIDO = { migraciones: ['20261112010000_correo_destinatario_efectivo.sql'], diferencias: ['cobranza_alertas.destinatario_efectivo'] }
+
+/** Base con todas las migraciones salvo las indicadas, como quedó producción. */
+async function instalarSin(omitir: string[]) {
+  const prod = new PGlite()
+  await prod.exec(STUB_SUPABASE)
+  for (const f of fs.readdirSync(path.join(RAIZ, 'migrations')).filter((x) => x.endsWith('.sql')).sort()) {
+    if (omitir.includes(f)) continue
+    await prod.exec(leer(`migrations/${f}`))
+    if (f.startsWith('20261028120000')) await prod.exec(leer('seed.sql'))
+    if (f.startsWith('20261028220000')) await prod.exec(leer('seed_roles.sql'))
+  }
+  await prod.exec(GRANTS_SUPABASE)
+  return prod
+}
+
 describe('despliegue sobre el estado actual de producción', () => {
+  it('sin las migraciones medidas como faltantes, la verificación da lo mismo que dio producción', async () => {
+    expect(MEDIDO.migraciones.every((m) => PENDIENTES.includes(m))).toBe(true)
+    const prod = await instalarSin(MEDIDO.migraciones)
+    expect(difs(await correr(prod, fs.readFileSync(ARCHIVO, 'utf8'))).map((d) => d.objeto)).toEqual(MEDIDO.diferencias)
+  }, 180_000)
+
   it('con datos existentes, las migraciones pendientes terminan igual que una instalación limpia y no tocan los datos', async () => {
-    const leer = (f: string) => fs.readFileSync(path.join(RAIZ, f), 'utf8')
-    // Lo que falta en producción, en el orden del despliegue.
-    const PENDIENTES = ['20261030000000_plan_responsable_externo.sql', '20261031110000_datos_en_base.sql', '20261031120000_avance_obra.sql', '20261031130000_documentos_contractuales.sql', '20261031140000_reserva_predeterminada.sql', '20261031150000_reserva_atomica_disponibilidad.sql', '20261031160000_clientes_nombres.sql', '20261031170000_cuotas_extraordinarias.sql', '20261031180000_comprobantes_recibos.sql', '20261031190000_cobranzas_controles.sql', '20261031200000_storage_comprobantes.sql', '20261031210000_obra_avance_directo.sql', '20261031220000_multimedia_proyecto.sql', '20261101000000_accesos_internos.sql']
-    const prod = new PGlite()
-    await prod.exec(STUB_SUPABASE)
-    for (const f of fs.readdirSync(path.join(RAIZ, 'migrations')).filter((x) => x.endsWith('.sql')).sort()) {
-      if (PENDIENTES.includes(f)) continue
-      await prod.exec(leer(`migrations/${f}`))
-      if (f.startsWith('20261028120000')) await prod.exec(leer('seed.sql'))
-      if (f.startsWith('20261028220000')) await prod.exec(leer('seed_roles.sql'))
-    }
-    await prod.exec(GRANTS_SUPABASE)
+    const prod = await instalarSin(PENDIENTES)
     const id = '11111111-1111-4111-8111-111111111111'
     await prod.query(`insert into auth.users (id, email) values ($1, 'a@b.ec')`, [id])
     await prod.query(`insert into public.profiles (id, nombre, email, estado, rol_id) values ($1, 'Asesora', 'a@b.ec', 'activo', 'asesor')`, [id])
     await prod.query(`insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Existente', '0991110000', 'whatsapp', $1, $1, $1)`, [id])
+    // Como en producción: una cédula de prueba con dígito verificador incorrecto se conserva tal cual.
+    await prod.query(`insert into public.clients (nombre, telefono, documento, origen, asesor_id, created_by, atribucion_usuario_id) values ('Con cédula', '0991110001', '0915677083', 'whatsapp', $1, $1, $1)`, [id])
     const antes = (await prod.query(`select id, etapa, version, updated_at from public.clients`)).rows
     const jarval = '33333333-3333-4333-8333-333333333333'
     await prod.query(`insert into auth.users (id, email) values ($1, 'j@b.ec')`, [jarval])
@@ -126,18 +143,17 @@ describe('despliegue sobre el estado actual de producción', () => {
     // Como en producción: 5 unidades disponibles y las demás por confirmar.
     await prod.query(`update public.inventory_units set estado = 'por_confirmar'`)
     await prod.query(`update public.inventory_units set estado = 'disponible' where codigo in (select codigo from public.inventory_units order by codigo limit 5)`)
-    const unidades = async () => (await prod.query(`select codigo, estado, updated_at from public.inventory_units order by codigo`)).rows
 
-    const estadosAntes = await unidades()
-    const pendiente = difs(await correr(prod, fs.readFileSync(ARCHIVO, 'utf8')))
-    expect(pendiente.map((d) => d.objeto).sort()).toEqual(expect.arrayContaining(['plan_activities.responsable_externo']))
-    expect(pendiente.some((d) => d.objeto === 'inventory_units.precio_referencia')).toBe(true)
-    expect(pendiente.some((d) => d.objeto === 'plan_activities.responsable_externo')).toBe(true)
+    expect(difs(await correr(prod, fs.readFileSync(ARCHIVO, 'utf8')))).not.toEqual([])
 
     for (const f of PENDIENTES) await prod.exec(leer(`migrations/${f}`))
     expect(difs(await correr(prod, fs.readFileSync(ARCHIVO, 'utf8')))).toEqual([])
     expect((await prod.query(`select id, etapa, version, updated_at from public.clients`)).rows).toEqual(antes)
-    expect(await unidades()).toEqual(estadosAntes)
+    // Sin compromisos, las unidades por confirmar quedan disponibles; las 72 con la lista oficial del 12/11/2026.
+    expect((await prod.query(`select estado, count(*)::int as n from public.inventory_units group by estado`)).rows).toEqual([{ estado: 'disponible', n: 72 }])
+    const lista = (await prod.query<{ t: string; una: boolean }>(`select sum(public.precio_venta(area_m2, bodega_m2, patio_m2, usd_m2, 230)) as t, bool_and(usd_m2 = usd_m2_lista) as una from public.inventory_units`)).rows[0]
+    expect(Math.abs(Number(lista.t) - 11129497)).toBeLessThan(60)
+    expect(lista.una).toBe(true)
     expect((await prod.query(`select rol_id, estado from public.profiles where id = $1`, [jarval])).rows[0]).toEqual({ rol_id: 'jarval', estado: 'activo' })
     // Se puede repetir sin efecto.
     for (const f of PENDIENTES) await prod.exec(leer(`migrations/${f}`))

@@ -66,7 +66,6 @@ export function solicitarReserva(e: Estado, cot: Cotizacion, actor: Actor, monto
   if (cot.validaHasta < hoy) throw new ReservaError(`La cotización ${cot.numero} venció el ${cot.validaHasta}. Emite una nueva cotización.`)
   const u = e.inv.units.find((x) => x.codigo === cot.unidad.codigo)
   if (!u) throw new ReservaError('La unidad de la cotización ya no existe en el inventario.')
-  if (u.estado === 'por_confirmar') throw new ReservaError(`La unidad ${u.dpt} aún no tiene disponibilidad confirmada. Confírmala en Inventario antes de reservar.`)
   if (!puedeReservarse(u)) throw new ReservaError(`La unidad ${u.dpt} está ${ESTADOS[u.estado].label.toLowerCase()} y no puede reservarse.`)
   const activas = e.res.reservas.filter((r) => r.unidad === u.codigo && activa(r))
   if (activas.length) throw new ReservaError(`La unidad ${u.dpt} ya tiene la reserva ${activas[0].codigo} (${activas[0].estado}).`)
@@ -128,16 +127,30 @@ export function verificarPagoReserva(e: Estado, id: string, input: ConfirmarInpu
     fechaVerificacion: hoy,
     historial: [hist(actor, `Ingreso verificado · comprobante ${comprobante} · recibido USD ${usd(input.montoRecibido)}`), ...x.historial],
   }))
-  return { ...e, res: { ...e.res, reservas } }
+  const verificada = { ...e, res: { ...e.res, reservas } }
+  // Reserva normal (sin descuento, unidad disponible y sin otra confirmada): se confirma sin aprobación de Gerencia.
+  const unidad = e.inv.units.find((u) => u.codigo === r.unidad)
+  const otra = e.res.reservas.some((x) => x.id !== id && x.unidad === r.unidad && x.estado === 'confirmada')
+  if (r.descuentoPct > 0 || !unidad || !puedeReservarse(unidad) || otra) return verificada
+  return {
+    inv: marcarReservada(e.inv, r.unidad, r.codigo, actor),
+    clientes: marcarClienteReserva(e.clientes, r.clienteId, r.codigo, actor),
+    res: { ...verificada.res, reservas: verificada.res.reservas.map((x) => (x.id !== id ? x : {
+      ...x, estado: 'confirmada' as const, fechaConfirmacion: hoy,
+      historial: [hist(actor, 'Reserva confirmada automáticamente: pago verificado y condiciones normales'), ...x.historial],
+    })) },
+  }
 }
 
 /**
- * Paso 3 · Gerencia aprueba. Bloquea la unidad, avanza al cliente a Reserva y registra la operación en una sola acción.
+ * Excepciones · Gerencia autoriza (descuento u otra condición especial). Bloquea la unidad, avanza al cliente a Reserva y registra la operación en una sola acción.
  * Si algo falla, no cambia nada.
  */
 export function aprobarReserva(e: Estado, id: string, motivo: string, actor: Actor): Estado {
   assertCan(actor, 'reservas.confirmar')
   const r = buscar(e.res, id)
+  // Ya confirmada (automáticamente al verificar el pago): no hay nada que aprobar.
+  if (r.estado === 'confirmada') return e
   if (r.estado !== 'pago_verificado') throw new ReservaError(`Solo se aprueban reservas con el pago verificado por Finanzas (estado actual: ${ESTADO_RESERVA[r.estado].label.toLowerCase()}).`)
   if (r.verificadaPor?.id === actor.id) throw new ReservaError('Quien verificó el pago no puede aprobar la reserva.')
   if (motivo.trim().length < 5) throw new ReservaError('Indica el motivo de la aprobación (mínimo 5 caracteres).')

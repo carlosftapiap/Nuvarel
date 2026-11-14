@@ -22,7 +22,7 @@ export const TIPOS_DOCUMENTO: Record<TipoDocumento, string> = {
   borrador: 'Borrador', contrato_firmado: 'Contrato firmado', anexo: 'Anexo', escritura: 'Escritura', anulacion: 'Anulación', otro: 'Otro',
 }
 export const HITOS: Record<TipoHito, string> = { contrato_firmado: 'Contrato firmado', escritura: 'Escritura', desembolso: 'Desembolso del crédito', entrega: 'Entrega' }
-export const ORIGENES_VENTA: Record<string, string> = { instagram: 'Instagram', whatsapp: 'WhatsApp', referido: 'Referido', corredor: 'Corredor', visita: 'Visita directa' }
+export const ORIGENES_VENTA: Record<string, string> = { instagram: 'Instagram', whatsapp: 'WhatsApp', referido: 'Referido', corredor: 'Corredor', visita: 'Visita directa', facebook: 'Facebook', web: 'Página web' }
 
 export interface Documento { id: string; tipo: TipoDocumento; referencia: string; descripcion: string; registradoPor: string; registradoEn: string; retiradoEn: string | null; motivoRetiro: string | null }
 export interface Hito { id: string; hito: TipoHito; fecha: string; referencia: string; motivo: string; registradoPor: string; revertidoEn: string | null; motivoReversion: string | null }

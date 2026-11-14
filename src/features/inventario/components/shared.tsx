@@ -8,7 +8,7 @@ import type { Unit } from '../types'
 export function EstadoBadge({ estado, className }: { estado: EstadoEfectivo; className?: string }) {
   const e = ESTADOS_EFECTIVOS[estado]
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset whitespace-nowrap', e.tone, className)} title={e.descripcion}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset whitespace-nowrap', e.tone, className)} title={e.descripcion}>
       <span className="size-1.5 rounded-full" style={{ background: e.color }} aria-hidden="true" />
       {e.label}
     </span>
@@ -23,16 +23,16 @@ export const NIVEL: Record<NivelDato, { label: string; icon: typeof Info; tone: 
 export function Dato({ label, children, hint }: { label: string; children: ReactNode; hint?: ReactNode }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] text-muted-foreground">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 truncate text-sm font-medium tabular-nums">{children}</dd>
-      {hint && <dd className="mt-0.5 text-[11px] text-muted-foreground">{hint}</dd>}
+      {hint && <dd className="mt-0.5 text-xs text-muted-foreground">{hint}</dd>}
     </div>
   )
 }
 
 /** La misma explicación en Inventario y Precios. */
 export function ReglaPrecios() {
-  return <p className="rounded-md bg-muted px-3 py-2 text-[11px] text-muted-foreground"><b>Quién propone y quién aprueba:</b> Gerencia envía propuestas y el precio oficial no cambia hasta que se aprueben. Administración, que aprueba precios, aplica el cambio directamente. Todo queda en el historial.</p>
+  return <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"><b>Quién propone y quién aprueba:</b> Gerencia envía propuestas y el precio oficial no cambia hasta que se aprueben. Administración, que aprueba precios, aplica el cambio directamente. Todo queda en el historial.</p>
 }
 
 export const ETIQUETA_PRECIO = {

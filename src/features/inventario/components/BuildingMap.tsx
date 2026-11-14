@@ -8,7 +8,7 @@ const PISOS: Unit['piso'][] = ['5', '4', '3', '2', '1', 'PB']
 export default function BuildingMap({ units, params, onOpen }: { units: Unit[]; params: PricingParams; onOpen: (c: string) => void }) {
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground" aria-label="Leyenda de estados">
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground" aria-label="Leyenda de estados">
         {ESTADO_EFECTIVO_ORDEN.map((e) => (
           <span key={e} className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm" style={{ background: ESTADOS_EFECTIVOS[e].color }} />{ESTADOS_EFECTIVOS[e].label}</span>
         ))}
@@ -23,7 +23,7 @@ export default function BuildingMap({ units, params, onOpen }: { units: Unit[]; 
               <div className="mt-3 grid gap-1.5">
                 {PISOS.map((piso) => (
                   <div key={piso} className="grid items-stretch gap-1.5" style={{ gridTemplateColumns: `2.5rem repeat(${cols}, minmax(0, 1fr))` }}>
-                    <span className="flex items-center text-[11px] font-medium text-muted-foreground">{piso === 'PB' ? 'PB' : `P${piso}`}</span>
+                    <span className="flex items-center text-xs font-medium text-muted-foreground">{piso === 'PB' ? 'PB' : `P${piso}`}</span>
                     {del.filter((u) => u.piso === piso).sort((a, b) => a.posicion - b.posicion).map((u) => {
                       const efectivo = ESTADOS_EFECTIVOS[estadoEfectivo(u)]
                       const c = efectivo.color
@@ -33,9 +33,9 @@ export default function BuildingMap({ units, params, onOpen }: { units: Unit[]; 
                           style={{ borderColor: `${c}66`, background: `${c}14` }}
                           title={`${u.codigo} · ${u.tipologia} · ${efectivo.label}`}
                           aria-label={`${u.dpt}, ${u.tipologia}, ${efectivo.label}, ${fmtUsd(calcularPrecio(u, params).precioVenta)}`}>
-                          <span className="block text-[11px] font-semibold text-foreground">{u.dpt}</span>
-                          <span className="block truncate text-[9px] text-muted-foreground">{u.tipologia.replace(' + estudio', '+E')}</span>
-                          <span className="hidden truncate text-[9px] tabular-nums text-muted-foreground sm:block">${Math.round(calcularPrecio(u, params).precioVenta / 1000)}k</span>
+                          <span className="block text-xs font-semibold text-foreground">{u.dpt}</span>
+                          <span className="block truncate text-xs text-muted-foreground">{u.tipologia.replace(' + estudio', '+E')}</span>
+                          <span className="hidden truncate text-xs tabular-nums text-muted-foreground sm:block">${Math.round(calcularPrecio(u, params).precioVenta / 1000)}k</span>
                         </button>
                       )
                     })}

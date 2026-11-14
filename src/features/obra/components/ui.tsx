@@ -20,7 +20,7 @@ export function Barra({ valor, etiqueta, tono = 'bg-primary' }: { valor: number 
 }
 
 export function Etiqueta({ children, tono }: { children: ReactNode; tono: string }) {
-  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', tono)}>{children}</span>
+  return <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', tono)}>{children}</span>
 }
 
 export const EtiquetaEstado = ({ estado }: { estado: EstadoActividad }) => <Etiqueta tono={ESTADO_ACTIVIDAD[estado].tono}>{ESTADO_ACTIVIDAD[estado].label}</Etiqueta>

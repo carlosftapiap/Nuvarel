@@ -2,10 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { PermissionError } from '@/app/permissions'
 import { calcularPrecio } from '../pricing'
 import { actualizarParametros, aplicarCambioPrecio, cambiarEstado, liberarReserva, marcarReservada, previsualizarCambioPrecio, restablecerListaBase, resumenInventario } from '../service'
-import type { Actor, InventoryState } from '../types'
+import type { Actor } from '../types'
 import { createInitialState } from '@/features/inventario/__tests__/fixtures'
-
-const porValidar = (s: InventoryState, codigo: string): InventoryState => ({ ...s, units: s.units.map((u) => (u.codigo === codigo ? { ...u, estado: 'por_confirmar' as const } : u)) })
 
 const gerencia: Actor = { id: 'u-gerencia', nombre: 'Gerencia', rol: 'gerencia' }
 const admin: Actor = { id: 'u-admin', nombre: 'Admin', rol: 'administrador' }
@@ -93,19 +91,20 @@ describe('parámetros de pago', () => {
 })
 
 describe('estados comerciales y puerto de Reservas', () => {
-  it('flujo disponible → reservado → promesa → vendido con historial', () => {
+  it('flujo disponible → reservado → vendido con historial', () => {
     let s = createInitialState()
     s = marcarReservada(s, 'E2-P1-A1', 'RES-100', gerencia)
     expect(find(s, 'E2-P1-A1').reservaId).toBe('RES-100')
-    s = cambiarEstado(s, 'E2-P1-A1', 'promesa', 'Promesa firmada', gerencia, { sistema: true })
-    s = cambiarEstado(s, 'E2-P1-A1', 'vendido', 'Escritura firmada', gerencia, { sistema: true })
+    s = cambiarEstado(s, 'E2-P1-A1', 'vendido', 'Contrato firmado', gerencia, { sistema: true })
     expect(find(s, 'E2-P1-A1').estado).toBe('vendido')
-    expect(s.statusHistory).toHaveLength(3)
-    expect(() => cambiarEstado(s, 'E2-P1-A1', 'disponible', 'Reabrir venta', gerencia)).toThrow(/estado final/)
+    expect(s.statusHistory).toHaveLength(2)
+    expect(() => cambiarEstado(s, 'E2-P1-A1', 'disponible', 'Reabrir venta', gerencia)).toThrow(/Venta formalizada/)
+    expect(() => marcarReservada(s, 'E2-P1-A1', 'RES-101', gerencia)).toThrow(/no está disponible/)
   })
 
-  it('no se puede reservar una unidad por confirmar', () => {
-    expect(() => marcarReservada(porValidar(createInitialState(), 'E1-P2-A3'), 'E1-P2-A3', 'RES-1', gerencia)).toThrow(/no está disponible/)
+  it('una unidad reservada no se reserva de nuevo', () => {
+    const s = marcarReservada(createInitialState(), 'E1-P2-A3', 'RES-1', gerencia)
+    expect(() => marcarReservada(s, 'E1-P2-A3', 'RES-2', gerencia)).toThrow(/no está disponible/)
   })
 
   it('liberar reserva devuelve la unidad a disponible', () => {
@@ -121,10 +120,9 @@ describe('estados comerciales y puerto de Reservas', () => {
   })
 
   it('resumen cuenta estados', () => {
-    const s = cambiarEstado(createInitialState(), 'E1-PB-A1', 'no_disponible', 'Unidad modelo', gerencia)
+    const s = marcarReservada(createInitialState(), 'E1-PB-A1', 'RES-9', gerencia)
     const r = resumenInventario(s)
-    expect(r.porEstado.disponible).toBe(71)
-    expect(r.porEstado.no_disponible).toBe(1)
+    expect(r.porEstado).toEqual({ disponible: 71, reservado: 1, vendido: 0 })
     expect(r.porEdificio).toEqual({ 1: 30, 2: 42 })
   })
 })

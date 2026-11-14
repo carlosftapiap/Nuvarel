@@ -65,6 +65,11 @@ export const CATALOGO = [
     ['cobranzas.ver', 'Consultar cobranzas'],
     ['cobranzas.registrar', 'Registrar comprobantes'],
     ['cobranzas.verificar', 'Verificar y conciliar ingresos'],
+    ['cobranzas.aplicar_excedente', 'Autorizar la aplicación de excedentes al saldo de financiamiento'],
+  ] },
+  { modulo: 'Cumplimiento', permisos: [
+    ['cumplimiento.ver', 'Consultar y descargar el expediente de cumplimiento'],
+    ['cumplimiento.revisar', 'Observar, aprobar o rechazar documentos y expedientes'],
   ] },
   { modulo: 'Comisiones', permisos: [
     ['comisiones.ver_propias', 'Ver sus comisiones'],
@@ -111,6 +116,7 @@ export const CATALOGO = [
     ['config.auditoria', 'Consultar auditoría'],
     ['config.cobros', 'Definir quién recibe los pagos (NUVAREL, JARVAL o fiduciaria)'],
     ['config.multimedia', 'Administrar fotografías y videos del proyecto'],
+    ['config.leads', 'Configurar la distribución automática de leads'],
   ] },
 ] as const
 
@@ -149,7 +155,7 @@ const BASE_VENTA: Permiso[] = [
 export const PLANTILLAS_ROL: PlantillaRol[] = [
   { id: 'administrador', nombre: 'Administrador', descripcion: 'Usuarios, roles, equipos, configuración y accesos', alcance: 'empresa', permisos: [...TODOS_LOS_PERMISOS] },
   {
-    // Gerencia aprueba reservas; la verificación del ingreso corresponde a Finanzas.
+    // Gerencia autoriza las reservas con excepciones; la verificación del ingreso corresponde a Finanzas.
     id: 'gerencia', nombre: 'Gerencia', descripcion: 'Supervisión comercial, reportes y aprobaciones autorizadas', alcance: 'empresa',
     permisos: [
       ...BASE_VENTA, 'reportes.ver', 'reportes.exportar', 'inventario.exportar', 'inventario.importar', 'inventario.cambiar_estado',
@@ -161,7 +167,7 @@ export const PLANTILLAS_ROL: PlantillaRol[] = [
     ],
   },
   {
-    id: 'supervisor', nombre: 'Supervisor', descripcion: 'Seguimiento y asignación dentro de su equipo (p. ej. líder de corredores)', alcance: 'equipo',
+    id: 'supervisor', nombre: 'Supervisor', descripcion: 'Vende con su propia cartera y supervisa a su equipo', alcance: 'equipo',
     permisos: [...BASE_VENTA, 'reportes.ver', 'inventario.exportar', 'precios.competencia', 'clientes.asignar', 'corredores.ver', 'ventas.desistimiento_autorizar', ...PLAN_SUPERVISION],
   },
   { id: 'asesor', nombre: 'Vendedor', descripcion: 'Clientes, cotizaciones y solicitudes de reserva propias', alcance: 'propio', permisos: [...BASE_VENTA, 'inventario.exportar', 'precios.competencia', ...BASE_PLAN] },
@@ -170,7 +176,7 @@ export const PLANTILLAS_ROL: PlantillaRol[] = [
     id: 'finanzas', nombre: 'Finanzas', descripcion: 'Verificación de ingresos y cobranzas', alcance: 'empresa',
     permisos: [
       'dashboard.ver', 'reportes.ver', 'reportes.exportar', 'inventario.ver', 'clientes.ver', 'cotizaciones.ver',
-      'reservas.ver', 'reservas.verificar_pago', 'ventas.ver', 'cobranzas.ver', 'cobranzas.registrar', 'cobranzas.verificar', 'comisiones.finanzas',
+      'reservas.ver', 'reservas.verificar_pago', 'ventas.ver', 'cobranzas.ver', 'cobranzas.registrar', 'cobranzas.verificar', 'cobranzas.aplicar_excedente', 'comisiones.finanzas',
       ...BASE_PLAN, 'obra.resumen', 'obra.ver', 'obra.exportar', 'ventas.documentos_ver',
     ],
   },
@@ -178,6 +184,11 @@ export const PLANTILLAS_ROL: PlantillaRol[] = [
     id: 'legal', nombre: 'Legal', descripcion: 'Contratos, documentos y formalización', alcance: 'empresa',
     permisos: ['dashboard.ver', 'inventario.ver', 'clientes.ver', 'cotizaciones.ver', 'reservas.ver', 'ventas.ver', 'ventas.preparar', 'ventas.formalizar', 'recursos.ver', 'recursos.cargar', ...BASE_PLAN, 'obra.resumen', 'obra.documentos',
       'ventas.plantillas_ver', 'ventas.plantillas', 'ventas.plantillas_aprobar', 'ventas.documentos_ver', 'ventas.documentos_generar', 'ventas.datos_comprador'],
+  },
+  {
+    // Revisa el expediente antes de la firma. Sin cobranzas, comprobantes, precios, comisiones ni configuración.
+    id: 'oficial_cumplimiento', nombre: 'Oficial de Cumplimiento', descripcion: 'Revisión del expediente del cliente antes de la firma, sin acceso a pagos ni precios', alcance: 'empresa',
+    permisos: ['clientes.ver', 'reservas.ver', 'ventas.ver', 'ventas.documentos_ver', 'cumplimiento.ver', 'cumplimiento.revisar'],
   },
   { id: 'constructor', nombre: 'Constructor', descripcion: 'Información técnica del proyecto y avance de obra, sin datos comerciales', alcance: 'empresa', permisos: ['inventario.tecnico', 'obra.resumen', 'obra.ver', 'obra.editar', 'obra.avance', 'obra.documentos', 'obra.importar', 'obra.exportar'] },
   {
@@ -203,13 +214,14 @@ export const ACCION_PERMISO: Record<Permiso, AccionPermiso> = {
   'reservas.ver': 'ver', 'reservas.solicitar': 'crear', 'reservas.verificar_pago': 'aprobar', 'reservas.confirmar': 'aprobar', 'reservas.anular': 'anular',
   'ventas.ver': 'ver', 'ventas.preparar': 'crear', 'ventas.formalizar': 'aprobar', 'ventas.desistimiento': 'anular', 'ventas.desistimiento_autorizar': 'aprobar', 'ventas.desistimiento_con_dinero': 'aprobar',
   'ventas.plantillas_ver': 'ver', 'ventas.plantillas': 'crear', 'ventas.plantillas_aprobar': 'aprobar', 'ventas.documentos_ver': 'ver', 'ventas.documentos_generar': 'crear', 'ventas.documentos_emitir': 'aprobar', 'ventas.datos_comprador': 'crear',
-  'cobranzas.ver': 'ver', 'cobranzas.registrar': 'crear', 'cobranzas.verificar': 'aprobar',
+  'cobranzas.ver': 'ver', 'cobranzas.registrar': 'crear', 'cobranzas.verificar': 'aprobar', 'cobranzas.aplicar_excedente': 'aprobar',
+  'cumplimiento.ver': 'ver', 'cumplimiento.revisar': 'aprobar',
   'comisiones.ver_propias': 'ver', 'comisiones.calcular': 'crear', 'comisiones.aprobar': 'aprobar', 'comisiones.finanzas': 'aprobar',
   'corredores.ver': 'ver', 'corredores.gestionar': 'crear',
   'recursos.ver': 'ver', 'recursos.cargar': 'crear', 'recursos.publicar': 'aprobar',
   'plan.ver': 'ver', 'plan.reportes': 'ver', 'plan.editar': 'crear', 'plan.asignar': 'crear', 'plan.avance': 'crear', 'plan.reprogramar': 'crear', 'plan.alcance': 'crear', 'plan.dependencias': 'crear', 'plan.cerrar': 'anular', 'plan.importar': 'otras', 'plan.exportar': 'otras',
   'obra.resumen': 'ver', 'obra.ver': 'ver', 'obra.editar': 'crear', 'obra.avance': 'crear', 'obra.validar': 'aprobar', 'obra.documentos': 'ver', 'obra.importar': 'otras', 'obra.exportar': 'otras',
-  'config.usuarios': 'crear', 'config.roles': 'crear', 'config.equipos': 'crear', 'config.auditoria': 'ver', 'config.cobros': 'crear', 'config.multimedia': 'crear',
+  'config.usuarios': 'crear', 'config.roles': 'crear', 'config.equipos': 'crear', 'config.auditoria': 'ver', 'config.cobros': 'crear', 'config.multimedia': 'crear', 'config.leads': 'crear',
 }
 
 export const ROLES: Record<string, { label: string; descripcion: string }> = Object.fromEntries(

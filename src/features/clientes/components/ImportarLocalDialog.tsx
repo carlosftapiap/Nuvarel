@@ -97,7 +97,7 @@ function ImportarDialog({ clientes, onClose, onImportado, onArchivado }: { clien
         {filas && (
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-xs">
-              <thead className="bg-muted text-[11px] text-muted-foreground"><tr><th className="px-3 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Contacto</th><th className="px-3 py-2 text-left font-medium">Resultado</th></tr></thead>
+              <thead className="bg-muted text-xs text-muted-foreground"><tr><th className="px-3 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Contacto</th><th className="px-3 py-2 text-left font-medium">Resultado</th></tr></thead>
               <tbody>
                 {clientes.map((c) => {
                   const f = porId.get(c.id)
@@ -114,12 +114,12 @@ function ImportarDialog({ clientes, onClose, onImportado, onArchivado }: { clien
             </table>
           </div>
         )}
-        {conReserva > 0 && <p className="text-[11px] text-amber-800">{conReserva} cliente{conReserva === 1 ? '' : 's'} en Reserva local pasará{conReserva === 1 ? '' : 'n'} a Negociación: la reserva solo se confirma en el módulo Reservas.</p>}
-        {importables.length > 0 && !sinVerificar && <p className="text-[11px] text-muted-foreground">Si el asesor original no existe en la base de datos o no tienes permiso para asignarle, el cliente quedará a tu nombre.</p>}
+        {conReserva > 0 && <p className="text-xs text-amber-800">{conReserva} cliente{conReserva === 1 ? '' : 's'} en Reserva local pasará{conReserva === 1 ? '' : 'n'} a Negociación: la reserva solo se confirma en el módulo Reservas.</p>}
+        {importables.length > 0 && !sinVerificar && <p className="text-xs text-muted-foreground">Si el asesor original no existe en la base de datos o no tienes permiso para asignarle, el cliente quedará a tu nombre.</p>}
         {sinVerificar && sinVerificar.length > 0 && <FieldError>{`No se pudo comprobar: ${sinVerificar.join(', ')}. La copia local se conserva; vuelve a intentarlo.`}</FieldError>}
         {sinVerificar?.length === 0 && <p role="status" className="text-xs text-emerald-800">Comprobado en la base de datos: los clientes importados y su historial quedaron guardados.</p>}
         {can('config.usuarios') && (
-          <p className="flex flex-wrap items-center gap-2 rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">
+          <p className="flex flex-wrap items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
             {importacionAbierta ? 'Importación abierta para todo el equipo. Ciérrala al terminar la migración; administración podrá seguir usándola.' : 'Importación cerrada para el equipo: solo administración puede usarla.'}
             <Button size="xs" variant="outline" className="ml-auto" disabled={enviando}
               onClick={() => { setError(null); definirImportacion(datos!, !importacionAbierta, importacionAbierta ? 'Migración de clientes locales terminada' : 'Recuperación de datos locales').then(recargar).catch((e: Error) => setError(e.message)) }}>

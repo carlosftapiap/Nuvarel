@@ -12,7 +12,7 @@ import { InventoryProvider } from '@/features/inventario/store'
 import type { Actor } from '@/features/inventario/types'
 import VentasPage from '@/pages/VentasPage'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { como, crearDb, crearUsuario, aprobarCumplimiento } from './db'
 
 // Cada pantalla lee varias tablas de Postgres real; con toda la suite en paralelo tarda más que la espera por defecto.
 configure({ asyncUtilTimeout: 15_000 })
@@ -59,7 +59,7 @@ beforeAll(async () => {
   carlos = await crearUsuario(db, 'Carlos Corredor', 'corredor')
   await db.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A2'`)
   await rpc(admin, `select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`)
-  const c = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, '{"nombre": "Andrea Mora", "documento": "1712345678", "telefono": "0995556677", "origen": "corredor", "origen_detalle": "Carlos Corredor", "forma_pago": "banco"}'::jsonb, $1) as id`, [carlos])).id
+  const c = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, '{"nombre": "Andrea Mora", "documento": "1712345675", "telefono": "0995556677", "origen": "corredor", "origen_detalle": "Carlos Corredor", "forma_pago": "banco"}'::jsonb, $1) as id`, [carlos])).id
   const op = (await rpc<{ id: string }>(carlos, `select public.oportunidades_crear($1, 'E1-PB-A2', null) as id`, [c])).id
   const cot = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [cot])
@@ -99,7 +99,7 @@ describe('Ventas y contratos conectado a la base de datos', () => {
     await user.click(await screen.findByRole('row', { name: /Abrir CON-/ }))
     const f = await screen.findByRole('dialog', { name: /CON-/ })
     expect(within(f).getAllByText('Andrea Mora').length).toBeGreaterThan(0)
-    expect(within(f).getByText('1712345678')).toBeInTheDocument()
+    expect(within(f).getByText('1712345675')).toBeInTheDocument()
     expect(within(f).getByText(/Edificio 1/)).toBeInTheDocument()
     for (const t of ['Asesor principal', 'Responsable de la negociación', 'Corredor de origen', 'Atribución de captación']) {
       const fila = within(f).getByText(t).parentElement!
@@ -112,7 +112,7 @@ describe('Ventas y contratos conectado a la base de datos', () => {
     expect(within(f).getByText(/Se vuelve exigible al firmar/)).toBeInTheDocument()
     expect(within(f).getByRole('link', { name: 'Ver en Cobranzas' })).toBeInTheDocument()
     expect(await within(f).findByText('Generar contrato', { selector: 'b' })).toBeInTheDocument()
-    expect(within(f).getByText('Aprobar reserva', { selector: 'b' })).toBeInTheDocument()
+    expect(within(f).getByText('Confirmar reserva automáticamente', { selector: 'b' })).toBeInTheDocument()
     // Finanzas consulta, pero no firma ni anula.
     expect(within(f).queryByRole('button', { name: /Registrar firma/ })).not.toBeInTheDocument()
     expect(within(f).queryByRole('button', { name: /Anular contrato/ })).not.toBeInTheDocument()
@@ -120,12 +120,15 @@ describe('Ventas y contratos conectado a la base de datos', () => {
   })
 
   it('Legal no ve pagos en el cronograma (no tiene ese permiso), registra la firma y un error del servidor no pierde lo escrito', async () => {
+    await aprobarCumplimiento(db)
     const user = userEvent.setup()
     const s = await abrirComo(legal)
     await user.click(await screen.findByRole('row', { name: /Abrir CON-/ }))
     const f = await screen.findByRole('dialog', { name: /CON-/ })
     expect(within(f).queryByText('Pendiente', { selector: 'th' })).not.toBeInTheDocument()
     expect(within(f).queryByRole('link', { name: 'Ver en Cobranzas' })).not.toBeInTheDocument()
+    // La firma se habilita al leer la aprobación de Cumplimiento.
+    await vi.waitFor(() => expect(within(f).getByRole('button', { name: /Registrar firma/ })).toBeEnabled())
     await user.click(within(f).getByRole('button', { name: /Registrar firma/ }))
     const d = await screen.findByRole('dialog', { name: /Registrar firma de/ })
     await user.type(within(d).getByLabelText(/Enlace o referencia/), 'contratos/CON-1-firmado.pdf')
@@ -140,7 +143,7 @@ describe('Ventas y contratos conectado a la base de datos', () => {
     await user.click(within(d).getByRole('button', { name: 'Registrar firma' }))
     expect(await screen.findByText(/CON-.* firmado/)).toBeInTheDocument()
     expect((await q<{ estado: string }>(`select estado from public.contracts`)).estado).toBe('firmado')
-    expect((await q<{ estado: string }>(`select estado from public.inventory_units where codigo = 'E1-PB-A2'`)).estado).toBe('promesa')
+    expect((await q<{ estado: string }>(`select estado from public.inventory_units where codigo = 'E1-PB-A2'`)).estado).toBe('vendido')
     expect(await within(within(f).getByRole('region', { name: 'Hitos' })).findByText('Contrato firmado')).toBeInTheDocument()
     expect(within(within(f).getByRole('region', { name: 'Documentos' })).getByText('Contrato firmado')).toBeInTheDocument()
     s.unmount()
@@ -162,7 +165,7 @@ describe('Ventas y contratos conectado a la base de datos', () => {
     await user.type(within(r).getByLabelText('Motivo *'), 'Error de notaría')
     await user.click(within(r).getByRole('button', { name: 'Revertir' }))
     expect(await within(f).findByText(/Revertido: Error de notaría/)).toBeInTheDocument()
-    expect((await q<{ estado: string }>(`select estado from public.inventory_units where codigo = 'E1-PB-A2'`)).estado).toBe('promesa')
+    expect((await q<{ estado: string }>(`select estado from public.inventory_units where codigo = 'E1-PB-A2'`)).estado).toBe('vendido')
     expect((await q<{ n: number }>(`select count(*)::int as n from public.contract_milestones where hito = 'escritura'`)).n).toBe(1)
     s.unmount()
   })

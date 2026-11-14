@@ -41,8 +41,13 @@ export interface PlanFinanciamiento {
 export const DESCUENTO_MAX = 50
 
 export function hoyGuayaquil() {
+  return fechaGuayaquil(new Date())
+}
+
+/** Fecha (yyyy-mm-dd) de un instante en Ecuador: un registro de las 20:00 no pasa al día siguiente. */
+export function fechaGuayaquil(instante: Date | string) {
   // en-CA devuelve yyyy-mm-dd
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date())
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date(instante))
 }
 
 function parseFecha(iso: string) {

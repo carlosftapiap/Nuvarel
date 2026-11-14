@@ -78,7 +78,7 @@ export default function GenerarDialog({ datos, almacen, contratoId, codigo, vers
               <fieldset className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-2">
                 <legend className="px-1 text-xs font-semibold">Datos propios de este documento</legend>
                 {variablesManuales.map((v) => (
-                  <div key={v.clave} className="grid gap-1"><Label htmlFor={`man-${v.clave}`} className="text-[11px]">{v.etiqueta}{v.obligatorio ? ' *' : ''}</Label>
+                  <div key={v.clave} className="grid gap-1"><Label htmlFor={`man-${v.clave}`} className="text-xs">{v.etiqueta}{v.obligatorio ? ' *' : ''}</Label>
                     <Input id={`man-${v.clave}`} value={manuales[v.clave] ?? ''} onChange={(e) => { setManuales({ ...manuales, [v.clave]: e.target.value }); setPreparado(null) }} /></div>
                 ))}
               </fieldset>

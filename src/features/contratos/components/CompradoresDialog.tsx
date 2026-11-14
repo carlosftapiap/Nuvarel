@@ -67,12 +67,12 @@ export default function CompradoresDialog({ datos, contratoId, codigo, puedeEdit
             <fieldset className="grid gap-2 rounded-lg border border-border p-3" disabled={!puedeEditar}>
               <legend className="px-1 text-xs font-semibold">Comprador principal: {principal.nombre}</legend>
               <div className="grid gap-2 sm:grid-cols-3">
-                <div className="grid gap-1"><Label htmlFor="cp-doc" className="text-[11px]">Cédula o RUC</Label><Input id="cp-doc" value={principal.documento} onChange={(e) => setPrincipal({ ...principal, documento: e.target.value })} /></div>
-                <div className="grid gap-1"><Label htmlFor="cp-nac" className="text-[11px]">Nacionalidad</Label><Input id="cp-nac" value={principal.nacionalidad} onChange={(e) => setPrincipal({ ...principal, nacionalidad: e.target.value })} /></div>
-                <div className="grid gap-1"><Label htmlFor="cp-civil" className="text-[11px]">Estado civil</Label>
+                <div className="grid gap-1"><Label htmlFor="cp-doc" className="text-xs">Cédula o RUC</Label><Input id="cp-doc" value={principal.documento} onChange={(e) => setPrincipal({ ...principal, documento: e.target.value })} /></div>
+                <div className="grid gap-1"><Label htmlFor="cp-nac" className="text-xs">Nacionalidad</Label><Input id="cp-nac" value={principal.nacionalidad} onChange={(e) => setPrincipal({ ...principal, nacionalidad: e.target.value })} /></div>
+                <div className="grid gap-1"><Label htmlFor="cp-civil" className="text-xs">Estado civil</Label>
                   <select id="cp-civil" className={campo} value={principal.estado_civil} onChange={(e) => setPrincipal({ ...principal, estado_civil: e.target.value })}><option value="">Sin indicar</option>{civiles.map((c) => <option key={c} value={c}>{ESTADOS_CIVILES[c]}</option>)}</select></div>
-                <div className="grid gap-1 sm:col-span-2"><Label htmlFor="cp-dom" className="text-[11px]">Domicilio</Label><Input id="cp-dom" value={principal.domicilio} onChange={(e) => setPrincipal({ ...principal, domicilio: e.target.value })} /></div>
-                <div className="grid gap-1"><Label htmlFor="cp-ciu" className="text-[11px]">Ciudad</Label><Input id="cp-ciu" value={principal.ciudad} onChange={(e) => setPrincipal({ ...principal, ciudad: e.target.value })} /></div>
+                <div className="grid gap-1 sm:col-span-2"><Label htmlFor="cp-dom" className="text-xs">Domicilio</Label><Input id="cp-dom" value={principal.domicilio} onChange={(e) => setPrincipal({ ...principal, domicilio: e.target.value })} /></div>
+                <div className="grid gap-1"><Label htmlFor="cp-ciu" className="text-xs">Ciudad</Label><Input id="cp-ciu" value={principal.ciudad} onChange={(e) => setPrincipal({ ...principal, ciudad: e.target.value })} /></div>
               </div>
               {puedeEditar && <div><Button size="sm" disabled={!motivoOk || ocupado} onClick={() => void ejecutar(() => api.guardarPrincipal(datos, contratoId, { documento: principal.documento, domicilio: principal.domicilio, ciudad: principal.ciudad, estado_civil: principal.estado_civil || null, nacionalidad: principal.nacionalidad }, motivo.trim()), 'Datos del comprador principal guardados.')}>Guardar datos del principal</Button></div>}
             </fieldset>
@@ -86,7 +86,7 @@ export default function CompradoresDialog({ datos, contratoId, codigo, puedeEdit
               <ul className="divide-y divide-border">
                 {lista.map((p) => (
                   <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <span><b>{p.nombre}</b> <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{p.rol === 'apoderado' ? 'Apoderado' : 'Comprador adicional'}</span>
+                    <span><b>{p.nombre}</b> <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{p.rol === 'apoderado' ? 'Apoderado' : 'Comprador adicional'}</span>
                       <span className="block text-muted-foreground">{p.documento || 'Sin documento'}{p.rol === 'apoderado' ? ` · representa a ${nombreDe(p.representaA)}${p.poderDetalle ? ` · ${p.poderDetalle}` : ''}` : p.porcentaje ? ` · ${p.porcentaje} %` : ''}</span></span>
                     {puedeEditar && <span className="flex gap-1"><Button size="icon-xs" variant="ghost" aria-label={`Editar ${p.nombre}`} onClick={() => empezar(p.rol, p)}><Pencil /></Button><Button size="icon-xs" variant="ghost" aria-label={`Retirar ${p.nombre}`} disabled={!motivoOk || ocupado} onClick={() => void ejecutar(() => api.retirarComprador(datos, p.id, motivo.trim()), `${p.nombre} retirado del contrato.`)}><Trash2 /></Button></span>}
                   </li>
@@ -101,27 +101,27 @@ export default function CompradoresDialog({ datos, contratoId, codigo, puedeEdit
                     setEdicion(null)
                   }, 'Datos guardados.') }}>
                   <div className="grid gap-2 sm:grid-cols-3">
-                    <div className="grid gap-1 sm:col-span-2"><Label htmlFor="cb-nombre" className="text-[11px]">Nombres y apellidos completos *</Label><Input id="cb-nombre" value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} /></div>
-                    <div className="grid gap-1"><Label htmlFor="cb-doc" className="text-[11px]">Cédula o RUC</Label><Input id="cb-doc" value={f.documento} onChange={(e) => setF({ ...f, documento: e.target.value })} /></div>
-                    <div className="grid gap-1"><Label htmlFor="cb-nac" className="text-[11px]">Nacionalidad</Label><Input id="cb-nac" value={f.nacionalidad} onChange={(e) => setF({ ...f, nacionalidad: e.target.value })} /></div>
-                    <div className="grid gap-1"><Label htmlFor="cb-civil" className="text-[11px]">Estado civil</Label>
+                    <div className="grid gap-1 sm:col-span-2"><Label htmlFor="cb-nombre" className="text-xs">Nombres y apellidos completos *</Label><Input id="cb-nombre" value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} /></div>
+                    <div className="grid gap-1"><Label htmlFor="cb-doc" className="text-xs">Cédula o RUC</Label><Input id="cb-doc" value={f.documento} onChange={(e) => setF({ ...f, documento: e.target.value })} /></div>
+                    <div className="grid gap-1"><Label htmlFor="cb-nac" className="text-xs">Nacionalidad</Label><Input id="cb-nac" value={f.nacionalidad} onChange={(e) => setF({ ...f, nacionalidad: e.target.value })} /></div>
+                    <div className="grid gap-1"><Label htmlFor="cb-civil" className="text-xs">Estado civil</Label>
                       <select id="cb-civil" className={campo} value={f.estado_civil} onChange={(e) => setF({ ...f, estado_civil: e.target.value })}><option value="">Sin indicar</option>{civiles.map((c) => <option key={c} value={c}>{ESTADOS_CIVILES[c]}</option>)}</select></div>
-                    <div className="grid gap-1"><Label htmlFor="cb-ciu" className="text-[11px]">Ciudad</Label><Input id="cb-ciu" value={f.ciudad} onChange={(e) => setF({ ...f, ciudad: e.target.value })} /></div>
-                    <div className="grid gap-1 sm:col-span-3"><Label htmlFor="cb-dom" className="text-[11px]">Domicilio</Label><Input id="cb-dom" value={f.domicilio} onChange={(e) => setF({ ...f, domicilio: e.target.value })} /></div>
-                    <div className="grid gap-1"><Label htmlFor="cb-tel" className="text-[11px]">Teléfono</Label><Input id="cb-tel" value={f.telefono} onChange={(e) => setF({ ...f, telefono: e.target.value })} /></div>
-                    <div className="grid gap-1"><Label htmlFor="cb-mail" className="text-[11px]">Correo</Label><Input id="cb-mail" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
+                    <div className="grid gap-1"><Label htmlFor="cb-ciu" className="text-xs">Ciudad</Label><Input id="cb-ciu" value={f.ciudad} onChange={(e) => setF({ ...f, ciudad: e.target.value })} /></div>
+                    <div className="grid gap-1 sm:col-span-3"><Label htmlFor="cb-dom" className="text-xs">Domicilio</Label><Input id="cb-dom" value={f.domicilio} onChange={(e) => setF({ ...f, domicilio: e.target.value })} /></div>
+                    <div className="grid gap-1"><Label htmlFor="cb-tel" className="text-xs">Teléfono</Label><Input id="cb-tel" value={f.telefono} onChange={(e) => setF({ ...f, telefono: e.target.value })} /></div>
+                    <div className="grid gap-1"><Label htmlFor="cb-mail" className="text-xs">Correo</Label><Input id="cb-mail" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
                     {edicion.rol === 'comprador'
-                      ? <div className="grid gap-1"><Label htmlFor="cb-pct" className="text-[11px]">Participación (%)</Label><Input id="cb-pct" type="number" min="0" max="100" step="0.01" value={f.porcentaje} onChange={(e) => setF({ ...f, porcentaje: e.target.value })} /></div>
-                      : <div className="grid gap-1"><Label htmlFor="cb-rep" className="text-[11px]">Representa a</Label>
+                      ? <div className="grid gap-1"><Label htmlFor="cb-pct" className="text-xs">Participación (%)</Label><Input id="cb-pct" type="number" min="0" max="100" step="0.01" value={f.porcentaje} onChange={(e) => setF({ ...f, porcentaje: e.target.value })} /></div>
+                      : <div className="grid gap-1"><Label htmlFor="cb-rep" className="text-xs">Representa a</Label>
                           <select id="cb-rep" className={campo} value={f.representa_a} onChange={(e) => setF({ ...f, representa_a: e.target.value })}><option value="">{principal.nombre} (principal)</option>{adicionales.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}</select></div>}
-                    {edicion.rol === 'apoderado' && <div className="grid gap-1 sm:col-span-3"><Label htmlFor="cb-poder" className="text-[11px]">Detalle del poder (notaría, fecha, número)</Label><Input id="cb-poder" value={f.poder_detalle} onChange={(e) => setF({ ...f, poder_detalle: e.target.value })} /></div>}
+                    {edicion.rol === 'apoderado' && <div className="grid gap-1 sm:col-span-3"><Label htmlFor="cb-poder" className="text-xs">Detalle del poder (notaría, fecha, número)</Label><Input id="cb-poder" value={f.poder_detalle} onChange={(e) => setF({ ...f, poder_detalle: e.target.value })} /></div>}
                   </div>
                   <div className="flex gap-2"><Button type="submit" size="sm" disabled={ocupado || !motivoOk || f.nombre.trim().length < 3}>Guardar</Button><Button type="button" size="sm" variant="outline" onClick={() => setEdicion(null)}>Cancelar</Button></div>
                 </form>
               )}
             </section>
 
-            {puedeEditar && <div className="grid gap-1"><Label htmlFor="cb-motivo" className="text-[11px]">Motivo de los cambios *</Label><Input id="cb-motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Por ejemplo: datos según la cédula presentada" /></div>}
+            {puedeEditar && <div className="grid gap-1"><Label htmlFor="cb-motivo" className="text-xs">Motivo de los cambios *</Label><Input id="cb-motivo" value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Por ejemplo: datos según la cédula presentada" /></div>}
             {!puedeEditar && <p className="text-muted-foreground">Tu perfil consulta estos datos; los completa Legal o Administración.</p>}
           </div>
         )}

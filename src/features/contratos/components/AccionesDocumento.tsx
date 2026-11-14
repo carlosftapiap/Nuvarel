@@ -21,7 +21,7 @@ const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es-EC
 const dia = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '—')
 
 export const EstadoDoc = ({ e }: { e: VersionDocumento['estado'] }) => (
-  <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', ESTADO_DOCUMENTO[e].tono)}>{ESTADO_DOCUMENTO[e].label}</span>
+  <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', ESTADO_DOCUMENTO[e].tono)}>{ESTADO_DOCUMENTO[e].label}</span>
 )
 
 type Dialogo =
@@ -73,7 +73,7 @@ export default function AccionesDocumento({ venta, versiones, datos, almacen, ca
         )}
         {genera && <Button size={tam} variant={vigente ? 'ghost' : 'default'} aria-label={`Generar documento ${venta.codigo}`} onClick={() => setDialogo({ tipo: 'generar' })}><FilePlus2 />{vigente ? 'Nueva versión' : 'Generar documento'}</Button>}
         {ver && versiones.length > 0 && <Button size={tam} variant="ghost" aria-label={`Historial de documentos ${venta.codigo}`} onClick={() => setDialogo({ tipo: 'historial' })}><History />Historial</Button>}
-        {!vigente && !genera && <span className="text-[11px] text-muted-foreground">Sin documento generado</span>}
+        {!vigente && !genera && <span className="text-xs text-muted-foreground">Sin documento generado</span>}
       </div>
 
       {!compacto && (
@@ -188,15 +188,15 @@ function HistorialDialog({ venta, versiones, datos, onVer, onBajar, onClose }: {
         <DialogHeader><DialogTitle>Historial de documentos · {venta.codigo}</DialogTitle><DialogDescription>Cada versión se conserva con la plantilla que se usó, quién la generó y cómo avanzó.</DialogDescription></DialogHeader>
         <div className="overflow-x-auto">
           <table className="w-full text-xs" aria-label="Versiones del documento">
-            <thead className="text-[11px] text-muted-foreground"><tr><th className="py-1 text-left font-medium">Versión</th><th className="text-left font-medium">Plantilla</th><th className="text-left font-medium">Estado</th><th className="text-left font-medium">Generada</th><th className="text-left font-medium">Firma</th><th /></tr></thead>
+            <thead className="text-xs text-muted-foreground"><tr><th className="py-1 text-left font-medium">Versión</th><th className="text-left font-medium">Plantilla</th><th className="text-left font-medium">Estado</th><th className="text-left font-medium">Generada</th><th className="text-left font-medium">Firma</th><th /></tr></thead>
             <tbody>
               {versiones.map((v) => (
                 <tr key={v.id} className="border-t border-border align-top">
                   <td className="py-2 font-semibold">{v.numero}</td>
                   <td>{v.plantillaNombre} v{v.plantillaVersion}</td>
-                  <td><EstadoDoc e={v.estado} />{v.anuladoMotivo && <div className="mt-1 max-w-48 text-[11px] text-muted-foreground">{v.anuladoMotivo}</div>}</td>
-                  <td>{v.generadoNombre}<div className="text-[11px] text-muted-foreground">{fecha(v.generadoEn)}</div></td>
-                  <td>{v.firmadoNombre ? <>{v.firmadoNombre}<div className="text-[11px] text-muted-foreground">Firmado el {dia(v.firmadoFecha)} · cargó {v.firmadoCargadoNombre}{v.firmaValidadaEn ? ` · validó ${v.firmaValidadaNombre}` : ' · sin validar'}</div></> : '—'}</td>
+                  <td><EstadoDoc e={v.estado} />{v.anuladoMotivo && <div className="mt-1 max-w-48 text-xs text-muted-foreground">{v.anuladoMotivo}</div>}</td>
+                  <td>{v.generadoNombre}<div className="text-xs text-muted-foreground">{fecha(v.generadoEn)}</div></td>
+                  <td>{v.firmadoNombre ? <>{v.firmadoNombre}<div className="text-xs text-muted-foreground">Firmado el {dia(v.firmadoFecha)} · cargó {v.firmadoCargadoNombre}{v.firmaValidadaEn ? ` · validó ${v.firmaValidadaNombre}` : ' · sin validar'}</div></> : '—'}</td>
                   <td><div className="flex justify-end gap-1"><Button size="xs" variant="ghost" aria-label={`Abrir versión ${v.numero}`} onClick={() => onVer(v)}>Abrir</Button><Button size="xs" variant="ghost" aria-label={`PDF versión ${v.numero}`} onClick={() => onBajar(v, 'pdf')}>PDF</Button>{v.docxRuta && <Button size="xs" variant="ghost" aria-label={`Word versión ${v.numero}`} onClick={() => onBajar(v, 'docx')}>Word</Button>}</div></td>
                 </tr>
               ))}

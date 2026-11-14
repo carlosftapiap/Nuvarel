@@ -1,4 +1,4 @@
-// Captura las pantallas con Chrome real. Uso: node capturar.mjs [ruta opcional]. No toca producción.
+// Captura las pantallas con Chrome real. Uso: node capturar.mjs [pantalla opcional]; ESCALA=3 captura en alta resolución en pantallas-3x. No toca producción.
 import { spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -6,7 +6,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url))
-const SALIDA = path.resolve(AQUI, '../recursos/pantallas')
+const ESCALA = Number(process.env.ESCALA ?? 1.5)
+const SALIDA = path.resolve(AQUI, ESCALA === 1.5 ? '../recursos/pantallas' : '../recursos/pantallas-3x')
 mkdirSync(SALIDA, { recursive: true })
 const BASE = 'http://127.0.0.1:5177/marketing/sistema-gestion-inmobiliaria/capturas/#'
 const PANTALLAS = [
@@ -25,7 +26,7 @@ try {
   const cdp = (method, params = {}) => new Promise((r) => { const id = ++n; esperas.set(id, r); ws.send(JSON.stringify({ id, method, params })) })
   const ev = async (expression) => (await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result?.value
   await cdp('Page.enable'); await cdp('Runtime.enable'); ws.addEventListener('message', (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') console.log('EXCEPCION', (m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text).slice(0, 200)) })
-  await cdp('Emulation.setDeviceMetricsOverride', { width: 1600, height: 900, deviceScaleFactor: 1.5, mobile: false })
+  await cdp('Emulation.setDeviceMetricsOverride', { width: 1600, height: 900, deviceScaleFactor: ESCALA, mobile: false })
   const solo = process.argv[2]
   for (const [nombre, ruta] of PANTALLAS.filter(([x]) => !solo || x === solo)) {
     await cdp('Page.navigate', { url: 'about:blank' })

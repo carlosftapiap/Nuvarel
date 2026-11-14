@@ -1,6 +1,9 @@
 import type { Rol } from '@/features/inventario/types'
 
-/** solicitada: la pide el vendedor. pago_verificado: Finanzas confirmó el ingreso. confirmada: Gerencia aprobó y la unidad queda bloqueada. anulada: liberada. */
+/**
+ * solicitada: la pide el vendedor. confirmada: Finanzas verificó el ingreso y, con condiciones normales, la reserva se confirma sola y la unidad queda reservada.
+ * pago_verificado: ingreso verificado, pero con una excepción (descuento, precio distinto del oficial, condiciones especiales) que autoriza Gerencia. anulada: liberada.
+ */
 export type EstadoReserva = 'solicitada' | 'pago_verificado' | 'confirmada' | 'anulada'
 
 export interface HistorialReserva {
@@ -53,7 +56,7 @@ export interface ReservasState {
 
 export const ESTADO_RESERVA: Record<EstadoReserva, { label: string; tone: string }> = {
   solicitada: { label: 'Solicitada', tone: 'bg-amber-50 text-amber-800 ring-amber-200' },
-  pago_verificado: { label: 'Pago verificado', tone: 'bg-sky-50 text-sky-800 ring-sky-200' },
+  pago_verificado: { label: 'Excepción por autorizar', tone: 'bg-sky-50 text-sky-800 ring-sky-200' },
   confirmada: { label: 'Confirmada', tone: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
   anulada: { label: 'Anulada', tone: 'bg-slate-100 text-slate-600 ring-slate-200' },
 }

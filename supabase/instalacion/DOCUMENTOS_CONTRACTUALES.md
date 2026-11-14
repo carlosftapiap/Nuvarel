@@ -16,7 +16,7 @@ select count(*) as permisos from public.role_permissions
 
 Resultado correcto: 2 buckets con `public = false`, 4 políticas, 47 campos y 17 permisos (si no se editaron los roles).
 
-Después ejecuta `instalacion/verificar_despliegue.sql`: no debe aparecer ningún `FALTA` ni `DISTINTO` de `contract_*`, `contratos_*`, `entidad_vendedora` o `clients.*`.
+Después ejecuta `sql_produccion/VERIFICAR_DESPLIEGUE.sql`: no debe aparecer ningún `FALTA` ni `DISTINTO` de `contract_*`, `contratos_*`, `entidad_vendedora` o `clients.*`.
 
 Si algo no coincide, la migración quedó incompleta o es de otra versión. Ejecuta primero el respaldo (paso 2) y luego el archivo completo, que se puede repetir sin cambiar datos.
 

@@ -20,7 +20,7 @@ import PlantillaDialog, { type ModoPlantilla } from './PlantillaDialog'
 import { VistaPrevia } from './VistaPrevia'
 
 const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' }) : '—')
-export const EtiquetaPlantilla = ({ e }: { e: Plantilla['estado'] }) => <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', ESTADO_PLANTILLA[e].tono)}>{ESTADO_PLANTILLA[e].label}</span>
+export const EtiquetaPlantilla = ({ e }: { e: Plantilla['estado'] }) => <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', ESTADO_PLANTILLA[e].tono)}>{ESTADO_PLANTILLA[e].label}</span>
 
 type Accion =
   | { tipo: 'crear'; modo: ModoPlantilla } | { tipo: 'vista'; plantilla: Plantilla } | { tipo: 'historial'; plantilla: Plantilla }
@@ -70,7 +70,7 @@ export default function Plantillas({ datos, almacen, can, ventas }: { datos: Dat
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 id="pl-titulo" className="text-sm font-semibold">Plantillas contractuales</h2>
-            <p className="text-[11px] text-muted-foreground">Solo una plantilla aprobada puede usarse para emitir documentos. Una versión aprobada no se edita: se crea otra y la anterior queda retirada, conservada.</p>
+            <p className="text-xs text-muted-foreground">Solo una plantilla aprobada puede usarse para emitir documentos. Una versión aprobada no se edita: se crea otra y la anterior queda retirada, conservada.</p>
           </div>
           {administra && (
             <div className="flex gap-2">
@@ -97,7 +97,7 @@ export default function Plantillas({ datos, almacen, can, ventas }: { datos: Dat
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <h3 className="text-sm font-semibold">{ultima.nombre}</h3>
-                      <p className="text-[11px] text-muted-foreground">{TIPOS_DOCUMENTO_CONTRACTUAL[ultima.tipoDocumento]} · {TIPOS_OPERACION[ultima.tipoOperacion]} · {ultima.formato === 'docx' ? 'Modelo en Word' : 'Texto'}</p>
+                      <p className="text-xs text-muted-foreground">{TIPOS_DOCUMENTO_CONTRACTUAL[ultima.tipoDocumento]} · {TIPOS_OPERACION[ultima.tipoOperacion]} · {ultima.formato === 'docx' ? 'Modelo en Word' : 'Texto'}</p>
                     </div>
                     <p className="text-xs">{vigente ? <>En uso: <b>v{vigente.version}</b> <EtiquetaPlantilla e="aprobada" /></> : <span className="text-amber-800">Sin versión aprobada: no se pueden emitir documentos con ella</span>}</p>
                   </div>
@@ -107,7 +107,7 @@ export default function Plantillas({ datos, almacen, can, ventas }: { datos: Dat
                         <tr key={p.id} className="border-t border-border align-top">
                           <td className="py-2 pr-2 font-semibold">v{p.version}</td>
                           <td className="pr-2"><EtiquetaPlantilla e={p.estado} />
-                            <div className="mt-1 text-[11px] text-muted-foreground">Creada por {p.creadaNombre} · {fecha(p.creadaEn)}
+                            <div className="mt-1 text-xs text-muted-foreground">Creada por {p.creadaNombre} · {fecha(p.creadaEn)}
                               {p.aprobadaNombre && <> · aprobada por {p.aprobadaNombre} · {fecha(p.aprobadaEn)}</>}
                               {p.retiradaMotivo && <> · retirada: {p.retiradaMotivo}</>}</div></td>
                           <td className="py-1"><div className="flex flex-wrap justify-end gap-1">
@@ -166,7 +166,7 @@ function Entidad({ datos, puedeEditar, onGuardado }: { datos: Datos; puedeEditar
   useEffect(() => { void cargar() }, [cargar])
   const incompleta = !e.razonSocial || !e.ruc || !e.domicilio || !e.representanteNombre || !e.representanteCargo
   const campo = (k: keyof typeof VACIA, etiqueta: string, id: string, ancho = '') => (
-    <div className={cn('grid gap-1', ancho)}><Label htmlFor={id} className="text-[11px]">{etiqueta}</Label><Input id={id} value={e[k]} disabled={!puedeEditar} onChange={(ev) => setE({ ...e, [k]: ev.target.value })} /></div>
+    <div className={cn('grid gap-1', ancho)}><Label htmlFor={id} className="text-xs">{etiqueta}</Label><Input id={id} value={e[k]} disabled={!puedeEditar} onChange={(ev) => setE({ ...e, [k]: ev.target.value })} /></div>
   )
   async function guardar() {
     setError(null); setOcupado(true)
@@ -175,7 +175,7 @@ function Entidad({ datos, puedeEditar, onGuardado }: { datos: Datos; puedeEditar
   return (
     <section className="dashboard-card" aria-labelledby="ent-titulo">
       <h2 id="ent-titulo" className="text-sm font-semibold">Entidad vendedora</h2>
-      <p className="text-[11px] text-muted-foreground">Parte vendedora que firma los contratos. No se asume: la define Legal. {meta.nombre && <>Última actualización: {meta.nombre}, {fecha(meta.en)}.</>}</p>
+      <p className="text-xs text-muted-foreground">Parte vendedora que firma los contratos. No se asume: la define Legal. {meta.nombre && <>Última actualización: {meta.nombre}, {fecha(meta.en)}.</>}</p>
       {cargada && incompleta && <p role="status" className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">Faltan datos de la entidad vendedora (razón social, RUC, domicilio y representante legal). Los documentos que los usen no podrán emitirse.</p>}
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         {campo('razonSocial', 'Razón social', 'ent-razon', 'sm:col-span-2')}{campo('ruc', 'RUC (13 dígitos)', 'ent-ruc')}
@@ -185,7 +185,7 @@ function Entidad({ datos, puedeEditar, onGuardado }: { datos: Datos; puedeEditar
       </div>
       {puedeEditar && (
         <div className="mt-3 flex flex-wrap items-end gap-2">
-          <div className="grid min-w-64 flex-1 gap-1"><Label htmlFor="ent-motivo" className="text-[11px]">Motivo del cambio *</Label><Input id="ent-motivo" value={motivo} onChange={(ev) => setMotivo(ev.target.value)} /></div>
+          <div className="grid min-w-64 flex-1 gap-1"><Label htmlFor="ent-motivo" className="text-xs">Motivo del cambio *</Label><Input id="ent-motivo" value={motivo} onChange={(ev) => setMotivo(ev.target.value)} /></div>
           <Button size="sm" disabled={ocupado || motivo.trim().length < 5} onClick={() => void guardar()}>Guardar entidad vendedora</Button>
         </div>
       )}
@@ -253,7 +253,7 @@ function VistaPreviaPlantilla({ datos, almacen, plantilla, ventas, onClose }: { 
           <div className="grid gap-3 text-xs">
             <div className="grid gap-1.5"><Label htmlFor="vp-contrato" className="text-xs">Contrato de prueba</Label>
               <select id="vp-contrato" className="h-9 rounded-md border border-border bg-white px-2 text-xs" value={contrato} onChange={(e) => { setContrato(e.target.value); setP(null) }}>{ventas.map((v) => <option key={v.id} value={v.id}>{v.codigo}{v.cliente ? ` · ${v.cliente}` : ''}</option>)}</select></div>
-            {manualesVars.length > 0 && <div className="grid gap-2 sm:grid-cols-2">{manualesVars.map((v) => <div key={v.clave} className="grid gap-1"><Label htmlFor={`vpm-${v.clave}`} className="text-[11px]">{v.etiqueta}</Label><Input id={`vpm-${v.clave}`} value={manuales[v.clave] ?? ''} onChange={(e) => setManuales({ ...manuales, [v.clave]: e.target.value })} /></div>)}</div>}
+            {manualesVars.length > 0 && <div className="grid gap-2 sm:grid-cols-2">{manualesVars.map((v) => <div key={v.clave} className="grid gap-1"><Label htmlFor={`vpm-${v.clave}`} className="text-xs">{v.etiqueta}</Label><Input id={`vpm-${v.clave}`} value={manuales[v.clave] ?? ''} onChange={(e) => setManuales({ ...manuales, [v.clave]: e.target.value })} /></div>)}</div>}
             <div><Button size="sm" disabled={!contrato || ocupado} onClick={() => void generar()}>{ocupado ? 'Generando…' : 'Generar vista previa'}</Button></div>
             {p && p.faltantes.length > 0 && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">Con este contrato faltarían: {p.faltantes.map((f) => f.etiqueta).join(', ')}.</p>}
             {p?.bloques && <VistaPrevia bloques={p.bloques} marca="Vista previa · sin validez legal" pdf={p.pdf} avisos={p.avisos} />}

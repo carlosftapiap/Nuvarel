@@ -15,7 +15,7 @@ import { InventoryProvider } from '@/features/inventario/store'
 import type { Actor } from '@/features/inventario/types'
 import VentasPage from '@/pages/VentasPage'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 configure({ asyncUtilTimeout: 20_000 })
 
@@ -41,7 +41,7 @@ const rpc = <T,>(u: string, sql: string, p: unknown[] = []) => como(db, u, async
 
 async function contratoNuevo() {
   const codigo = (await uno<{ codigo: string }>(`select codigo from public.inventory_units where estado = 'disponible' and codigo not in (select codigo_unidad from public.reservations where estado in ('solicitada', 'pago_verificado', 'confirmada')) order by codigo limit 1`)).codigo
-  const cliente = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Comprador ${codigo}`, telefono: `0${++n}`, origen: 'corredor', origen_detalle: 'Carlos' }), carlos])).id
+  const cliente = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Comprador ${codigo}`, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'corredor', origen_detalle: 'Carlos' }), carlos])).id
   const op = (await rpc<{ id: string }>(carlos, `select public.oportunidades_crear($1, $2, null) as id`, [cliente, codigo])).id
   const cot = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [cot])
@@ -188,14 +188,15 @@ describe('Documentos contractuales desde /ventas', () => {
     await user.type(await within(dlg).findByLabelText('Lugar de firma *'), 'Quito')
     await user.click(within(dlg).getByRole('button', { name: 'Verificar datos y previsualizar' }))
     const aviso = await within(dlg).findByRole('alert')
-    expect(aviso).toHaveTextContent(/Cédula o RUC/)
     expect(aviso).toHaveTextContent(/Domicilio/)
     expect(aviso).toHaveTextContent(/Razón social de la vendedora/)
     expect(within(dlg).getByRole('button', { name: 'Generar documento' })).toBeDisabled()
     // Se corrige desde la pantalla autorizada: compradores.
     await user.click(within(aviso).getByRole('button', { name: 'Abrir compradores y apoderados' }))
     dlg = await screen.findByRole('dialog', { name: /Compradores y apoderados/ })
-    await user.type(await within(dlg).findByLabelText('Cédula o RUC'), '1710034065')
+    // La cédula ya viene de la ficha del cliente (sin ella no hay reserva); se corrige si hace falta.
+    await user.clear(await within(dlg).findByLabelText('Cédula o RUC'))
+    await user.type(within(dlg).getByLabelText('Cédula o RUC'), '1710034065')
     await user.type(within(dlg).getByLabelText('Domicilio'), 'Av. Amazonas N21-45')
     await user.type(within(dlg).getByLabelText(/Motivo de los cambios/), 'Datos según la cédula presentada')
     await user.click(within(dlg).getByRole('button', { name: 'Guardar datos del principal' }))

@@ -3,7 +3,7 @@ import type { Cotizacion } from '@/features/cotizaciones/cotizacion'
 import { ESTADOS_EFECTIVOS, estadoEfectivo } from '@/features/inventario/estados'
 import { leerMonto } from '@/features/inventario/pricing'
 import type { Reserva } from '@/features/reservas/model'
-import { acreditacion, errorMontoReserva, operacionesAbiertas, siguientePaso, type ContextoOperacion } from '../operacion'
+import { acreditacion, errorMontoReserva, operacionesAbiertas, PASOS_VENTA, pasoActual, siguientePaso, type ContextoOperacion } from '../operacion'
 
 const HOY = '2026-11-10'
 const cot = (id: string, extra: Partial<Cotizacion> = {}) => ({ id, numero: id, clienteId: 'c1', validaHasta: '2026-12-01', estado: 'emitida', creadaEn: `2026-11-0${id.slice(-1)}`, unidad: { codigo: 'E1-PB-A1', dpt: 'A1' }, ...extra }) as Cotizacion
@@ -56,7 +56,6 @@ describe('siguiente paso', () => {
   })
 
   it('no permite solicitar si la unidad no se puede reservar o la cotización venció', () => {
-    expect(siguientePaso(ctx({ estadoUnidad: 'por_confirmar' })).accion).toBe('confirmar_unidad')
     expect(siguientePaso(ctx({ estadoUnidad: 'reservado' })).accion).toBe('unidad_ocupada')
     expect(siguientePaso(ctx({ otraReserva: res('solicitada', { id: 'r9', cotizacionId: 'q9' }) })).accion).toBe('unidad_ocupada')
     expect(siguientePaso(ctx({ cotizacion: cot('q1', { validaHasta: '2026-11-01' }) })).accion).toBe('reemitir')
@@ -67,8 +66,39 @@ describe('siguiente paso', () => {
     expect(siguientePaso(ctx({ reserva: res('solicitada', { comprobante: 'TRF-1' }) }))).toMatchObject({ accion: 'verificar', responsable: 'Finanzas' })
     expect(siguientePaso(ctx({ reserva: res('pago_verificado', { comprobante: 'T', montoRecibido: 600 }) }))).toMatchObject({ accion: 'aprobar', responsable: 'Gerencia' })
     expect(siguientePaso(ctx({ reserva: res('confirmada') }))).toMatchObject({ accion: 'contrato', responsable: 'Legal' })
-    expect(siguientePaso(ctx({ reserva: res('confirmada'), estadoContrato: 'borrador' }))).toMatchObject({ accion: 'firma', responsable: 'Legal' })
+    expect(siguientePaso(ctx({ reserva: res('confirmada'), estadoContrato: 'borrador' }))).toMatchObject({ accion: 'enviar_cumplimiento', responsable: 'Legal' })
+    expect(siguientePaso(ctx({ reserva: res('confirmada'), estadoContrato: 'borrador', cumplimiento: 'pendiente' }))).toMatchObject({ accion: 'cumplimiento', responsable: 'Cumplimiento' })
+    expect(siguientePaso(ctx({ reserva: res('confirmada'), estadoContrato: 'borrador', cumplimiento: 'observado' }))).toMatchObject({ accion: 'expediente', responsable: 'Vendedor' })
+    expect(siguientePaso(ctx({ reserva: res('confirmada'), estadoContrato: 'borrador', cumplimiento: 'aprobado' }))).toMatchObject({ accion: 'firma', responsable: 'Legal' })
     expect(siguientePaso(ctx({ reserva: res('confirmada'), estadoContrato: 'firmado' })).accion).toBe('cobranza')
+  })
+
+  it('un pago rechazado muestra el motivo y vuelve a pedir el comprobante al vendedor', () => {
+    const p = siguientePaso(ctx({ reserva: res('solicitada'), rechazoPago: { motivo: 'El monto no coincide con el banco', fecha: '2026-11-12' } }))
+    expect(p).toMatchObject({ accion: 'registrar_pago', responsable: 'Vendedor' })
+    expect(p.titulo).toMatch(/rechazó el pago/)
+    expect(p.detalle).toMatch(/El monto no coincide con el banco/)
+  })
+
+  it('la guía marca terminados los pasos anteriores y señala uno solo como actual', () => {
+    // El vendedor ve cinco etapas; verificación, excepciones, contrato, Cumplimiento y firma ocurren dentro de Reserva y Venta.
+    expect(PASOS_VENTA.map((p) => p.titulo)).toEqual(['Cliente', 'Departamento', 'Cotización', 'Reserva', 'Venta'])
+    expect(siguientePaso(ctx({ cotizacion: null, planConfirmado: false })).accion).toBe('plan')
+    expect(siguientePaso(ctx({ cotizacion: null, planConfirmado: true })).accion).toBe('emitir')
+    expect(pasoActual('cliente')).toBe(0)
+    expect(pasoActual('plan')).toBe(2)
+    expect(pasoActual('emitir')).toBe(2)
+    expect(pasoActual('verificar')).toBe(3)
+    expect(pasoActual('aprobar')).toBe(3)
+    expect(pasoActual('expediente')).toBe(4)
+    expect(pasoActual('cobranza')).toBe(4)
+  })
+
+  it('Gerencia solo aparece cuando la reserva tiene una excepción, con el motivo', () => {
+    const p = siguientePaso(ctx({ reserva: res('pago_verificado', { comprobante: 'T', montoRecibido: 600 }), excepciones: ['Descuento de 2.00 %'] }))
+    expect(p).toMatchObject({ accion: 'aprobar', responsable: 'Gerencia' })
+    expect(p.detalle).toMatch(/Descuento de 2.00 %/)
+    expect(siguientePaso(ctx({ reserva: res('confirmada') }))).toMatchObject({ accion: 'contrato', responsable: 'Legal' })
   })
 
   it('avisa si Finanzas no puede verificar porque falta el receptor de pagos', () => {
@@ -81,19 +111,11 @@ describe('siguiente paso', () => {
 })
 
 describe('estado comercial efectivo', () => {
-  const sol = { codigo: 'RES-2026-0001', estado: 'solicitada', vigenciaHasta: null, cotizacionId: null }
-  it('una solicitud activa nunca se muestra como disponible, sin tocar el estado guardado', () => {
-    const u = { estado: 'disponible' as const, solicitud: sol }
-    expect(estadoEfectivo(u)).toBe('en_proceso_reserva')
-    expect(u.estado).toBe('disponible')
-    expect(estadoEfectivo({ estado: 'por_confirmar', solicitud: sol })).toBe('en_proceso_reserva')
-    expect(ESTADOS_EFECTIVOS.en_proceso_reserva.label).toBe('En proceso de reserva')
-  })
-  it('sin solicitud, o con un estado más avanzado, manda el estado guardado', () => {
-    expect(estadoEfectivo({ estado: 'disponible', solicitud: null })).toBe('disponible')
-    expect(estadoEfectivo({ estado: 'por_confirmar' })).toBe('por_confirmar')
-    expect(estadoEfectivo({ estado: 'reservado', solicitud: sol })).toBe('reservado')
-    expect(estadoEfectivo({ estado: 'vendido', solicitud: sol })).toBe('vendido')
+  it('solo hay tres estados y una solicitud en trámite no cambia el estado guardado', () => {
+    expect(Object.keys(ESTADOS_EFECTIVOS)).toEqual(['disponible', 'reservado', 'vendido'])
+    expect(estadoEfectivo({ estado: 'disponible' })).toBe('disponible')
+    expect(estadoEfectivo({ estado: 'reservado' })).toBe('reservado')
+    expect(estadoEfectivo({ estado: 'vendido' })).toBe('vendido')
   })
 })
 

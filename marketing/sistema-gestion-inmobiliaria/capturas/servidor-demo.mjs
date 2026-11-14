@@ -59,10 +59,16 @@ const finanzas2 = await usuario('Tesorería', 'finanzas')
 const vendedor1 = await usuario('Asesor Comercial Uno', 'asesor')
 const vendedor2 = await usuario('Asesor Comercial Dos', 'asesor')
 const obra = await usuario('Residente de Obra', 'constructor')
-const USUARIOS = { admin, gerente, finanzas, vendedor1, obra }
+const supervisora = await usuario('Sara Supervisora', 'supervisor')
+const USUARIOS = { admin, gerente, finanzas, vendedor1, vendedor2, supervisora, obra }
 
 await db.exec(`update public.inventory_units set estado = 'disponible'`)
 await sql(admin, `select public.config_definir_receptor('NUVAREL', 'Configuración demostrativa')`)
+// Equipo de la supervisora con los dos asesores, para ver el Dashboard de equipo.
+await intento('equipo', async () => {
+  const equipo = (await uno(admin, `select public.config_guardar_equipo(null, 'Equipo Norte', $1, '{}'::uuid[], 'Equipo demostrativo') as id`, [supervisora])).id
+  await db.query(`update public.profiles set equipo_id = $1 where id in ($2, $3)`, [equipo, vendedor1, vendedor2])
+})
 const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date())
 const unidades = (await db.query(`select codigo from public.inventory_units order by edificio desc, piso desc, posicion`)).rows.map((u) => u.codigo)
 let iu = 0
@@ -74,9 +80,16 @@ const ORIGENES = ['instagram', 'whatsapp', 'referido', 'instagram', 'whatsapp']
 let n = 0
 const adj = (pre, id) => JSON.stringify({ ruta: `${pre}/${id}/${++n}.pdf`, nombre: 'comprobante-demo.pdf', mime: 'application/pdf', tamano: 10, hash: 'demo' })
 
+// Cédula ficticia que pasa la validación (provincia 17 y dígito verificador): solicitar una reserva exige identificación.
+function cedula(i) {
+  const d = `17${String(1234567 + i * 7919).slice(-7)}`.split('').map(Number)
+  const suma = d.reduce((t, x, k) => { const p = x * (k % 2 ? 1 : 2); return t + (p > 9 ? p - 9 : p) }, 0)
+  return d.join('') + ((10 - (suma % 10)) % 10)
+}
+
 async function cliente(i) {
   const v = i % 2 ? vendedor2 : vendedor1
-  const id = (await uno(v, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: NOMBRES[i], telefono: `09900${String(10000 + i)}`, email: `cliente${i + 1}@ejemplo.ec`, origen: ORIGENES[i % 5], origen_detalle: ORIGENES[i % 5] === 'referido' ? 'Cliente referido' : '' }), v])).id
+  const id = (await uno(v, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: NOMBRES[i], documento: cedula(i), telefono: `09900${String(10000 + i)}`, email: `cliente${i + 1}@ejemplo.ec`, origen: ORIGENES[i % 5], origen_detalle: ORIGENES[i % 5] === 'referido' ? 'Cliente referido' : '' }), v])).id
   await intento('actividad', () => sql(v, `select public.clientes_registrar_actividad(null, $1, 'llamada', $2::date, 'Primer contacto: interés en departamentos de 2 habitaciones.', null)`, [id, hoy]))
   return { id, v }
 }
@@ -120,6 +133,19 @@ const clientes = []
 for (let i = 0; i < NOMBRES.length; i++) clientes.push(await cliente(i))
 const etapas = [(c) => contratoFirmado(c, 3), (c) => contratoFirmado(c, 2), (c) => contratoFirmado(c, 1), aprobada, aprobada, verificada, verificada, conPago, conPago, solicitud, cotizar, cotizar, cotizar]
 for (let i = 0; i < etapas.length; i++) await intento(`venta ${i}`, () => etapas[i](clientes[i]))
+
+// Próximas gestiones: vencidas, de hoy y de los próximos días, para que las pantallas de trabajo tengan datos reales.
+const PROXIMAS = [[-2, 'llamada', 'Confirmar interés y horario de visita'], [-1, 'mensaje', 'Enviar planos y lista de precios'], [0, 'llamada', 'Llamar para cerrar la cotización'],
+  [0, 'visita', 'Visita al proyecto'], [1, 'llamada', 'Dar seguimiento a la cotización'], [3, 'mensaje', 'Recordar vigencia de la cotización'], [6, 'llamada', 'Revisar forma de pago']]
+for (let i = 0; i < clientes.length; i++) {
+  if (i % 3 === 2) continue // algunos clientes quedan sin próxima gestión
+  const [dias, tipo, descripcion] = PROXIMAS[i % PROXIMAS.length]
+  const fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' }).format(new Date(Date.now() + dias * 864e5))
+  await intento('proxima', async () => {
+    const { version } = (await db.query(`select version from public.clients where id = $1`, [clientes[i].id])).rows[0]
+    await sql(clientes[i].v, `select public.clientes_programar_proxima($1, $2, $3, $4, $5::date)`, [clientes[i].id, version, tipo, descripcion, fecha])
+  })
+}
 
 // Plan de implementación del proyecto, con responsables genéricos en lugar de nombres.
 await intento('plan', async () => {

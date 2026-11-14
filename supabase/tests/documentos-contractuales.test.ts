@@ -4,13 +4,15 @@ import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
-import { como, crearDb, crearUsuario } from './db'
+import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 const MIGRACION = path.join(__dirname, '..', 'migrations', '20261031130000_documentos_contractuales.sql')
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, constructor: string, carlos: string, sofia: string
 let n = 990600000
+let cedulas = 0
+const cedula = () => cedulaPrueba(++cedulas)
 
 const uno = async <T = Record<string, unknown>>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows[0]
 const rows = async <T = Record<string, unknown>>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows
@@ -23,7 +25,7 @@ const unidadLibre = async () => (await uno<{ codigo: string }>(
 
 async function contratoNuevo() {
   const codigo = await unidadLibre()
-  const cliente = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Comprador ${codigo}`, telefono: `0${++n}`, origen: 'corredor', origen_detalle: 'Carlos' }), carlos])).id
+  const cliente = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Comprador ${codigo}`, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'corredor', origen_detalle: 'Carlos' }), carlos])).id
   const op = (await rpc<{ id: string }>(carlos, `select public.oportunidades_crear($1, $2, null) as id`, [cliente, codigo])).id
   const cot = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [cot])
@@ -75,7 +77,7 @@ async function contratoCompleto() {
   await rpc(legal, `select public.contratos_entidad_guardar($1::jsonb, 'Datos de la parte vendedora')`, [JSON.stringify(ENTIDAD)])
   const c = await contratoNuevo()
   await rpc(legal, `select public.contratos_comprador_principal_guardar($1::uuid, $2::jsonb, 'Datos de la cédula presentada')`,
-    [c.id, JSON.stringify({ documento: '1710034065', domicilio: 'Av. Amazonas N21-45, Quito', ciudad: 'Quito', estado_civil: 'casado', nacionalidad: 'ecuatoriana' })])
+    [c.id, JSON.stringify({ documento: cedula(), domicilio: 'Av. Amazonas N21-45, Quito', ciudad: 'Quito', estado_civil: 'casado', nacionalidad: 'ecuatoriana' })])
   return c
 }
 
@@ -193,13 +195,14 @@ describe('compradores y apoderados', () => {
     const c = await contratoNuevo()
     await expect(rpc(carlos, `select public.contratos_comprador_principal_guardar($1::uuid, '{}'::jsonb, 'Comercial no completa datos legales')`, [c.id])).rejects.toThrow(/No tienes permiso/)
     await expect(rpc(legal, `select public.contratos_comprador_principal_guardar($1::uuid, '{"estado_civil":"complicado"}'::jsonb, 'Estado civil inválido')`, [c.id])).rejects.toThrow(/Estado civil/)
-    await rpc(legal, `select public.contratos_comprador_principal_guardar($1::uuid, $2::jsonb, 'Datos según la cédula')`, [c.id, JSON.stringify({ documento: '1710034065', domicilio: 'Av. 6 de Diciembre N34-10', ciudad: 'Quito', estado_civil: 'casado', nacionalidad: 'ecuatoriana' })])
+    const doc = cedula()
+    await rpc(legal, `select public.contratos_comprador_principal_guardar($1::uuid, $2::jsonb, 'Datos según la cédula')`, [c.id, JSON.stringify({ documento: doc, domicilio: 'Av. 6 de Diciembre N34-10', ciudad: 'Quito', estado_civil: 'casado', nacionalidad: 'ecuatoriana' })])
     const adicional = (await rpc<{ r: string }>(legal, `select public.contratos_comprador_guardar($1::uuid, null, $2::jsonb, 'Cónyuge que compra en conjunto') as r`,
       [c.id, JSON.stringify({ rol: 'comprador', nombre: 'María Elena Salazar Ruiz', documento: '1712345678', nacionalidad: 'ecuatoriana', estado_civil: 'casado', domicilio: 'Av. 6 de Diciembre N34-10', porcentaje: 50 })])).r
     await rpc(legal, `select public.contratos_comprador_guardar($1::uuid, null, $2::jsonb, 'Poder especial del comprador') as r`,
       [c.id, JSON.stringify({ rol: 'apoderado', nombre: 'Pablo Andrade Mora', documento: '1798765432', poder_detalle: 'Poder especial otorgado ante la Notaría 12 de Quito' })])
     const d = await datosDoc(c.id) as { comprador: Record<string, string>; compradores: unknown[]; compradores_adicionales: unknown[]; apoderados: { representa_a: string; poder_detalle: string }[] }
-    expect(d.comprador).toMatchObject({ documento: '1710034065', domicilio: 'Av. 6 de Diciembre N34-10', estado_civil: 'casado' })
+    expect(d.comprador).toMatchObject({ documento: doc, domicilio: 'Av. 6 de Diciembre N34-10', estado_civil: 'casado' })
     expect(d.compradores).toHaveLength(2)
     expect(d.compradores_adicionales).toHaveLength(1)
     expect(d.apoderados[0]).toMatchObject({ representa_a: d.comprador.nombre, poder_detalle: 'Poder especial otorgado ante la Notaría 12 de Quito' })
@@ -219,10 +222,11 @@ describe('generación de documentos', () => {
     const c = await contratoNuevo()
     const d = await datosDoc(c.id)
     const faltan = (await rpc<{ r: { clave: string; etiqueta: string }[] }>(legal, `select public.contratos_faltantes($1::uuid, $2::jsonb) as r`, [p.id, JSON.stringify(d)])).r
-    expect(faltan.map((f) => f.clave).sort()).toEqual(['comprador.documento', 'comprador.domicilio', 'lugar_firma', 'vendedora.razon_social'])
+    // La cédula ya viene de la ficha: sin ella no se puede reservar.
+    expect(faltan.map((f) => f.clave).sort()).toEqual(['comprador.domicilio', 'lugar_firma', 'vendedora.razon_social'])
     await expect(registrar(legal, c.id, p.id, d, {})).rejects.toThrow(/Faltan datos obligatorios: .*(Cédula|Domicilio)/)
     // El domicilio y la cédula se corrigen en el comprador, la razón social en la entidad vendedora y el lugar es un dato manual.
-    await rpc(legal, `select public.contratos_comprador_principal_guardar($1::uuid, $2::jsonb, 'Datos según la cédula')`, [c.id, JSON.stringify({ documento: '1710034065', domicilio: 'Quito' })])
+    await rpc(legal, `select public.contratos_comprador_principal_guardar($1::uuid, $2::jsonb, 'Datos según la cédula')`, [c.id, JSON.stringify({ documento: cedula(), domicilio: 'Quito' })])
     await rpc(legal, `select public.contratos_entidad_guardar($1::jsonb, 'Datos de la parte vendedora')`, [JSON.stringify({ razon_social: 'Inmobiliaria Jarval S.A.', ruc: '1791234567001', domicilio: 'Quito', representante_nombre: 'Representante Legal', representante_cargo: 'Gerente general' })])
     const d2 = await datosDoc(c.id, { lugar_firma: 'Quito' })
     expect((await rpc<{ r: unknown[] }>(legal, `select public.contratos_faltantes($1::uuid, $2::jsonb) as r`, [p.id, JSON.stringify(d2)])).r).toEqual([])
@@ -338,7 +342,7 @@ describe('generación de documentos', () => {
     const d = await datosDoc(c.id, { lugar_firma: 'Quito' })
     const v = await registrar(legal, c.id, p.id, d, { lugar_firma: 'Quito' }, '8')
     const antes = (await uno<{ datos: unknown }>(`select datos from public.contract_document_versions where id = $1`, [v])).datos
-    await rpc(legal, `select public.contratos_comprador_principal_guardar($1::uuid, $2::jsonb, 'El comprador cambió de domicilio')`, [c.id, JSON.stringify({ documento: '1710034065', domicilio: 'Cumbayá, calle Los Pinos', ciudad: 'Quito' })])
+    await rpc(legal, `select public.contratos_comprador_principal_guardar($1::uuid, $2::jsonb, 'El comprador cambió de domicilio')`, [c.id, JSON.stringify({ documento: cedula(), domicilio: 'Cumbayá, calle Los Pinos', ciudad: 'Quito' })])
     await db.query(`update public.clients set telefono = '0999999999' where id = $1`, [c.cliente])
     expect((await uno<{ datos: unknown }>(`select datos from public.contract_document_versions where id = $1`, [v])).datos).toEqual(antes)
     expect(((await datosDoc(c.id, { lugar_firma: 'Quito' })) as { comprador: { domicilio: string } }).comprador.domicilio).toBe('Cumbayá, calle Los Pinos')

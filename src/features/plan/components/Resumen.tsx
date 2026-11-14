@@ -16,7 +16,7 @@ export default function Resumen({ d, acts, onAbrir }: { d: DatosPlan; acts: Acti
 
   return (
     <div className="grid gap-4">
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Fecha de corte de los indicadores: <b>{fmtFecha(plan.fechaCorte)}</b> · alertas a {plan.alertaDias} días · datos consultados {new Date(d.consultadoEn).toLocaleString('es-EC')}
         {acts.length !== d.actividades.length && <> · conteos según los filtros aplicados ({acts.length} de {d.actividades.length})</>}
       </p>
@@ -36,16 +36,16 @@ export default function Resumen({ d, acts, onAbrir }: { d: DatosPlan; acts: Acti
           <Kpi t="Sin responsable" v={k.sinResponsable} d="Abiertas sin usuario vinculado" />
           <Kpi t="Información incompleta" v={k.sinInformacion} d="Faltan fechas, responsable o avance" />
         </div>
-        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground"><Info className="size-3.5" />Atrasadas, bloqueadas y próximas son condiciones adicionales: una actividad en ejecución puede estar también bloqueada y atrasada.</p>
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><Info className="size-3.5" />Atrasadas, bloqueadas y próximas son condiciones adicionales: una actividad en ejecución puede estar también bloqueada y atrasada.</p>
       </div>
 
       <section className="dashboard-card !p-0 overflow-x-auto">
         <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4">
           <h2 className="text-sm font-semibold">Avance ponderado por frente</h2>
-          <span className="text-[11px] text-muted-foreground">Σ(peso × avance) / Σ(pesos), desde las actividades de último nivel</span>
+          <span className="text-xs text-muted-foreground">Σ(peso × avance) / Σ(pesos), desde las actividades de último nivel</span>
         </div>
         <table className="mt-3 w-full text-xs">
-          <thead className="bg-muted text-[11px] text-muted-foreground">
+          <thead className="bg-muted text-xs text-muted-foreground">
             <tr><th className="px-4 py-2 text-left font-medium">Frente</th><th className="px-2 py-2 text-right font-medium">Peso</th><th className="px-2 py-2 text-right font-medium">Avance</th><th className="px-2 py-2 text-left font-medium">Actividades</th><th className="px-4 py-2 text-left font-medium">Datos faltantes</th></tr>
           </thead>
           <tbody>
@@ -55,11 +55,11 @@ export default function Resumen({ d, acts, onAbrir }: { d: DatosPlan; acts: Acti
               const sinAvance = r.faltantes.filter((x) => x.motivo === 'sin avance').length
               return (
                 <tr key={f.id} className="border-t border-border align-top">
-                  <td className="px-4 py-2 font-medium">{f.nombre}{!f.incluido && <span className="ml-1 text-[10px] text-muted-foreground">(no incluido)</span>}</td>
+                  <td className="px-4 py-2 font-medium">{f.nombre}{!f.incluido && <span className="ml-1 text-xs text-muted-foreground">(no incluido)</span>}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{f.peso === null ? <span className="italic text-muted-foreground">Pendiente</span> : `${f.peso}${f.pesoValidado ? '' : ' (sin validar)'}`}</td>
                   <td className="px-2 py-2 text-right font-semibold tabular-nums">{r.incluidas.length ? fmtAvance(r) : <span className="font-normal italic text-muted-foreground">Sin actividades</span>}</td>
                   <td className="px-2 py-2 tabular-nums">{r.incluidas.length}</td>
-                  <td className="px-4 py-2 text-[11px] text-muted-foreground">
+                  <td className="px-4 py-2 text-xs text-muted-foreground">
                     {[sinPeso && `${sinPeso} sin peso`, sinAvance && `${sinAvance} sin avance`].filter(Boolean).join(' · ') || (r.incluidas.length ? '—' : 'Asigna fases a este frente en Configuración del plan')}
                   </td>
                 </tr>
@@ -68,17 +68,17 @@ export default function Resumen({ d, acts, onAbrir }: { d: DatosPlan; acts: Acti
             <tr className="border-t-2 border-border bg-muted/40">
               <td className="px-4 py-2 font-semibold">Consolidado</td><td />
               <td className="px-2 py-2 text-right font-semibold tabular-nums">{cons.completo ? fmtAvance(cons) : 'No habilitado'}</td>
-              <td colSpan={2} className="px-2 py-2 text-[11px] text-muted-foreground">{cons.completo ? 'Todos los frentes incluidos tienen peso validado y avance calculable.' : cons.bloqueos.slice(0, 4).join(' ') + (cons.bloqueos.length > 4 ? ` (+${cons.bloqueos.length - 4})` : '')}</td>
+              <td colSpan={2} className="px-2 py-2 text-xs text-muted-foreground">{cons.completo ? 'Todos los frentes incluidos tienen peso validado y avance calculable.' : cons.bloqueos.slice(0, 4).join(' ') + (cons.bloqueos.length > 4 ? ` (+${cons.bloqueos.length - 4})` : '')}</td>
             </tr>
           </tbody>
         </table>
-        <p className="px-4 py-3 text-[11px] text-muted-foreground">Los frentes se calculan por separado (por ejemplo, comercial y construcción). No se asignan pesos iguales automáticamente: un peso faltante deja el resultado como incompleto.</p>
+        <p className="px-4 py-3 text-xs text-muted-foreground">Los frentes se calculan por separado (por ejemplo, comercial y construcción). No se asignan pesos iguales automáticamente: un peso faltante deja el resultado como incompleto.</p>
       </section>
 
       <section className="dashboard-card !p-0 overflow-x-auto">
         <h2 className="px-4 pt-4 text-sm font-semibold">Fases (grupos del cronograma)</h2>
         <table className="mt-3 w-full text-xs">
-          <thead className="bg-muted text-[11px] text-muted-foreground">
+          <thead className="bg-muted text-xs text-muted-foreground">
             <tr><th className="px-4 py-2 text-left font-medium">Fase</th><th className="px-2 py-2 text-left font-medium">Frente</th><th className="px-2 py-2 text-right font-medium">Actividades</th><th className="px-2 py-2 text-right font-medium">Completadas</th><th className="px-2 py-2 text-right font-medium">Atrasadas</th><th className="px-4 py-2 text-right font-medium">Avance ponderado</th></tr>
           </thead>
           <tbody>
@@ -111,7 +111,7 @@ export default function Resumen({ d, acts, onAbrir }: { d: DatosPlan; acts: Acti
         <section className="dashboard-card">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">Dependencias por confirmar <span className="font-normal text-muted-foreground">({revisar.length})</span></h2>
-            <span className="text-[11px] text-muted-foreground">Revisión recomendada · no bloquea nada</span>
+            <span className="text-xs text-muted-foreground">Revisión recomendada · no bloquea nada</span>
           </div>
 
           <div className="mt-3 grid gap-2 rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">
@@ -134,7 +134,7 @@ export default function Resumen({ d, acts, onAbrir }: { d: DatosPlan; acts: Acti
               )
             })}
           </ul>
-          {revisar.length > 40 && <p className="mt-2 text-[11px] text-muted-foreground">Hay {revisar.length - 40} más. La exportación a Excel las incluye todas en la columna Predecesoras.</p>}
+          {revisar.length > 40 && <p className="mt-2 text-xs text-muted-foreground">Hay {revisar.length - 40} más. La exportación a Excel las incluye todas en la columna Predecesoras.</p>}
 
           <div className="mt-4 grid gap-1.5 text-xs text-slate-700">
             <p className="font-medium">Cómo resolver cada caso</p>

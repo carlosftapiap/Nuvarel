@@ -100,16 +100,16 @@ export default function MultimediaProyecto({ datos }: { datos: Datos }) {
                   <li key={m.id} aria-label={m.titulo} className="grid gap-3 rounded-xl border border-border p-3 md:grid-cols-[88px_minmax(0,1fr)_auto] md:items-center">
                     <div className="relative h-20 w-[88px] overflow-hidden rounded-lg bg-[#dad3c1]">
                       {mini && <img src={mini} alt="" loading="lazy" className="size-full object-cover" />}
-                      {m.tipo === 'video' && <span className="absolute bottom-1 left-1 rounded bg-[#282828]/80 px-1 text-[10px] text-white">Video{v?.duracion ? ` · ${fmtDuracion(v.duracion)}` : ''}</span>}
+                      {m.tipo === 'video' && <span className="absolute bottom-1 left-1 rounded bg-[#282828]/80 px-1 text-xs text-white">Video{v?.duracion ? ` · ${fmtDuracion(v.duracion)}` : ''}</span>}
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-semibold">{m.titulo}</span>
-                        {m.destacado && <span className="rounded-full bg-[#dad3c1] px-2 py-0.5 text-[10px] font-medium text-[#282828]">En el banner</span>}
-                        {!m.activo && <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium">Oculto</span>}
+                        {m.destacado && <span className="rounded-full bg-[#dad3c1] px-2 py-0.5 text-xs font-medium text-[#282828]">En el banner</span>}
+                        {!m.activo && <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">Oculto</span>}
                       </div>
                       {m.descripcion && <p className="truncate text-xs text-muted-foreground">{m.descripcion}</p>}
-                      <p className="text-[11px] text-muted-foreground">Versión {v?.numero ?? '—'} · Actualizado el {fmtFecha(m.actualizadoEn)}{m.actualizadoPor ? ` por ${nombres[m.actualizadoPor] ?? 'un administrador'}` : ''}</p>
+                      <p className="text-xs text-muted-foreground">Versión {v?.numero ?? '—'} · Actualizado el {fmtFecha(m.actualizadoEn)}{m.actualizadoPor ? ` por ${nombres[m.actualizadoPor] ?? 'un administrador'}` : ''}</p>
                       <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
                         <label className="flex items-center gap-1.5"><input type="checkbox" disabled={ocupado} checked={m.activo} onChange={(e) => void hacer(() => actualizarMedio(datos, m, { activo: e.target.checked }), e.target.checked ? `«${m.titulo}» visible.` : `«${m.titulo}» oculto.`)} />Visible</label>
                         <label className="flex items-center gap-1.5"><input type="checkbox" disabled={ocupado} checked={m.enDashboard} onChange={(e) => void hacer(() => actualizarMedio(datos, m, { enDashboard: e.target.checked }), 'Dashboard actualizado.')} />Dashboard</label>
@@ -215,13 +215,13 @@ function CargaDialog({ medio, subir, onCerrar, onHecho }: {
           <div className="grid gap-1.5">
             <Label htmlFor="mm-archivo" className="text-xs">Archivo *</Label>
             <Input id="mm-archivo" type="file" accept={medio ? (medio.tipo === 'video' ? 'video/mp4,video/webm' : 'image/jpeg,image/png,image/webp') : ACEPTA_MEDIOS} onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
-            {archivo && <p className="text-[11px] text-muted-foreground">{archivo.name} · {pesoLegible(archivo.size)}</p>}
+            {archivo && <p className="text-xs text-muted-foreground">{archivo.name} · {pesoLegible(archivo.size)}</p>}
           </div>
           {esVideo && (
             <div className="grid gap-1.5">
               <Label htmlFor="mm-vertical" className="text-xs">Versión vertical para celulares (opcional)</Label>
               <Input id="mm-vertical" type="file" accept="video/mp4,video/webm" onChange={(e) => setVertical(e.target.files?.[0] ?? null)} />
-              <p className="text-[11px] text-muted-foreground">Sin ella, los celulares reproducen este mismo video.</p>
+              <p className="text-xs text-muted-foreground">Sin ella, los celulares reproducen este mismo video.</p>
             </div>
           )}
           {!medio && (
@@ -279,7 +279,7 @@ function VersionesDialog({ medio, urls, nombres, ocupado, error, restaurar, onCe
             <li key={v.id} aria-label={`Versión ${v.numero}`} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-2 text-xs">
               <div className="h-14 w-14 shrink-0 overflow-hidden rounded bg-[#dad3c1]">{urls[v.miniaturaRuta] && <img src={urls[v.miniaturaRuta]} alt="" loading="lazy" className="size-full object-cover" />}</div>
               <div className="min-w-40 flex-1">
-                <div className="font-semibold">Versión {v.numero}{v.id === medio.versionVigente && <span className="ml-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">Vigente</span>}</div>
+                <div className="font-semibold">Versión {v.numero}{v.id === medio.versionVigente && <span className="ml-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">Vigente</span>}</div>
                 <div className="truncate text-muted-foreground">{[v.archivoNombre, v.ancho && v.alto ? `${v.ancho}×${v.alto}` : null, pesoLegible(v.tamano)].filter(Boolean).join(' · ')}</div>
                 <div className="text-muted-foreground">{v.cargadoPor ? `${nombres[v.cargadoPor] ?? 'Un administrador'} · ${fmtFecha(v.cargadoEn)}` : 'Material inicial de AMURA'}</div>
               </div>

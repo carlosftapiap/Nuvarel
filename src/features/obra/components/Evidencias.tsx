@@ -39,7 +39,7 @@ export function ListaEvidencias({ evidencias, etiquetaActividad, almacen, puedeR
           <li key={e.id} className={`grid gap-1 py-2 sm:grid-cols-[1.5rem_1fr_auto] ${e.retiradoEn ? 'opacity-60' : ''}`}>
             <span className="hidden text-muted-foreground sm:block">{e.tipo === 'foto' ? <Imagen className="size-4" /> : <FileText className="size-4" />}</span>
             <div className="min-w-0">
-              <div className="truncate font-medium">{e.nombre}{e.retiradoEn && <span className="ml-2 rounded bg-rose-50 px-1.5 py-0.5 text-[10px] text-rose-700">Retirada</span>}</div>
+              <div className="truncate font-medium">{e.nombre}{e.retiradoEn && <span className="ml-2 rounded bg-rose-50 px-1.5 py-0.5 text-xs text-rose-700">Retirada</span>}</div>
               <div className="text-muted-foreground">{TIPO_EVIDENCIA[e.tipo]} · {etiquetaActividad(e)} · {fechaCorta(e.fecha)}{e.tamano ? ` · ${tamanoTxt(e.tamano)}` : ''} · cargó {e.cargadoNombre}</div>
               {e.descripcion && <div className="text-muted-foreground">{e.descripcion}</div>}
               {e.retiradoMotivo && <div className="text-rose-700">Motivo del retiro: {e.retiradoMotivo}</div>}

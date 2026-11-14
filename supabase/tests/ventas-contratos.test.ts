@@ -6,7 +6,7 @@ import { calcularTablero } from '../../src/features/cobranza/tablero'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { cargarVentas, historial } from '../../src/features/ventas/remoto'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, sofia: string, cora: string, carlos: string
@@ -23,7 +23,7 @@ const unidadLibre = async () => (await uno<{ codigo: string }>(
 /** Reserva aprobada por el camino autorizado, para un cliente nuevo de Carlos. */
 async function reservaAprobada(extra: Record<string, unknown> = {}) {
   const codigo = await unidadLibre()
-  const cliente = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Cliente ${codigo}`, telefono: `0${++n}`, origen: 'corredor', origen_detalle: 'Carlos Corredor', ...extra }), carlos])).id
+  const cliente = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Cliente ${codigo}`, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'corredor', origen_detalle: 'Carlos Corredor', ...extra }), carlos])).id
   const op = (await rpc<{ id: string }>(carlos, `select public.oportunidades_crear($1, $2, null) as id`, [cliente, codigo])).id
   const q = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [q])
@@ -35,7 +35,7 @@ async function reservaAprobada(extra: Record<string, unknown> = {}) {
   return { cliente, op, q, r, codigo }
 }
 const crearContrato = async (r: string, u = legal) => (await rpc<{ id: string }>(u, `select public.contratos_crear($1, $2::date, 'Contrato de prueba') as id`, [r, hoyGuayaquil()])).id
-const firmar = (id: string, u = legal) => rpc(u, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'contratos/firmado.pdf')`, [id, hoyGuayaquil()])
+const firmar = async (id: string, u = legal) => { await aprobarCumplimiento(db); return rpc(u, `select public.contratos_formalizar($1, $2::date, 'Firma ante notaría', 'contratos/firmado.pdf')`, [id, hoyGuayaquil()]) }
 
 beforeAll(async () => {
   db = await crearDb()
@@ -64,7 +64,7 @@ describe('crear el contrato', () => {
 
   it('no se genera si la reserva no está aprobada', async () => {
     const codigo = await unidadLibre()
-    const cliente = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Sin aprobar', telefono: `0${++n}`, origen: 'whatsapp' }), carlos])).id
+    const cliente = (await rpc<{ id: string }>(carlos, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: 'Sin aprobar', telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'whatsapp' }), carlos])).id
     const op = (await rpc<{ id: string }>(carlos, `select public.oportunidades_crear($1, $2, null) as id`, [cliente, codigo])).id
     const q = (await rpc<{ id: string }>(carlos, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
     await rpc(carlos, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [q])
@@ -90,12 +90,12 @@ describe('firma, documentos e hitos', () => {
     expect(await unidad(f.codigo)).toBe('reservado')
   })
 
-  it('al firmar: fecha, unidad en promesa, negociación en cobranza, documento e hito', async () => {
+  it('al firmar: fecha, unidad vendida (venta formalizada), negociación en cobranza, documento e hito', async () => {
     await firmar(id)
     const c = await contrato(id)
     expect(c).toMatchObject({ estado: 'firmado', firmado_por: legal })
     expect(String(c.fecha_firma).slice(0, 10)).toBeTruthy()
-    expect(await unidad(f.codigo)).toBe('promesa')
+    expect(await unidad(f.codigo)).toBe('vendido')
     expect((await uno<{ etapa: string }>(`select etapa from public.opportunities where id = $1`, [f.op])).etapa).toBe('cobranza')
     const d = await uno<{ tipo: string; referencia: string }>(`select tipo, referencia from public.contract_documents where contract_id = $1`, [id])
     expect(d).toEqual({ tipo: 'contrato_firmado', referencia: 'contratos/firmado.pdf' })
@@ -107,6 +107,7 @@ describe('firma, documentos e hitos', () => {
   it('el camino anterior de firma también deja fecha e hito', async () => {
     const g = await reservaAprobada()
     const k = await crearContrato(g.r)
+    await aprobarCumplimiento(db)
     await rpc(legal, `select public.contratos_firmar($1, 'Firma por la función base', 'x.pdf')`, [k])
     expect((await contrato(k)).fecha_firma).toBeTruthy()
     expect((await uno<{ n: number }>(`select count(*)::int as n from public.contract_milestones where contract_id = $1`, [k])).n).toBe(1)
@@ -120,7 +121,7 @@ describe('firma, documentos e hitos', () => {
     expect(await uno(`select motivo_retiro, retirado_por from public.contract_documents where id = $1`, [d])).toEqual({ motivo_retiro: 'Versión incorrecta', retirado_por: legal })
   })
 
-  it('escritura vende la unidad y se puede revertir sin perder historia', async () => {
+  it('escritura es un hito: la unidad ya vendida no cambia y el hito se revierte sin perder historia', async () => {
     await expect(rpc(gerente, `select public.contratos_registrar_hito($1, 'escritura', (now() at time zone 'America/Guayaquil')::date, 'N-1', 'Sin permiso')`, [id])).rejects.toThrow(/Sin permiso/)
     await expect(rpc(legal, `select public.contratos_registrar_hito($1, 'inventado', (now() at time zone 'America/Guayaquil')::date, '', 'Hito falso')`, [id])).rejects.toThrow(/Hito no válido/)
     const h = (await rpc<{ id: string }>(legal, `select public.contratos_registrar_hito($1, 'escritura', (now() at time zone 'America/Guayaquil')::date, 'Notaría 1', 'Escritura firmada') as id`, [id])).id
@@ -128,17 +129,17 @@ describe('firma, documentos e hitos', () => {
     await expect(rpc(legal, `select public.contratos_registrar_hito($1, 'escritura', (now() at time zone 'America/Guayaquil')::date, '', 'Dos veces')`, [id])).rejects.toThrow(/ya está registrado/)
     await expect(rpc(legal, `select public.contratos_anular($1, 'Con escritura', 'x.pdf')`, [id])).rejects.toThrow(/revierte primero/)
     await rpc(legal, `select public.contratos_revertir_hito($1, 'Error de notaría')`, [h])
-    expect(await unidad(f.codigo)).toBe('promesa')
+    expect(await unidad(f.codigo)).toBe('vendido')
     expect(await uno(`select motivo_reversion, revertido_por from public.contract_milestones where id = $1`, [h])).toEqual({ motivo_reversion: 'Error de notaría', revertido_por: legal })
     const firma = await uno<{ id: string }>(`select id from public.contract_milestones where contract_id = $1 and hito = 'contrato_firmado'`, [id])
     await expect(rpc(legal, `select public.contratos_revertir_hito($1, 'Revertir firma')`, [firma.id])).rejects.toThrow(/anula el contrato/)
     const hist = await uno<{ n: number }>(`select count(*)::int as n from public.inventory_status_history where codigo = $1 and motivo ilike '%escritura%'`, [f.codigo])
-    expect(hist.n).toBe(2)
+    expect(hist.n).toBe(0)
   })
 
   it('entrega avanza la negociación y desembolso solo deja constancia', async () => {
     await rpc(legal, `select public.contratos_registrar_hito($1, 'desembolso', (now() at time zone 'America/Guayaquil')::date, 'Banco', 'Crédito desembolsado')`, [id])
-    expect(await unidad(f.codigo)).toBe('promesa')
+    expect(await unidad(f.codigo)).toBe('vendido')
     const e = (await rpc<{ id: string }>(legal, `select public.contratos_registrar_hito($1, 'entrega', (now() at time zone 'America/Guayaquil')::date, 'Acta', 'Unidad entregada') as id`, [id])).id
     expect((await uno<{ etapa: string }>(`select etapa from public.opportunities where id = $1`, [f.op])).etapa).toBe('entrega')
     await rpc(legal, `select public.contratos_revertir_hito($1, 'Entrega reprogramada')`, [e])
@@ -157,7 +158,7 @@ describe('firma, documentos e hitos', () => {
 describe('datos históricos de la venta', () => {
   let f: Awaited<ReturnType<typeof reservaAprobada>>, id: string
   beforeAll(async () => {
-    f = await reservaAprobada({ documento: '1712345678' })
+    f = await reservaAprobada({ documento: '1712345675' })
     id = await crearContrato(f.r)
     await firmar(id)
   })
@@ -193,7 +194,7 @@ describe('datos históricos de la venta', () => {
   it('el historial reúne contrato, reserva y cotización, con responsables, solo para quien tiene acceso', async () => {
     const h = await historial(datosPglite(db, legal), id)
     const acciones = h.map((e) => e.accion)
-    expect(acciones).toEqual(expect.arrayContaining(['Firmar contrato', 'Generar contrato', 'Aprobar reserva', 'Solicitar reserva', 'Cotización aceptada', 'Emitir cotización']))
+    expect(acciones).toEqual(expect.arrayContaining(['Firmar contrato', 'Generar contrato', 'Confirmar reserva automáticamente', 'Solicitar reserva', 'Cotización aceptada', 'Emitir cotización']))
     expect(h.find((e) => e.accion === 'Firmar contrato')?.usuario).toBe('Legal')
     expect(await historial(datosPglite(db, carlos), id)).toEqual([])
   })
@@ -238,7 +239,7 @@ describe('anulación y reverso', () => {
     expect(nuevo).not.toBe(id)
     expect(await contrato(nuevo)).toMatchObject({ estado: 'borrador', reservation_id: f.r })
     await firmar(nuevo)
-    expect(await unidad(f.codigo)).toBe('promesa')
+    expect(await unidad(f.codigo)).toBe('vendido')
   })
 
   it('con pagos por verificar no se anula', async () => {

@@ -5,7 +5,7 @@ import { aCotizacion } from '../../src/features/cotizaciones/remoto'
 import { cronogramaPorMes, generarPlan, hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { cargarInventario } from '../../src/features/inventario/remoto'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, vera: string
@@ -18,7 +18,7 @@ const unidadLibre = async () => (await uno<{ codigo: string }>(
 
 async function oportunidad() {
   const codigo = await unidadLibre()
-  const cliente = (await rpc<{ id: string }>(vera, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Cliente ${codigo}`, telefono: `0${++n}`, origen: 'instagram' }), vera])).id
+  const cliente = (await rpc<{ id: string }>(vera, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Cliente ${codigo}`, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'instagram' }), vera])).id
   const op = (await rpc<{ id: string }>(vera, `select public.oportunidades_crear($1, $2, null) as id`, [cliente, codigo])).id
   return { codigo, cliente, op }
 }

@@ -46,13 +46,13 @@ export default function ResumenFinanciero({ calc, plan, edificio }: { calc: Calc
 
   return (
     <section aria-label="Resumen financiero" className="rounded-xl border border-border bg-white px-3 py-2 text-xs">
-      <h3 className="pb-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cómo se paga el departamento</h3>
+      <h3 className="pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cómo se paga el departamento</h3>
       <dl className="grid gap-0">
         {filas.map((f) => (
           <div key={f.t} className={cn('border-t border-border/70 py-1.5', f.sub && 'pl-3 text-muted-foreground', !f.bloque && 'flex items-baseline justify-between gap-3')}>
             <dt className={cn('min-w-0', f.destacada && 'font-semibold text-foreground')}>
               {f.t}
-              {f.n && <span className="block text-[10px] font-normal text-muted-foreground">{f.n}</span>}
+              {f.n && <span className="block text-xs font-normal text-muted-foreground">{f.n}</span>}
             </dt>
             <dd className={cn('tabular-nums', f.bloque ? 'mt-0.5 font-medium text-foreground' : 'shrink-0 text-right', f.destacada ? 'font-semibold text-foreground' : !f.bloque && 'font-medium')}>{f.v}</dd>
           </div>

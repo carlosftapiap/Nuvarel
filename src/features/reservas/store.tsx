@@ -84,3 +84,9 @@ export function useReservas() {
   if (!ctx) throw new Error('useReservas debe usarse dentro de ReservasProvider')
   return ctx
 }
+
+/** Para piezas que también se muestran fuera de los módulos (menú lateral, paneles): sin proveedor devuelve null. */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useReservasOpcional() {
+  return useContext(Ctx)
+}

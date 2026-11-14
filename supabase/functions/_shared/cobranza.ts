@@ -38,16 +38,30 @@ export function estadoCuota(c: { monto: number; pagado: number; vencimiento: str
   return { situacion: 'pendiente', saldo, pagado: c.pagado, parcial, atrasoDias: 0 }
 }
 
-/** Reparte pagos verificados en orden de cuota. Lo que no cubre ninguna cuota es saldo a favor. */
-export function aplicarPagos(cuotas: { numero: number; monto: number }[], verificado: number) {
-  let resto = redondear(verificado)
+/**
+ * Reparte pagos verificados con las mismas reglas que la vista installment_status:
+ * primero la reserva y luego la entrada (cuotas con fecha) en orden de vencimiento, así lo vencido se cubre antes que lo próximo.
+ * El saldo contra entrega (cuota sin fecha) solo recibe lo autorizado por Finanzas, y nunca más que el excedente sobre la entrada.
+ * Lo que no cubre ninguna cuota es saldo a favor.
+ */
+export function aplicarPagos(cuotas: { numero: number; monto: number; vencimiento?: string | null }[], verificado: number, autorizado = 0) {
   const pagado = new Map<number, number>()
-  for (const c of [...cuotas].sort((a, b) => a.numero - b.numero)) {
-    const p = redondear(Math.max(0, Math.min(c.monto, resto)))
-    pagado.set(c.numero, p)
-    resto = redondear(resto - p)
+  const repartir = (lista: typeof cuotas, disponible: number) => {
+    let resto = redondear(disponible)
+    for (const c of lista) {
+      const p = redondear(Math.max(0, Math.min(c.monto, resto)))
+      pagado.set(c.numero, p)
+      resto = redondear(resto - p)
+    }
+    return Math.max(0, resto)
   }
-  return { pagado, excedente: Math.max(0, resto) }
+  const entrada = cuotas.filter((c) => c.vencimiento != null)
+    .sort((a, b) => Number(b.numero === 0) - Number(a.numero === 0) || a.vencimiento!.localeCompare(b.vencimiento!) || a.numero - b.numero)
+  const financiamiento = cuotas.filter((c) => c.vencimiento == null).sort((a, b) => a.numero - b.numero)
+  const sobrante = repartir(entrada, verificado)
+  const aplicable = Math.min(sobrante, Math.max(0, redondear(autorizado)))
+  const sinAplicar = repartir(financiamiento, aplicable)
+  return { pagado, excedente: redondear(sobrante - aplicable + sinAplicar) }
 }
 
 export interface ContratoEntrada {
@@ -73,6 +87,8 @@ export interface EntradaCobranza {
   cuotas: CuotaEntrada[]
   pagos: PagoEntrada[]
   compromisos: CompromisoEntrada[]
+  /** Aplicaciones de excedente vigentes (no anuladas), autorizadas por Finanzas. */
+  aplicaciones?: { contratoId: string; monto: number }[]
   destinatarios: Destinatarios
 }
 
@@ -94,13 +110,16 @@ export interface ResultadoPlan {
   compromisosIncumplidos: string[]
 }
 
+/** Los avisos por evento guardan el enlace relativo con {{APP}}: el dominio se pone al enviar (APP_ORIGIN). */
+export const completarEnlaces = (cuerpo: string, app: string) => cuerpo.split('{{APP}}').join(app.replace(/\/+$/, ''))
+
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 const usd = (n: number) => n.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fecha = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}` }
 
 /** Datos del correo. Sin adjuntos: nunca se incluyen documentos personales ni comprobantes. */
 function mensaje(c: ContratoEntrada, cuota: CuotaEntrada, estado: CuotaEstado, app: string, titulo: string, hoy: string) {
-  const enlace = `${app}/cobranza?contrato=${c.id}`
+  const enlace = `${app}/cobranzas?contrato=${c.id}`
   const filas: [string, string][] = [
     ['Cliente', c.cliente], ['Departamento', c.unidad], ['Contrato', c.codigo],
     ['Cuota', `${cuota.concepto} (nº ${cuota.numero})`], ['Vencimiento', cuota.vencimiento ? fecha(cuota.vencimiento) : 'Sin fecha'],
@@ -123,6 +142,8 @@ export function planificarCobranza(e: EntradaCobranza): ResultadoPlan {
   const porContrato = new Map(e.contratos.map((c) => [c.id, c]))
   const verificadoPorContrato = new Map<string, number>()
   for (const p of e.pagos) if (p.estado === 'verificado') verificadoPorContrato.set(p.contratoId, (verificadoPorContrato.get(p.contratoId) ?? 0) + p.monto)
+  const autorizadoPorContrato = new Map<string, number>()
+  for (const a of e.aplicaciones ?? []) autorizadoPorContrato.set(a.contratoId, (autorizadoPorContrato.get(a.contratoId) ?? 0) + a.monto)
 
   const enviar = (base: string, tipo: string, contratoId: string | null, numero: number | null, destinos: string[], asunto: string, cuerpo: string) => {
     for (const d of new Set(destinos.map((x) => x.trim().toLowerCase()).filter(Boolean))) {
@@ -134,7 +155,7 @@ export function planificarCobranza(e: EntradaCobranza): ResultadoPlan {
   for (const c of e.contratos) {
     if (c.estado !== 'firmado') continue // Antes de firmar nada es exigible: solo se registra el dinero recibido.
     const cs = e.cuotas.filter((x) => x.contratoId === c.id)
-    const { pagado } = aplicarPagos(cs, verificadoPorContrato.get(c.id) ?? 0)
+    const { pagado } = aplicarPagos(cs, verificadoPorContrato.get(c.id) ?? 0, autorizadoPorContrato.get(c.id) ?? 0)
     for (const cuota of cs) {
       const est = estadoCuota({ monto: cuota.monto, pagado: pagado.get(cuota.numero) ?? 0, vencimiento: cuota.vencimiento }, e.hoy)
       if (est.situacion === 'pagada') { cancelarPrefijos.push(`${c.id}:${cuota.numero}:`); continue }
@@ -176,7 +197,7 @@ export function planificarCobranza(e: EntradaCobranza): ResultadoPlan {
     compromisosIncumplidos.push(k.id)
     const c = porContrato.get(k.contratoId)
     if (!c) continue
-    const cuerpo = `<h2>Compromiso de pago incumplido</h2><p>${esc(c.cliente)} · ${esc(c.unidad)} · compromiso de USD ${usd(k.monto)} para el ${fecha(k.fecha)}.</p><p><a href="${esc(`${e.app}/cobranza?contrato=${c.id}`)}">Abrir el registro en AMURA</a></p>`
+    const cuerpo = `<h2>Compromiso de pago incumplido</h2><p>${esc(c.cliente)} · ${esc(c.unidad)} · compromiso de USD ${usd(k.monto)} para el ${fecha(k.fecha)}.</p><p><a href="${esc(`${e.app}/cobranzas?contrato=${c.id}`)}">Abrir el registro en AMURA</a></p>`
     enviar(`compromiso:${k.id}:incumplido`, 'compromiso_incumplido', c.id, k.numero, c.responsableEmail ? [c.responsableEmail] : e.destinatarios.finanzas, `[AMURA] Compromiso incumplido · ${c.unidad}`, cuerpo)
   }
 
@@ -185,7 +206,7 @@ export function planificarCobranza(e: EntradaCobranza): ResultadoPlan {
     if (p.estado !== 'registrado' || Date.parse(p.creadoEn) > limite) continue
     const c = porContrato.get(p.contratoId)
     if (!c) continue
-    const cuerpo = `<h2>Comprobante pendiente de verificar</h2><p>${esc(c.cliente)} · ${esc(c.unidad)} · referencia ${esc(p.referencia)} · USD ${usd(p.monto)}, registrado hace más de 24 horas.</p><p><a href="${esc(`${e.app}/cobranza?contrato=${c.id}`)}">Abrir el registro en AMURA</a></p>`
+    const cuerpo = `<h2>Comprobante pendiente de verificar</h2><p>${esc(c.cliente)} · ${esc(c.unidad)} · referencia ${esc(p.referencia)} · USD ${usd(p.monto)}, registrado hace más de 24 horas.</p><p><a href="${esc(`${e.app}/cobranzas?contrato=${c.id}`)}">Abrir el registro en AMURA</a></p>`
     enviar(`pago:${p.id}:comprobante_24h`, 'comprobante_24h', c.id, null, e.destinatarios.finanzas, `[AMURA] Comprobante sin verificar · ${c.unidad}`, cuerpo)
   }
 
@@ -204,24 +225,43 @@ export interface MensajeCorreo { from?: string; to: string; subject: string; htm
 export interface ProveedorCorreo { enviar(m: MensajeCorreo): Promise<{ id: string }> }
 
 export interface FilaCola { id: string; estado: string; intentos: number; destinatario: string; asunto: string; cuerpo: string }
-export interface ActualizacionCola { id: string; estado: 'pendiente' | 'enviada' | 'fallida'; intentos: number; proveedor_id?: string; error?: string; enviada_en?: string }
+export interface ActualizacionCola {
+  id: string; estado: 'pendiente' | 'enviada' | 'fallida'; intentos: number; proveedor_id?: string; error?: string; enviada_en?: string
+  /** A quién se entregó de verdad: en modo prueba, el buzón de pruebas; el destinatario original queda en la fila. */
+  destinatario_efectivo?: string
+}
+
+/** Modo prueba: todo correo va al buzón de pruebas, con el destinatario original visible en el asunto y en el cuerpo. */
+export interface ModoPrueba { destino: string; maximo: number }
+
+const escaparHtml = (v: string) => v.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
+
+export function mensajePrueba(f: FilaCola, destino: string): { to: string; subject: string; html: string } {
+  const aviso = `<p style="background:#fff4d6;border:1px solid #e4a23a;padding:10px;font:13px sans-serif">PRUEBA · Este correo iba dirigido a <b>${escaparHtml(f.destinatario)}</b>. No se envió a esa persona.</p>`
+  return { to: destino, subject: `[PRUEBA para ${f.destinatario}] ${f.asunto}`, html: aviso + f.cuerpo }
+}
 
 /**
  * Envía las alertas pendientes. Sin proveedor configurado no envía nada y deja el aviso "pendiente de configuración".
  * Tras MAX_INTENTOS fallos la alerta queda fallida y no se reintenta sola.
+ * En modo prueba se entregan como máximo `prueba.maximo` por ejecución; las demás siguen pendientes.
  */
-export async function enviarPendientes(filas: FilaCola[], proveedor: ProveedorCorreo | null, ahora: string, remitente?: string): Promise<ActualizacionCola[]> {
+export async function enviarPendientes(filas: FilaCola[], proveedor: ProveedorCorreo | null, ahora: string, remitente?: string, prueba?: ModoPrueba): Promise<ActualizacionCola[]> {
   const out: ActualizacionCola[] = []
+  let entregadas = 0
   for (const f of filas) {
     if (f.estado !== 'pendiente') continue
     if (!proveedor) {
       out.push({ id: f.id, estado: 'pendiente', intentos: f.intentos, error: 'Correo pendiente de configuración' })
       continue
     }
+    if (prueba && entregadas >= prueba.maximo) continue
     const intento = f.intentos + 1
+    const m = prueba ? mensajePrueba(f, prueba.destino) : { to: f.destinatario, subject: f.asunto, html: f.cuerpo }
     try {
-      const r = await proveedor.enviar({ from: remitente, to: f.destinatario, subject: f.asunto, html: f.cuerpo })
-      out.push({ id: f.id, estado: 'enviada', intentos: intento, proveedor_id: r.id, enviada_en: ahora })
+      const r = await proveedor.enviar({ from: remitente, ...m })
+      entregadas++
+      out.push({ id: f.id, estado: 'enviada', intentos: intento, proveedor_id: r.id, enviada_en: ahora, destinatario_efectivo: m.to })
     } catch (err) {
       out.push({ id: f.id, estado: intento >= MAX_INTENTOS ? 'fallida' : 'pendiente', intentos: intento, error: String((err as Error).message).slice(0, 300) })
     }
@@ -259,8 +299,23 @@ export function proveedorSimulado(opciones: { fallos?: number } = {}): Proveedor
   }
 }
 
-/** Solo activa el envío real si está explícitamente habilitado y hay clave, remitente y dominio configurados. */
-export function configurarProveedor(env: Record<string, string | undefined>): { proveedor: ProveedorCorreo | null; remitente: string | undefined; motivo?: string } {
+/** Remitente de pruebas de Resend: solo entrega al correo dueño de la cuenta de Resend. */
+export const REMITENTE_PRUEBA = 'AMURA Pruebas <onboarding@resend.dev>'
+const correoValido = (v: string) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(v)
+
+/**
+ * CORREO_PRUEBA_DESTINO tiene prioridad: mientras tenga un correo, nada sale a destinatarios reales, aunque COBRANZA_ENVIO_REAL sea true.
+ * Para pasar a producción se borra ese secreto; el código no cambia.
+ * El envío real solo se activa si está explícitamente habilitado y hay clave, remitente y dominio configurados.
+ */
+export function configurarProveedor(env: Record<string, string | undefined>): { proveedor: ProveedorCorreo | null; remitente: string | undefined; motivo?: string; prueba?: ModoPrueba } {
+  const destino = env.CORREO_PRUEBA_DESTINO?.trim()
+  if (destino) {
+    if (!correoValido(destino)) return { proveedor: null, remitente: undefined, motivo: 'CORREO_PRUEBA_DESTINO no es un correo válido: no se envía nada' }
+    if (!env.RESEND_API_KEY) return { proveedor: null, remitente: undefined, motivo: 'Falta RESEND_API_KEY en el servidor' }
+    const maximo = Math.max(1, Math.min(50, Number(env.CORREO_PRUEBA_MAXIMO) || 10))
+    return { proveedor: proveedorResend(env.RESEND_API_KEY), remitente: env.CORREO_PRUEBA_REMITENTE?.trim() || REMITENTE_PRUEBA, prueba: { destino, maximo } }
+  }
   if (env.COBRANZA_ENVIO_REAL !== 'true') return { proveedor: null, remitente: undefined, motivo: 'Envío real desactivado (COBRANZA_ENVIO_REAL no es true)' }
   if (!env.RESEND_API_KEY) return { proveedor: null, remitente: undefined, motivo: 'Falta RESEND_API_KEY en el servidor' }
   if (!env.COBRANZA_REMITENTE) return { proveedor: null, remitente: undefined, motivo: 'Falta el dominio remitente (COBRANZA_REMITENTE)' }

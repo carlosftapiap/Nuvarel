@@ -23,12 +23,15 @@ import { useReservas } from '@/features/reservas/store'
 import { cn } from '@/lib/utils'
 import { useConexion } from '@/app/auth'
 import EquiposRemoto from '@/features/config/remoto/EquiposRemoto'
+import DistribucionLeads from '@/features/leads/DistribucionLeads'
 import ArchivosSinVincular from '@/features/config/remoto/ArchivosSinVincular'
 import MultimediaProyecto from '@/features/config/remoto/MultimediaProyecto'
 import ReceptorPagos from '@/features/config/remoto/ReceptorPagos'
 import ReservaPredeterminada from '@/features/config/remoto/ReservaPredeterminada'
 import RolesRemoto from '@/features/config/remoto/RolesRemoto'
 import UsuariosRemoto, { AuditoriaRemota, type AccionesCuenta } from '@/features/config/remoto/UsuariosRemoto'
+import CatalogoExpediente from '@/features/cumplimiento/components/CatalogoExpediente'
+import HistorialNotificaciones from '@/features/notificaciones/HistorialNotificaciones'
 import { supabase } from '@/lib/supabase'
 
 /** Crea cuentas y cambia contraseñas en el servidor: la clave de servicio no puede estar en el navegador. */
@@ -39,13 +42,9 @@ async function llamarCuentas(body: Record<string, unknown>) {
   throw new Error(detalle?.error ?? `No se pudo completar: ${error.message}. Verifica que la función crear-usuario esté desplegada.`)
 }
 
-/** Acciones de Supabase Auth: recuperación por correo, alta con contraseña y cambio de contraseña. */
+/** Acciones de Supabase Auth: alta con contraseña inicial y restablecimiento de contraseña. */
 const accionesSupabase: AccionesCuenta = {
-  enviarRecuperacion: async (email) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` })
-    if (error) throw new Error(error.message)
-  },
-  crearUsuario: ({ nombre, email, rolId }) => llamarCuentas({ accion: 'crear', nombre, email, rolId, alcance: null, equipoId: null, supervisorId: null, motivo: 'Alta de usuario desde Configuración' }),
+  crearUsuario: ({ nombre, email, password, rolId }) => llamarCuentas({ accion: 'crear', nombre, email, password, rolId, alcance: null, equipoId: null, supervisorId: null, motivo: 'Alta de usuario desde Configuración' }),
   cambiarClave: ({ usuarioId, password, motivo }) => llamarCuentas({ accion: 'clave', usuarioId, password, motivo }),
 }
 
@@ -58,22 +57,27 @@ export default function ConfiguracionPage() {
 function ConfiguracionRemota() {
   const { can } = useSession()
   const { datos } = useConexion()
+  // Usuarios y Equipos se refrescan entre sí: asignar un vendedor a un equipo lo muestra de inmediato en el equipo.
   const [version, setVersion] = useState(0)
+  const [versionEquipos, setVersionEquipos] = useState(0)
   const verUsuarios = can('config.usuarios') || can('config.equipos') || can('config.cobros')
   return (
     <>
       <PageHeader eyebrow="Sistema · Configuración" title="Configuración" subtitle="Usuarios, roles y permisos, y auditoría. Cada cambio de acceso queda registrado." />
       <Tabs defaultValue={verUsuarios ? 'usuarios' : can('config.roles') ? 'roles' : can('config.auditoria') ? 'auditoria' : 'multimedia'} className="min-w-0">
-        <TabsList className="mb-3">
+        <TabsList className="mb-3 max-w-full justify-start overflow-x-auto">
           {verUsuarios && <TabsTrigger value="usuarios">Usuarios</TabsTrigger>}
           {can('config.roles') && <TabsTrigger value="roles">Roles y permisos</TabsTrigger>}
           {can('config.auditoria') && <TabsTrigger value="auditoria">Auditoría</TabsTrigger>}
           {can('config.multimedia') && <TabsTrigger value="multimedia">Multimedia del proyecto</TabsTrigger>}
+          {can('config.auditoria') && <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>}
+          {can('config.roles') && <TabsTrigger value="expediente">Documentos del expediente</TabsTrigger>}
+          {can('config.leads') && <TabsTrigger value="leads">Distribución de leads</TabsTrigger>}
         </TabsList>
         {verUsuarios && (
           <TabsContent value="usuarios" className="grid gap-4">
-            {can('config.usuarios') && <UsuariosRemoto datos={datos!} acciones={accionesSupabase} version={version} />}
-            {can('config.equipos') && <EquiposRemoto datos={datos!} onCambio={() => setVersion((v) => v + 1)} />}
+            {can('config.usuarios') && <UsuariosRemoto datos={datos!} acciones={accionesSupabase} version={version} onCambio={() => setVersionEquipos((v) => v + 1)} />}
+            {can('config.equipos') && <EquiposRemoto datos={datos!} version={versionEquipos} onCambio={() => setVersion((v) => v + 1)} />}
             {can('config.cobros') && <ReceptorPagos datos={datos!} />}
             {can('config.cobros') && <ReservaPredeterminada datos={datos!} />}
             {can('config.cobros') && <ArchivosSinVincular datos={datos!} />}
@@ -82,6 +86,9 @@ function ConfiguracionRemota() {
         {can('config.roles') && <TabsContent value="roles"><RolesRemoto datos={datos!} /></TabsContent>}
         {can('config.auditoria') && <TabsContent value="auditoria"><AuditoriaRemota datos={datos!} /></TabsContent>}
         {can('config.multimedia') && <TabsContent value="multimedia"><MultimediaProyecto datos={datos!} /></TabsContent>}
+        {can('config.auditoria') && <TabsContent value="notificaciones"><HistorialNotificaciones datos={datos!} /></TabsContent>}
+        {can('config.roles') && <TabsContent value="expediente"><CatalogoExpediente datos={datos!} /></TabsContent>}
+        {can('config.leads') && <TabsContent value="leads"><DistribucionLeads datos={datos!} /></TabsContent>}
       </Tabs>
     </>
   )
@@ -136,7 +143,7 @@ function Usuarios({ onMessage }: { onMessage: (m: string) => void }) {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
-          <thead className="bg-muted text-[11px] text-muted-foreground">
+          <thead className="bg-muted text-xs text-muted-foreground">
             <tr><th className="px-4 py-2 text-left font-medium">Usuario</th><th className="px-2 py-2 text-left font-medium">Estado</th><th className="px-2 py-2 text-left font-medium">Rol</th><th className="px-2 py-2 text-left font-medium">Equipo · supervisor</th><th className="px-2 py-2 text-left font-medium">Proyectos</th><th className="px-4 py-2 text-right font-medium">Acciones</th></tr>
           </thead>
           <tbody>
@@ -144,10 +151,10 @@ function Usuarios({ onMessage }: { onMessage: (m: string) => void }) {
               const exc = Object.keys(u.excepciones).length
               return (
                 <tr key={u.id} className="border-t border-border">
-                  <td className="px-4 py-2"><div className="font-semibold">{u.nombre}</div><div className="text-[11px] text-muted-foreground">{u.email || 'sin correo'}</div></td>
-                  <td className="px-2 py-2"><span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', ESTADOS_USUARIO[u.estado].tone)}>{ESTADOS_USUARIO[u.estado].label}</span></td>
-                  <td className="px-2 py-2">{state.roles.find((r) => r.id === u.rolId)?.nombre ?? rolLabel(u.rolId)}{exc > 0 && <div className="text-[11px] text-amber-700">{exc} excepción(es)</div>}{u.alcance && <div className="text-[11px] text-muted-foreground">Alcance: {u.alcance}</div>}</td>
-                  <td className="px-2 py-2">{state.equipos.find((e) => e.id === u.equipoId)?.nombre ?? '—'}<div className="text-[11px] text-muted-foreground">{nombre(u.supervisorId)}</div></td>
+                  <td className="px-4 py-2"><div className="font-semibold">{u.nombre}</div><div className="text-xs text-muted-foreground">{u.email || 'sin correo'}</div></td>
+                  <td className="px-2 py-2"><span className={cn('rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', ESTADOS_USUARIO[u.estado].tone)}>{ESTADOS_USUARIO[u.estado].label}</span></td>
+                  <td className="px-2 py-2">{state.roles.find((r) => r.id === u.rolId)?.nombre ?? rolLabel(u.rolId)}{exc > 0 && <div className="text-xs text-amber-700">{exc} excepción(es)</div>}{u.alcance && <div className="text-xs text-muted-foreground">Alcance: {u.alcance}</div>}</td>
+                  <td className="px-2 py-2">{state.equipos.find((e) => e.id === u.equipoId)?.nombre ?? '—'}<div className="text-xs text-muted-foreground">{nombre(u.supervisorId)}</div></td>
                   <td className="px-2 py-2">{u.proyectos.join(', ') || '—'}</td>
                   <td className="px-4 py-2">
                     <div className="flex justify-end gap-1">
@@ -296,11 +303,11 @@ function PermisosUsuarioDialog({ usuario, onClose, onMessage }: { usuario: Usuar
                   const delRol = rol?.permisos.includes(p as Permiso) ?? false
                   return (
                     <li key={p} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded-md px-2 py-1 text-xs odd:bg-muted/40">
-                      <span>{label} <span className="text-[10px] text-muted-foreground">({delRol ? 'el rol lo incluye' : 'el rol no lo incluye'})</span></span>
-                      <span className={cn('text-[10px] font-medium', efectivos.has(p as Permiso) ? 'text-emerald-700' : 'text-muted-foreground')}>{efectivos.has(p as Permiso) ? 'Permitido' : 'Denegado'}</span>
+                      <span>{label} <span className="text-xs text-muted-foreground">({delRol ? 'el rol lo incluye' : 'el rol no lo incluye'})</span></span>
+                      <span className={cn('text-xs font-medium', efectivos.has(p as Permiso) ? 'text-emerald-700' : 'text-muted-foreground')}>{efectivos.has(p as Permiso) ? 'Permitido' : 'Denegado'}</span>
                       <select aria-label={`Excepción para ${label}`} value={exc ?? 'heredar'} disabled={!can('config.roles') || motivo.trim().length < 5}
                         onChange={(e) => fijar(p as Permiso, e.target.value as Excepcion | 'heredar')}
-                        className="h-7 rounded-md border border-input bg-background px-1 text-[11px] disabled:opacity-50">
+                        className="h-7 rounded-md border border-input bg-background px-1 text-xs disabled:opacity-50">
                         <option value="heredar">Heredar</option><option value="permitir">Permitir</option><option value="denegar">Denegar</option>
                       </select>
                     </li>
@@ -345,7 +352,7 @@ function Roles({ onMessage }: { onMessage: (m: string) => void }) {
               <button type="button" onClick={() => { setSel(r.id); setDraft(null) }} aria-pressed={sel === r.id}
                 className={cn('w-full rounded-lg px-3 py-2 text-left text-xs', sel === r.id ? 'bg-secondary text-secondary-foreground' : 'hover:bg-muted')}>
                 <div className="font-semibold">{r.nombre}</div>
-                <div className="text-[11px] text-muted-foreground">{r.permisos.length} permisos · {uso(r.id)} usuarios</div>
+                <div className="text-xs text-muted-foreground">{r.permisos.length} permisos · {uso(r.id)} usuarios</div>
               </button>
             </li>
           ))}
@@ -490,13 +497,13 @@ function Auditoria() {
     <section className="dashboard-card !p-0 overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold">Auditoría</h2>
-        <span className="text-[11px] text-muted-foreground">Accesos, precios, estados de unidades y reservas</span>
+        <span className="text-xs text-muted-foreground">Accesos, precios, estados de unidades y reservas</span>
         <Input aria-label="Buscar en auditoría" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por persona, acción o motivo" className="ml-auto h-8 max-w-xs text-xs" />
       </div>
       {vis.length === 0 ? <p className="p-6 text-center text-xs text-muted-foreground">Sin registros.</p> : (
         <div className="max-h-[560px] overflow-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Fecha</th><th className="px-2 py-2 text-left font-medium">Quién</th><th className="px-2 py-2 text-left font-medium">Acción</th><th className="px-2 py-2 text-left font-medium">Motivo</th><th className="px-4 py-2 text-left font-medium">Antes → después</th></tr></thead>
+            <thead className="sticky top-0 bg-muted text-xs text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Fecha</th><th className="px-2 py-2 text-left font-medium">Quién</th><th className="px-2 py-2 text-left font-medium">Acción</th><th className="px-2 py-2 text-left font-medium">Motivo</th><th className="px-4 py-2 text-left font-medium">Antes → después</th></tr></thead>
             <tbody>{vis.map((f, i) => (
               <tr key={i} className="border-t border-border align-top">
                 <td className="whitespace-nowrap px-4 py-1.5 tabular-nums text-muted-foreground">{fmtFecha(f.fecha)}</td>

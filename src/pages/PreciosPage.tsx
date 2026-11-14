@@ -23,7 +23,7 @@ const POS_TONE: Record<Posicion, string> = {
   dentro: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   sobre: 'bg-amber-50 text-amber-800 ring-amber-200',
 }
-const PosBadge = ({ p }: { p: Posicion }) => <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${POS_TONE[p]}`}>{POSICION_LABEL[p]}</span>
+const PosBadge = ({ p }: { p: Posicion }) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${POS_TONE[p]}`}>{POSICION_LABEL[p]}</span>
 
 export default function PreciosPage() {
   const { state } = useInventory()
@@ -108,10 +108,10 @@ function Simulacion({ rangos }: { rangos: Record<string, RangoFratelli> | null }
               </button>
             ))}
           </div>
-          <Label htmlFor="sim-valor" className="text-[11px] text-muted-foreground">{modo === 'porcentaje' ? 'Porcentaje (negativo para reducir)' : 'Nuevo USD/m²'}</Label>
+          <Label htmlFor="sim-valor" className="text-xs text-muted-foreground">{modo === 'porcentaje' ? 'Porcentaje (negativo para reducir)' : 'Nuevo USD/m²'}</Label>
           <Input id="sim-valor" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder={modo === 'porcentaje' ? 'Ej. 2 o -1,5' : 'Ej. 2300'} className="h-9" />
         </div>
-        {!edificio && <p className="rounded-md bg-muted px-3 py-2 text-[11px] text-muted-foreground">Elige el edificio para simular o preparar el cambio.</p>}
+        {!edificio && <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">Elige el edificio para simular o preparar el cambio.</p>}
         <FieldError>{preview.error}</FieldError>
         {can('precios.proponer') ? (
           <div className="grid gap-2">
@@ -122,7 +122,7 @@ function Simulacion({ rangos }: { rangos: Record<string, RangoFratelli> | null }
             {ok && <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-200">{ok}</p>}
             <Button onClick={proponer} disabled={!preview.data?.cambios.length || motivo.trim().length < 5}>{can('precios.aprobar') ? 'Aplicar cambio' : 'Enviar a aprobación'}</Button>
           </div>
-        ) : <p className="rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">Puedes simular; solo gerencia y administración envían propuestas.</p>}
+        ) : <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Puedes simular; solo gerencia y administración envían propuestas.</p>}
       </section>
 
       <div className="grid min-w-0 content-start gap-4">
@@ -136,7 +136,7 @@ function Simulacion({ rangos }: { rangos: Record<string, RangoFratelli> | null }
           {!preview.data ? <p className="p-6 text-center text-xs text-muted-foreground">Define un alcance y un valor para ver el impacto en cada departamento.</p> : (
             <div className="max-h-[520px] overflow-auto">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground">
+                <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
                   <tr><th className="px-4 py-2 text-left font-medium">Unidad</th><th className="px-2 py-2 text-right font-medium">USD/m²</th><th className="px-2 py-2 text-right font-medium">Precio oficial</th><th className="px-2 py-2 text-right font-medium">Precio simulado</th><th className="px-2 py-2 text-right font-medium">Variación</th>{can('precios.competencia') && <th className="px-4 py-2 text-left font-medium">vs FRATELLI</th>}</tr>
                 </thead>
                 <tbody>
@@ -185,32 +185,32 @@ function PropuestaCard({ p }: { p: PriceProposal }) {
   return (
     <article className="dashboard-card !p-4">
       <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ring-1 ring-inset ${tono}`}>{p.estado}</span>
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${tono}`}>{p.estado}</span>
         <h3 className="text-sm font-semibold">{p.descripcion}</h3>
         <span className={`ml-auto text-sm font-semibold tabular-nums ${delta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{delta >= 0 ? '+' : ''}{fmtUsd(delta)}</span>
-        <p className="basis-full text-[11px] text-muted-foreground">{fmtFecha(p.fecha)} · {p.usuario} ({ROLES[p.rol].label}) · “{p.motivo}” · {p.cambios.length} unidades · {fmtUsd(p.totalAntes)} <ArrowRight className="inline size-3" /> {fmtUsd(p.totalDespues)}</p>
-        {p.resolucion && <p className="basis-full text-[11px] text-muted-foreground">Resuelta por {p.resolucion.usuario} el {fmtFecha(p.resolucion.fecha)}{p.resolucion.comentario ? ` · “${p.resolucion.comentario}”` : ''}</p>}
+        <p className="basis-full text-xs text-muted-foreground">{fmtFecha(p.fecha)} · {p.usuario} ({ROLES[p.rol].label}) · “{p.motivo}” · {p.cambios.length} unidades · {fmtUsd(p.totalAntes)} <ArrowRight className="inline size-3" /> {fmtUsd(p.totalDespues)}</p>
+        {p.resolucion && <p className="basis-full text-xs text-muted-foreground">Resuelta por {p.resolucion.usuario} el {fmtFecha(p.resolucion.fecha)}{p.resolucion.comentario ? ` · “${p.resolucion.comentario}”` : ''}</p>}
       </div>
-      <button type="button" className="mt-2 text-[11px] text-primary hover:underline" onClick={() => setVer(!ver)} aria-expanded={ver}>{ver ? 'Ocultar detalle' : 'Ver detalle por unidad'}</button>
+      <button type="button" className="mt-2 text-xs text-primary hover:underline" onClick={() => setVer(!ver)} aria-expanded={ver}>{ver ? 'Ocultar detalle' : 'Ver detalle por unidad'}</button>
       {ver && (
         <div className="mt-2 max-h-56 overflow-auto rounded-md border border-border">
-          <table className="w-full text-[11px]"><tbody>
+          <table className="w-full text-xs"><tbody>
             {p.cambios.map((c) => <tr key={c.codigo} className="border-t border-border first:border-0"><td className="p-1.5">{c.codigo}</td><td className="p-1.5 text-right tabular-nums">{fmtNum(c.antesUsdM2)} → {fmtNum(c.despuesUsdM2)}</td><td className="p-1.5 text-right tabular-nums">{fmtUsd(c.antesPrecio)} → <b>{fmtUsd(c.despuesPrecio)}</b></td></tr>)}
           </tbody></table>
         </div>
       )}
       {p.estado === 'pendiente' && (can('precios.aprobar') ? (
         <div className="mt-3 grid gap-2 border-t border-border pt-3">
-          <Label htmlFor={`com-${p.id}`} className="text-[11px]">Comentario (obligatorio para rechazar)</Label>
+          <Label htmlFor={`com-${p.id}`} className="text-xs">Comentario (obligatorio para rechazar)</Label>
           <Textarea id={`com-${p.id}`} rows={2} value={comentario} onChange={(e) => setComentario(e.target.value)} />
           <FieldError>{error}</FieldError>
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="outline" onClick={() => run(() => update((s) => rechazarPropuesta(s, p.id, comentario, actor)))}><X />Rechazar</Button>
             <Button size="sm" onClick={() => run(() => update((s) => aprobarPropuesta(s, p.id, comentario, actor)))}><Check />Aprobar y aplicar</Button>
           </div>
-          <p className="text-[10px] text-muted-foreground">Al aprobar, el cambio se recalcula sobre los precios vigentes y queda en el historial de precios.</p>
+          <p className="text-xs text-muted-foreground">Al aprobar, el cambio se recalcula sobre los precios vigentes y queda en el historial de precios.</p>
         </div>
-      ) : <p className="mt-2 text-[11px] text-muted-foreground">Pendiente de aprobación por administración.</p>)}
+      ) : <p className="mt-2 text-xs text-muted-foreground">Pendiente de aprobación por administración.</p>)}
     </article>
   )
 }
@@ -241,7 +241,7 @@ function Competencia({ fratelli }: { fratelli: ReturnType<typeof useFratelli> })
             <div key={ed} className="grid gap-2">
               <h3 className="text-xs font-semibold">Edificio {ed}</h3>
               {filas.filter((f) => f.edificio === ed).map((f) => (
-                <div key={f.piso} className="grid grid-cols-[72px_1fr_auto] items-center gap-3 text-[11px]">
+                <div key={f.piso} className="grid grid-cols-[72px_1fr_auto] items-center gap-3 text-xs">
                   <span className="text-muted-foreground">{f.piso === 'PB' ? 'Planta baja' : `Piso ${f.piso}`}</span>
                   <div className="relative h-5 rounded bg-muted" aria-label={`AMURA ${fmtNum(f.amuraM2)}; FRATELLI ${fmtNum(f.rango.m2Min)} a ${fmtNum(f.rango.m2Max)}`}>
                     <span className="absolute inset-y-0.5 rounded bg-sky-200" style={{ left: pct(f.rango.m2Min), width: `calc(${pct(f.rango.m2Max)} - ${pct(f.rango.m2Min)})` }} />
@@ -253,13 +253,13 @@ function Competencia({ fratelli }: { fratelli: ReturnType<typeof useFratelli> })
             </div>
           ))}
         </div>
-        <p className="mt-3 flex flex-wrap gap-4 text-[11px] text-muted-foreground"><span><i className="mr-1 inline-block size-2 rounded-sm bg-primary" />AMURA (promedio del piso)</span><span><i className="mr-1 inline-block size-2 rounded-sm bg-sky-200" />FRATELLI: mínimo a máximo del mismo piso</span></p>
+        <p className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground"><span><i className="mr-1 inline-block size-2 rounded-sm bg-primary" />AMURA (promedio del piso)</span><span><i className="mr-1 inline-block size-2 rounded-sm bg-sky-200" />FRATELLI: mínimo a máximo del mismo piso</span></p>
       </section>
       <section className="dashboard-card !p-0 overflow-hidden" aria-labelledby="comp-lista">
         <h2 id="comp-lista" className="border-b border-border px-4 py-3 text-sm font-semibold">Lista de precios FRATELLI (Isla Celeste)</h2>
         <div className="max-h-96 overflow-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Torre · Depto</th><th className="px-2 py-2 text-left font-medium">Planta</th><th className="px-2 py-2 text-right font-medium">Dpto + bodega</th><th className="px-2 py-2 text-right font-medium">Patio</th><th className="px-2 py-2 text-right font-medium">Precio total</th><th className="px-2 py-2 text-right font-medium">USD/m²</th><th className="px-2 py-2 text-left font-medium">Estado</th><th className="px-4 py-2 text-left font-medium">Entrega est.</th></tr></thead>
+            <thead className="sticky top-0 bg-muted text-xs text-muted-foreground"><tr><th className="px-4 py-2 text-left font-medium">Torre · Depto</th><th className="px-2 py-2 text-left font-medium">Planta</th><th className="px-2 py-2 text-right font-medium">Dpto + bodega</th><th className="px-2 py-2 text-right font-medium">Patio</th><th className="px-2 py-2 text-right font-medium">Precio total</th><th className="px-2 py-2 text-right font-medium">USD/m²</th><th className="px-2 py-2 text-left font-medium">Estado</th><th className="px-4 py-2 text-left font-medium">Entrega est.</th></tr></thead>
             <tbody>
               {lista.map((f) => (
                 <tr key={f.torre + f.depto} className="border-t border-border">
@@ -276,7 +276,7 @@ function Competencia({ fratelli }: { fratelli: ReturnType<typeof useFratelli> })
             </tbody>
           </table>
         </div>
-        <p className="border-t border-border px-4 py-2 text-[10px] text-muted-foreground">Fuente: {lista[0]?.fuente ?? ''}. Uso interno: no visible para corredores externos.</p>
+        <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">Fuente: {lista[0]?.fuente ?? ''}. Uso interno: no visible para corredores externos.</p>
       </section>
     </div>
   )
@@ -287,9 +287,9 @@ function Competencia({ fratelli }: { fratelli: ReturnType<typeof useFratelli> })
 function Kpi({ t, v, d }: { t: string; v: string; d?: string }) {
   return (
     <div className="dashboard-card !p-4">
-      <div className="text-[11px] text-muted-foreground">{t}</div>
+      <div className="text-xs text-muted-foreground">{t}</div>
       <div className="mt-1 text-lg font-semibold tabular-nums tracking-tight">{v}</div>
-      {d && <div className="mt-0.5 text-[11px] text-muted-foreground">{d}</div>}
+      {d && <div className="mt-0.5 text-xs text-muted-foreground">{d}</div>}
     </div>
   )
 }
@@ -297,7 +297,7 @@ function Kpi({ t, v, d }: { t: string; v: string; d?: string }) {
 function Sel({ id, label, value, onChange, items, placeholder }: { id: string; label: string; value: string; onChange: (v: string) => void; items: [string, string][]; placeholder?: string }) {
   return (
     <div className="grid gap-1">
-      <Label htmlFor={id} className="text-[11px] text-muted-foreground">{label}</Label>
+      <Label htmlFor={id} className="text-xs text-muted-foreground">{label}</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger id={id} className="h-8 w-full text-xs"><SelectValue placeholder={placeholder} /></SelectTrigger>
         <SelectContent>{items.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>

@@ -24,7 +24,8 @@ const registrar = async (u: string, act: string, fecha: string, avance: number, 
   (await uno<{ r: string }>(u, `select public.obra_avance_guardar($1::uuid, $2::date, $3::numeric, null, 'Juan Paez', $4) as r`, [act, fecha, avance, obs])).r
 const frenteAvance = async (frente: string, modo = 'validado') =>
   (await dueno<{ v: string | null }>(`select public.obra_avance_frente($1::uuid, $2) as v`, [frente, modo]))[0].v
-const hoy = () => new Date().toISOString().slice(0, 10)
+// Fecha de Ecuador, como la base: con UTC, entre las 19:00 y las 24:00 de Ecuador la fecha sería la del día siguiente.
+const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' })
 const ayer = () => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
 beforeAll(async () => {

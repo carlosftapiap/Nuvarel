@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { errorArchivo, type DatosPago } from '@/features/cobranza/comprobantes'
+import { errorArchivo, MEDIOS_PAGO, type DatosPago, type MedioPago } from '@/features/cobranza/comprobantes'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2, leerMonto, NOTA_RESERVA } from '@/features/inventario/pricing'
@@ -16,8 +16,9 @@ export default function RegistrarPagoDialog({ reserva, onClose, onConfirm }: { r
   const [banco, setBanco] = useState('')
   const [referencia, setReferencia] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
+  const [medio, setMedio] = useState<MedioPago>('transferencia')
   if (!reserva) return null
-  const limpiar = () => { setMonto(''); setFecha(hoyGuayaquil()); setBanco(''); setReferencia(''); setArchivo(null) }
+  const limpiar = () => { setMonto(''); setFecha(hoyGuayaquil()); setBanco(''); setReferencia(''); setArchivo(null); setMedio('transferencia') }
   const cerrar = () => { limpiar(); onClose() }
   const montoNum = leerMonto(monto) ?? reserva.montoReserva
   const errorAdjunto = errorArchivo(archivo)
@@ -39,12 +40,18 @@ export default function RegistrarPagoDialog({ reserva, onClose, onConfirm }: { r
               <Label htmlFor="rq-fecha" className="text-xs">Fecha del pago *</Label>
               <Input id="rq-fecha" type="date" max={hoyGuayaquil()} value={fecha} onChange={(e) => setFecha(e.target.value)} />
             </div>
+            <div className="grid gap-1.5 sm:col-span-2">
+              <Label htmlFor="rq-medio" className="text-xs">Medio de pago *</Label>
+              <select id="rq-medio" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={medio} onChange={(e) => setMedio(e.target.value as MedioPago)}>
+                {Object.entries(MEDIOS_PAGO).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}
+              </select>
+            </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="rq-banco" className="text-xs">Banco *</Label>
+              <Label htmlFor="rq-banco" className="text-xs">{MEDIOS_PAGO[medio].banco} *</Label>
               <Input id="rq-banco" value={banco} onChange={(e) => setBanco(e.target.value)} />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="rq-ref" className="text-xs">Número de transferencia o depósito *</Label>
+              <Label htmlFor="rq-ref" className="text-xs">{MEDIOS_PAGO[medio].referencia} *</Label>
               <Input id="rq-ref" value={referencia} onChange={(e) => setReferencia(e.target.value)} />
             </div>
           </div>
@@ -53,11 +60,11 @@ export default function RegistrarPagoDialog({ reserva, onClose, onConfirm }: { r
             <Input id="rq-archivo" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
           </div>
           <FieldError>{errorAdjunto}</FieldError>
-          <p className="text-[11px] text-muted-foreground">Monto acordado: {fmtUsd2(reserva.montoReserva)}. {NOTA_RESERVA}</p>
+          <p className="text-xs text-muted-foreground">Monto acordado: {fmtUsd2(reserva.montoReserva)}. {NOTA_RESERVA}</p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={cerrar}>Cancelar</Button>
-          <Button disabled={!listo} onClick={() => { onConfirm({ monto: montoNum, fecha, banco: banco.trim(), referencia: referencia.trim(), archivo: archivo! }); limpiar() }}>Registrar</Button>
+          <Button disabled={!listo} onClick={() => { onConfirm({ monto: montoNum, fecha, banco: banco.trim(), referencia: referencia.trim(), archivo: archivo!, medio }); limpiar() }}>Registrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

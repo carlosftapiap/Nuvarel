@@ -14,7 +14,14 @@ import { ReservasProvider } from '@/features/reservas/store'
 import ClientesPage from '@/pages/ClientesPage'
 import ReservasPage from '@/pages/ReservasPage'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+
+/** Reservas: elige la reserva en la lista (todas) y devuelve su panel de detalle. */
+async function detalleDe(user: ReturnType<typeof userEvent.setup>, cliente: string) {
+  await user.click(await screen.findByRole('button', { name: /^Todas/ }))
+  await user.click(await screen.findByRole('button', { name: new RegExp(`^Abrir reserva .* de ${cliente}$`) }))
+  return screen.getByRole('region', { name: /^Detalle de la reserva/ })
+}
 
 configure({ asyncUtilTimeout: 15_000 })
 
@@ -40,7 +47,7 @@ async function abrirComo(id: string, url: string) {
   )
 }
 const unidadLibre = async () => (await q<{ codigo: string }>(`select codigo from public.inventory_units where estado = 'disponible' and codigo not in (select codigo_unidad from public.reservations where estado in ('solicitada', 'pago_verificado', 'confirmada')) order by codigo limit 1`)).codigo
-const nuevoCliente = async (u: string, nombre: string) => (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: `0${++n}`, origen: 'whatsapp' }), u])).id
+const nuevoCliente = async (u: string, nombre: string) => (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'whatsapp' }), u])).id
 async function aprobada(u: string, c: string, codigo: string) {
   const op = (await rpc<{ id: string }>(u, `select public.oportunidades_crear($1, $2, null) as id`, [c, codigo])).id
   const cot = (await rpc<{ id: string }>(u, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
@@ -131,7 +138,7 @@ describe('Registrar desistimiento desde la app', () => {
     const c = await nuevoCliente(carlos, 'Desde Reservas')
     const { r } = await aprobada(carlos, c, codigo)
     const s = await abrirComo(carlos, '/reservas')
-    const fila = (await screen.findByRole('cell', { name: 'Desde Reservas' })).closest('tr')!
+    const fila = await detalleDe(user, 'Desde Reservas')
     expect(within(fila).queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument()
     await user.click(within(fila).getByRole('button', { name: 'Desistimiento' }))
     const d = await screen.findByRole('dialog', { name: 'Registrar desistimiento' })
@@ -168,7 +175,7 @@ describe('Registrar desistimiento desde la app', () => {
     expect(await screen.findByText('Anulación aplicada')).toBeInTheDocument()
     expect(await q(`select estado from public.inventory_units where codigo = $1`, [codigo])).toEqual({ estado: 'disponible' })
     expect(await q(`select estado from public.reservations where id = $1`, [r])).toEqual({ estado: 'anulada' })
-    await waitFor(() => expect(within(screen.getByRole('cell', { name: 'Desde Reservas' }).closest('tr')!).getByText('Anulada')).toBeInTheDocument())
+    await waitFor(async () => expect(within(await detalleDe(user, 'Desde Reservas')).getAllByText('Anulada').length).toBeGreaterThan(0))
     f.unmount()
   })
 

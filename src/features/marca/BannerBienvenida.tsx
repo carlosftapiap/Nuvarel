@@ -26,10 +26,10 @@ export default function BannerBienvenida({ medios }: { medios: Medio[] | null })
         )}
       </div>
       {pieza && (
-        <div className="relative order-first h-28 md:order-none md:h-auto">
+        <div className="relative hidden md:block">
           <img src={pieza.tipo === 'video' ? pieza.miniatura : pieza.src} srcSet={pieza.tipo === 'imagen' && pieza.ancho ? `${pieza.miniatura} 480w, ${pieza.src} ${pieza.ancho}w` : undefined} sizes="(max-width: 768px) 100vw, 640px"
             alt={pieza.titulo} decoding="async" className="absolute inset-0 size-full object-cover object-[50%_42%]" />
-          <small className="absolute bottom-2 right-2 rounded-full bg-[#282828]/70 px-2 py-0.5 text-[10px] text-white">{NOTA_VISUALIZACION}</small>
+          <small className="absolute bottom-2 right-2 rounded-full bg-[#282828]/70 px-2 py-0.5 text-xs text-white">{NOTA_VISUALIZACION}</small>
         </div>
       )}
       {video !== null && <VisorMedios medios={lista} inicio={video} onCerrar={() => setVideo(null)} />}

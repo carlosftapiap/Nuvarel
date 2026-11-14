@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useConexion } from '@/app/auth'
 import { useSession } from '@/app/session'
 import { almacenPagos, cargarRecibos, type DatosPago, type Recibo } from '@/features/cobranza/comprobantes'
@@ -13,8 +13,9 @@ import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import { fmtUsd2, leerMonto } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import { useReservaFlujo } from '@/features/reservas/flujo'
-import { acreditacion, operacionesAbiertas, siguientePaso, type EstadoContrato } from './operacion'
+import { acreditacion, operacionesAbiertas, siguientePaso, type EstadoContrato, type EstadoCumplimiento } from './operacion'
 import { borradorVacio, type Borrador } from './borrador'
+import { identificacionCompleta } from '@/features/clientes/categoria'
 
 /**
  * Estado de una operación comercial: cotización, solicitud de reserva, pagos y contrato.
@@ -31,7 +32,10 @@ export function useOperacion(b: Borrador, setB: (f: (x: Borrador) => Borrador) =
   const flujo = useReservaFlujo()
   const hoy = hoyGuayaquil()
 
-  const [contratos, setContratos] = useState<{ reserva: string; estado: EstadoContrato }[]>([])
+  const [contratos, setContratos] = useState<{ id: string; reserva: string; estado: EstadoContrato }[]>([])
+  // Última revisión de Cumplimiento por contrato y último comprobante rechazado por reserva: la guía dice qué falta y por qué.
+  const [cumplimientos, setCumplimientos] = useState<Map<string, EstadoCumplimiento>>(new Map())
+  const [rechazos, setRechazos] = useState<Map<string, { motivo: string; fecha: string | null }>>(new Map())
   const [receptorDefinido, setReceptorDefinido] = useState<boolean | null>(null)
   const [recibos, setRecibos] = useState<Recibo[]>([])
   const [ocupado, setOcupado] = useState(false)
@@ -44,11 +48,17 @@ export function useOperacion(b: Borrador, setB: (f: (x: Borrador) => Borrador) =
   const verContratos = can('ventas.ver') || can('cobranzas.ver')
   const cargarAdicionales = useCallback(async () => {
     if (!datos) return
-    const [filas, ajustes] = await Promise.all([
-      verContratos ? datos.select<{ reservation_id: string; estado: EstadoContrato }>('contracts').catch(() => []) : [],
+    const [filas, ajustes, revisiones, comprobantes] = await Promise.all([
+      verContratos ? datos.select<{ id: string; reservation_id: string; estado: EstadoContrato }>('contracts').catch(() => []) : [],
       datos.select<{ receptor: string | null }>('payment_settings', { filtros: { id: 1 } }).catch(() => null),
+      verContratos ? datos.select<{ contract_id: string; estado: EstadoCumplimiento }>('cumplimiento_revisiones', { orden: [{ columna: 'registrado_en' }] }).catch(() => []) : [],
+      datos.select<{ reservation_id: string | null; estado: string; motivo_revision: string | null; revisado_en: string | null }>('comprobantes_pago', { orden: [{ columna: 'cargado_en' }] }).catch(() => []),
     ])
-    setContratos(filas.map((f) => ({ reserva: String(f.reservation_id), estado: f.estado })))
+    setContratos(filas.map((f) => ({ id: String(f.id), reserva: String(f.reservation_id), estado: f.estado })))
+    setCumplimientos(new Map(revisiones.map((r) => [String(r.contract_id), r.estado])))
+    const ultimo = new Map<string, (typeof comprobantes)[number]>()
+    for (const k of comprobantes) if (k.reservation_id) ultimo.set(String(k.reservation_id), k)
+    setRechazos(new Map([...ultimo].filter(([, k]) => k.estado === 'rechazado').map(([id, k]) => [id, { motivo: k.motivo_revision ?? '', fecha: k.revisado_en }])))
     setReceptorDefinido(ajustes && ajustes[0] ? !!ajustes[0].receptor : null)
     setRecibos(await cargarRecibos(datos))
   }, [datos, verContratos])
@@ -93,7 +103,16 @@ export function useOperacion(b: Borrador, setB: (f: (x: Borrador) => Borrador) =
   if (!calc.plan && !bloqueoCalculo) erroresEmision.push('Elige un departamento.')
   if (!bloqueada && calc.plan && !confirmadoVigente) erroresEmision.push('Confirma el plan antes de emitir la cotización.')
 
-  const paso = siguientePaso({ clienteId, codigo, estadoUnidad: unit?.estado, cotizacion, reserva, otraReserva, estadoContrato: contrato?.estado ?? null, receptorDefinido, hoy })
+  const cumplimiento = contrato ? cumplimientos.get(contrato.id) ?? null : null
+  const rechazoPago = reservaActiva?.estado === 'solicitada' && !reservaActiva.comprobante ? rechazos.get(reservaActiva.id) ?? null : null
+  // Una reserva con el pago verificado que no se confirmó sola tiene una excepción: se muestra el motivo.
+  const [excepciones, setExcepciones] = useState<string[]>([])
+  const idExcepcion = reservaActiva?.estado === 'pago_verificado' ? reservaActiva.id : null
+  useEffect(() => {
+    if (!datos || !idExcepcion) { setExcepciones([]); return }
+    void datos.rpc<string[] | null>('reservas_excepciones', { p_id: idExcepcion }).then((v) => setExcepciones(v ?? [])).catch(() => setExcepciones([]))
+  }, [datos, idExcepcion])
+  const paso = siguientePaso({ clienteId, codigo, estadoUnidad: unit?.estado, cotizacion, reserva, otraReserva, estadoContrato: contrato?.estado ?? null, receptorDefinido, hoy, planConfirmado: confirmadoVigente, cumplimiento, rechazoPago, excepciones, identificacionCompleta: cliente ? identificacionCompleta(cliente) : undefined })
   const firmadas = useMemo(() => new Set(contratos.filter((c) => c.estado === 'firmado').map((c) => c.reserva)), [contratos])
   const abiertas = useMemo(() => operacionesAbiertas(lista, flujo.res.reservas, firmadas, hoy), [lista, flujo.res.reservas, firmadas, hoy])
 
@@ -159,7 +178,7 @@ export function useOperacion(b: Borrador, setB: (f: (x: Borrador) => Borrador) =
 
   return {
     remoto, datos, almacen: almacenPagos(conexion), can, actor, inv, cs, lista, flujo, errorCarga,
-    cotizacion, reserva: reservaActiva, otraReserva, recibo, contrato, paso, abiertas, firmadas,
+    cotizacion, reserva: reservaActiva, otraReserva, recibo, contrato, paso, abiertas, firmadas, rechazoPago,
     clienteId, codigo, cliente, unit, bloqueada, calc, condiciones, firma, erroresEmision, bloqueoCalculo,
     confirmadoVigente, precioCambio, planConfirmado: b.planConfirmado,
     ocupado, error, setError, aviso, setAviso, montoNuevo, setMontoNuevo, pagoAbierto, setPagoAbierto,

@@ -19,9 +19,12 @@ import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd, fmtUsd2 } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import * as api from '@/features/ventas/remoto'
+import { comisionesPorContrato, type Comision } from '@/features/comisiones/remoto'
 import { almacenContratosSupabase, type AlmacenContratos } from '@/features/contratos/almacen'
 import AccionesDocumento from '@/features/contratos/components/AccionesDocumento'
 import Plantillas from '@/features/contratos/components/Plantillas'
+import ExpedienteCumplimiento from '@/features/cumplimiento/components/Expediente'
+import { ESTADO_REVISION, type EstadoRevision } from '@/features/cumplimiento/expediente'
 import type { VersionDocumento } from '@/features/contratos/model'
 import * as contratos from '@/features/contratos/remoto'
 import type { DatosVentas, EstadoContrato, EventoHistorial, Hito, ReservaPorContratar, TipoDocumento, TipoHito, Venta } from '@/features/ventas/remoto'
@@ -48,15 +51,19 @@ function Ventas({ datos, almacen }: { datos: Datos; almacen: AlmacenContratos })
   const [d, setD] = useState<DatosVentas | null>(null)
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<Filtro>('todos')
-  const [abierta, setAbierta] = useState<string | null>(null)
+  // Los avisos por correo abren el contrato con ?contrato=<id>.
+  const [abierta, setAbierta] = useState<string | null>(() => new URLSearchParams(window.location.search).get('contrato'))
   const [vista, setVista] = useState<'contratos' | 'plantillas'>('contratos')
   const [versiones, setVersiones] = useState<VersionDocumento[]>([])
   const [crear, setCrear] = useState<ReservaPorContratar | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  // Vendedor y comisión de cada venta, si la persona puede ver comisiones.
+  const [comisiones, setComisiones] = useState<Map<string, Comision>>(new Map())
 
   const recargar = useCallback(async () => {
     try {
       setD(await api.cargarVentas(datos))
+      setComisiones(await comisionesPorContrato(datos))
       try { setVersiones(await contratos.cargarTodasVersiones(datos)) } catch { setVersiones([]) }
       setErrorCarga(null)
     } catch (e) {
@@ -120,7 +127,7 @@ function Ventas({ datos, almacen }: { datos: Datos; almacen: AlmacenContratos })
             {porContratar.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                 <b>{r.codigo}</b><span>{r.clienteNombre}</span><span className="text-muted-foreground">{dpt(r.unidad)?.dpt ?? r.unidad} · {fmtUsd(r.precio)}</span>
-                {r.contratoAnulado && <span className="text-[11px] text-amber-800">Contrato anterior anulado: {r.contratoAnulado}</span>}
+                {r.contratoAnulado && <span className="text-xs text-amber-800">Contrato anterior anulado: {r.contratoAnulado}</span>}
                 {can('ventas.preparar') && <Button size="xs" className="ml-auto" onClick={() => setCrear(r)}><FilePlus2 />Generar contrato</Button>}
               </li>
             ))}
@@ -138,23 +145,24 @@ function Ventas({ datos, almacen }: { datos: Datos; almacen: AlmacenContratos })
       </div>
 
       {!d ? <p className="p-6 text-sm text-muted-foreground">Cargando ventas…</p> : lista.length === 0 ? (
-        <div className="module-empty"><h2 className="text-lg font-semibold">Sin contratos</h2><p className="mt-2 max-w-md text-sm text-muted-foreground">Un contrato se genera desde una reserva aprobada por Gerencia.</p><Button asChild className="mt-6"><Link to="/reservas">Ir a Reservas</Link></Button></div>
+        <div className="module-empty"><h2 className="text-lg font-semibold">Sin contratos</h2><p className="mt-2 max-w-md text-sm text-muted-foreground">Un contrato se genera desde una reserva confirmada.</p><Button asChild className="mt-6"><Link to="/reservas">Ir a Reservas</Link></Button></div>
       ) : (
         <div className="dashboard-card !p-0 overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="bg-muted text-[11px] text-muted-foreground">
-              <tr><th className="px-4 py-2 text-left font-medium">Contrato</th><th className="px-2 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Unidad</th><th className="px-2 py-2 text-right font-medium">Precio final</th><th className="px-2 py-2 text-left font-medium">Origen</th><th className="px-2 py-2 text-left font-medium">Firma</th><th className="px-4 py-2 text-left font-medium">Estado</th><th className="px-4 py-2 text-left font-medium">Documentos</th></tr>
+            <thead className="bg-muted text-xs text-muted-foreground">
+              <tr><th className="px-4 py-2 text-left font-medium">Contrato</th><th className="px-2 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Unidad</th><th className="px-2 py-2 text-right font-medium">Precio final</th><th className="px-2 py-2 text-left font-medium">Origen</th><th className="px-2 py-2 text-left font-medium">Vendedor · comisión</th><th className="px-2 py-2 text-left font-medium">Firma</th><th className="px-4 py-2 text-left font-medium">Estado</th><th className="px-4 py-2 text-left font-medium">Documentos</th></tr>
             </thead>
             <tbody>
               {lista.map((v) => {
                 const u = dpt(v.unidad)
                 return (
                   <tr key={v.id} className="cursor-pointer border-t border-border hover:bg-muted/50" tabIndex={0} aria-label={`Abrir ${v.codigo}`} onClick={() => setAbierta(v.id)} onKeyDown={(e) => { if (e.key === 'Enter') setAbierta(v.id) }}>
-                    <td className="px-4 py-2"><div className="font-semibold">{v.codigo}</div><div className="text-[11px] text-muted-foreground">{v.reservaCodigo} · {v.cotizacionNumero}</div></td>
+                    <td className="px-4 py-2"><div className="font-semibold">{v.codigo}</div><div className="text-xs text-muted-foreground">{v.reservaCodigo} · {v.cotizacionNumero}</div></td>
                     <td className="px-2 py-2">{v.cliente?.nombre ?? 'Sin acceso al cliente'}</td>
-                    <td className="px-2 py-2">{u?.dpt ?? v.unidad}<div className="text-[11px] text-muted-foreground">{u ? `Edificio ${u.edificio} · ${u.tipologia}` : ''}</div></td>
+                    <td className="px-2 py-2">{u?.dpt ?? v.unidad}<div className="text-xs text-muted-foreground">{u ? `Edificio ${u.edificio} · ${u.tipologia}` : ''}</div></td>
                     <td className="px-2 py-2 text-right font-medium tabular-nums">{fmtUsd(v.precio)}</td>
                     <td className="px-2 py-2">{v.corredorOrigen ?? v.origenDetalle ?? (v.origen ? api.ORIGENES_VENTA[v.origen] ?? v.origen : '—')}</td>
+                    <td className="px-2 py-2"><VendedorComision v={v} c={comisiones.get(v.codigo)} /></td>
                     <td className="px-2 py-2">{v.fechaFirma ? fmtFechaCorta(v.fechaFirma) : '—'}</td>
                     <td className="px-4 py-2"><Estado e={v.estado} /></td>
                     <td className="px-4 py-2"><AccionesDocumento compacto venta={v} versiones={versiones.filter((x) => x.contratoId === v.id)} datos={datos} almacen={almacen} can={can} onCambio={recargar} /></td>
@@ -168,7 +176,7 @@ function Ventas({ datos, almacen }: { datos: Datos; almacen: AlmacenContratos })
 
       </>)}
 
-      {venta && <Ficha v={venta} datos={datos} almacen={almacen} versiones={versiones.filter((x) => x.contratoId === venta.id)} recargarDocumentos={recargar} ejecutar={ejecutar} onClose={() => setAbierta(null)} />}
+      {venta && <Ficha v={venta} comision={comisiones.get(venta.codigo)} datos={datos} almacen={almacen} versiones={versiones.filter((x) => x.contratoId === venta.id)} recargarDocumentos={recargar} ejecutar={ejecutar} onClose={() => setAbierta(null)} />}
       {crear && (
         <FormDialog titulo={`Generar contrato de ${crear.codigo}`} descripcion={`${crear.clienteNombre} · ${dpt(crear.unidad)?.dpt ?? crear.unidad} · ${fmtUsd(crear.precio)}. El precio y el cronograma salen de la cotización aceptada; no se pueden cambiar aquí.`}
           campos={[{ k: 'fecha', etiqueta: 'Fecha del contrato *', tipo: 'date', inicial: hoyGuayaquil() }, { k: 'motivo', etiqueta: 'Motivo *', tipo: 'area', min: 5 }]} accion="Generar contrato"
@@ -184,11 +192,21 @@ type Pedido =
   | { tipo: 'firmar' } | { tipo: 'documento' } | { tipo: 'hito' } | { tipo: 'anular' }
   | { tipo: 'retirar'; id: string; nombre: string } | { tipo: 'revertir'; hito: Hito }
 
-function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onClose }: { v: Venta; datos: Datos; almacen: AlmacenContratos; versiones: VersionDocumento[]; recargarDocumentos: () => Promise<void>; ejecutar: (fn: () => Promise<unknown>, ok: string) => Promise<void>; onClose: () => void }) {
+/** Vendedor responsable de la venta y su comisión; sin permiso de comisiones, solo el vendedor. */
+function VendedorComision({ v, c }: { v: Venta; c?: Comision }) {
+  const vendedor = c?.beneficiario ?? v.responsable ?? v.asesor
+  if (!c) return <>{vendedor ?? '—'}</>
+  const t = c.tramos[0]
+  const estado = c.estado === 'anulada' ? 'anulada' : t?.estado === 'pagada' ? 'pagada' : t?.listaParaPago ? 'lista para pago' : 'pendiente'
+  return <>{vendedor ?? '—'}<div className="text-xs tabular-nums text-muted-foreground">{fmtUsd2(c.montoTotal)} · {estado}</div></>
+}
+
+function Ficha({ v, comision, datos, almacen, versiones, recargarDocumentos, ejecutar, onClose }: { v: Venta; comision?: Comision; datos: Datos; almacen: AlmacenContratos; versiones: VersionDocumento[]; recargarDocumentos: () => Promise<void>; ejecutar: (fn: () => Promise<unknown>, ok: string) => Promise<void>; onClose: () => void }) {
   const { can } = useSession()
   const { state: inv } = useInventory()
   const [pedido, setPedido] = useState<Pedido | null>(null)
   const [eventos, setEventos] = useState<EventoHistorial[]>([])
+  const [cumplimiento, setCumplimiento] = useState<EstadoRevision | 'sin_enviar' | null>(null)
   const u = inv.units.find((x) => x.codigo === v.unidad)
   const c = v.condiciones
   const verPagos = can('cobranzas.ver')
@@ -216,7 +234,9 @@ function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onC
           </div>
           {v.estado !== 'anulado' && (
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {v.estado === 'borrador' && formaliza && <Button size="sm" onClick={() => setPedido({ tipo: 'firmar' })}><FileSignature />Registrar firma</Button>}
+              {v.estado === 'borrador' && formaliza && (
+                <Button size="sm" disabled={cumplimiento !== 'aprobado'} title={cumplimiento !== 'aprobado' ? 'Requiere la aprobación de Cumplimiento' : undefined} onClick={() => setPedido({ tipo: 'firmar' })}><FileSignature />Registrar firma</Button>
+              )}
               {can('ventas.preparar') && <Button size="sm" variant="outline" onClick={() => setPedido({ tipo: 'documento' })}>Registrar documento</Button>}
               {v.estado === 'firmado' && formaliza && faltan.length > 0 && <Button size="sm" variant="outline" onClick={() => setPedido({ tipo: 'hito' })}>Registrar hito</Button>}
               {formaliza && <Button size="sm" variant="outline" className="ml-auto text-rose-700" onClick={() => setPedido({ tipo: 'anular' })}>Anular contrato</Button>}
@@ -227,6 +247,17 @@ function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onC
         <div className="grid gap-5 px-5 py-5">
           {v.estado === 'anulado' && (
             <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">Anulado el {v.anuladoEn ? fmtFechaCorta(v.anuladoEn) : '—'} por {v.anuladoPor ?? '—'}: {v.motivoAnulacion}. Se conserva como historia y ya no es exigible.{verPagos && v.pagadoVerificado > 0 ? ` Se recibieron ${fmtUsd2(v.pagadoVerificado)}: la devolución o el traslado lo resuelve Finanzas.` : ''}</p>
+          )}
+
+          {v.estado === 'borrador' && formaliza && cumplimiento !== null && cumplimiento !== 'aprobado' && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">La firma se habilita cuando Cumplimiento apruebe el expediente. Estado actual: {ESTADO_REVISION[cumplimiento].label.toLowerCase()}.</p>
+          )}
+
+          {v.estado !== 'anulado' && (
+            <section aria-labelledby="ve-cumplimiento" className="rounded-xl border border-border p-4">
+              <h3 id="ve-cumplimiento" className="mb-2 text-sm font-semibold">Cumplimiento</h3>
+              <ExpedienteCumplimiento contrato={v.id} borrador={v.estado === 'borrador'} datos={datos} almacen={almacen} ejecutar={ejecutar} onEstado={setCumplimiento} />
+            </section>
           )}
 
           <Bloque id="ve-documentos" titulo="Documentos contractuales">
@@ -248,10 +279,11 @@ function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onC
               <Dato t="Reserva" v={`${v.reservaCodigo} · ${fmtUsd2(v.montoReserva)}`} />
               <Dato t="Asesor principal" v={v.asesor ?? 'Sin dato histórico'} />
               <Dato t="Responsable de la negociación" v={v.responsable ?? 'Sin dato histórico'} />
+              {comision && <Dato t="Comisión del vendedor" v={`${comision.beneficiario ?? v.responsable ?? '—'} · ${fmtUsd2(comision.montoTotal)} (${comision.porcentaje.toFixed(2)} %)`} />}
               <Dato t="Corredor de origen" v={v.corredorOrigen ?? (v.origen === 'corredor' ? `${v.origenDetalle ?? ''} (no registrado)` : 'No aplica')} />
               <Dato t="Origen" v={v.origen ? `${api.ORIGENES_VENTA[v.origen] ?? v.origen}${v.origenDetalle ? ` · ${v.origenDetalle}` : ''}` : 'Sin dato histórico'} />
               <Dato t="Atribución de captación" v={v.atribucion ?? 'Sin dato histórico'} />
-              {v.asesorActual && v.asesor && v.asesorActual !== v.asesor && <p className="text-[11px] text-amber-800">El cliente hoy lo atiende {v.asesorActual}. Estos datos son los de la venta y no cambian.</p>}
+              {v.asesorActual && v.asesor && v.asesorActual !== v.asesor && <p className="text-xs text-amber-800">El cliente hoy lo atiende {v.asesorActual}. Estos datos son los de la venta y no cambian.</p>}
             </Bloque>
           </div>
 
@@ -272,13 +304,13 @@ function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onC
           <section aria-labelledby="ve-cron" className="grid gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <h3 id="ve-cron" className="text-sm font-semibold">Cronograma de pagos</h3>
-              {verPagos && <span className="text-[11px] text-muted-foreground">Recibido y conciliado: {fmtUsd2(v.pagadoVerificado)} · Saldo: {fmtUsd2(v.saldo)}</span>}
+              {verPagos && <span className="text-xs text-muted-foreground">Recibido y conciliado: {fmtUsd2(v.pagadoVerificado)} · Saldo: {fmtUsd2(v.saldo)}</span>}
               {verPagos && <Link to={`/cobranzas?contrato=${v.id}`} className="ml-auto text-xs text-primary hover:underline">Ver en Cobranzas</Link>}
             </div>
-            {v.estado === 'borrador' && <p className="text-[11px] text-muted-foreground">Se vuelve exigible al firmar el contrato.</p>}
+            {v.estado === 'borrador' && <p className="text-xs text-muted-foreground">Se vuelve exigible al firmar el contrato.</p>}
             <div className="max-h-64 overflow-auto rounded-lg border border-border">
               <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-muted text-[11px] text-muted-foreground"><tr><th className="px-3 py-1.5 text-left font-medium">Concepto</th><th className="px-2 py-1.5 text-left font-medium">Vence</th><th className="px-2 py-1.5 text-right font-medium">Monto</th>{verPagos && <th className="px-3 py-1.5 text-right font-medium">Pendiente</th>}</tr></thead>
+                <thead className="sticky top-0 bg-muted text-xs text-muted-foreground"><tr><th className="px-3 py-1.5 text-left font-medium">Concepto</th><th className="px-2 py-1.5 text-left font-medium">Vence</th><th className="px-2 py-1.5 text-right font-medium">Monto</th>{verPagos && <th className="px-3 py-1.5 text-right font-medium">Pendiente</th>}</tr></thead>
                 <tbody>{v.cuotas.map((q) => (
                   <tr key={q.numero} className="border-t border-border"><td className="px-3 py-1">{q.concepto}</td><td className="px-2 py-1">{q.vencimiento ? fmtFechaCorta(q.vencimiento) : 'A la entrega'}</td><td className="px-2 py-1 text-right tabular-nums">{fmtUsd2(q.monto)}</td>{verPagos && <td className="px-3 py-1 text-right tabular-nums">{fmtUsd2(q.pendiente)}</td>}</tr>
                 ))}</tbody>
@@ -295,8 +327,8 @@ function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onC
                   <div className="flex items-center gap-2"><b className={cn(h.revertidoEn && 'line-through')}>{api.HITOS[h.hito]}</b><span className="text-muted-foreground">{fmtFechaCorta(h.fecha)}</span>
                     {!h.revertidoEn && formaliza && h.hito !== 'contrato_firmado' && <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setPedido({ tipo: 'revertir', hito: h })}>Revertir</Button>}
                   </div>
-                  <div className="text-[11px] text-muted-foreground">{h.registradoPor} · {h.motivo}{h.referencia ? ` · ${h.referencia}` : ''}</div>
-                  {h.revertidoEn && <div className="text-[11px] text-amber-800">Revertido: {h.motivoReversion}</div>}
+                  <div className="text-xs text-muted-foreground">{h.registradoPor} · {h.motivo}{h.referencia ? ` · ${h.referencia}` : ''}</div>
+                  {h.revertidoEn && <div className="text-xs text-amber-800">Revertido: {h.motivoReversion}</div>}
                 </li>
               ))}</ul>
             </section>
@@ -308,9 +340,9 @@ function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onC
                   <div className="flex items-center gap-2"><b className={cn(x.retiradoEn && 'line-through')}>{api.TIPOS_DOCUMENTO[x.tipo]}</b>
                     {!x.retiradoEn && formaliza && v.estado !== 'anulado' && <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setPedido({ tipo: 'retirar', id: x.id, nombre: api.TIPOS_DOCUMENTO[x.tipo] })}>Retirar</Button>}
                   </div>
-                  <div className="break-all text-[11px] text-muted-foreground">{x.referencia}</div>
-                  <div className="text-[11px] text-muted-foreground">{x.registradoPor}{x.descripcion ? ` · ${x.descripcion}` : ''}</div>
-                  {x.retiradoEn && <div className="text-[11px] text-amber-800">Retirado: {x.motivoRetiro}</div>}
+                  <div className="break-all text-xs text-muted-foreground">{x.referencia}</div>
+                  <div className="text-xs text-muted-foreground">{x.registradoPor}{x.descripcion ? ` · ${x.descripcion}` : ''}</div>
+                  {x.retiradoEn && <div className="text-xs text-amber-800">Retirado: {x.motivoRetiro}</div>}
                 </li>
               ))}</ul>
             </section>
@@ -319,7 +351,7 @@ function Ficha({ v, datos, almacen, versiones, recargarDocumentos, ejecutar, onC
           <section aria-labelledby="ve-hist" className="grid gap-2">
             <h3 id="ve-hist" className="flex items-center gap-1.5 text-sm font-semibold"><History className="size-4" />Historial de cambios</h3>
             <ol className="grid gap-2 border-l border-border pl-4">{eventos.map((e, i) => (
-              <li key={i} className="text-xs"><div><b>{e.accion}</b> · {e.motivo}</div><div className="text-[11px] text-muted-foreground">{new Date(e.fecha).toLocaleString('es-EC', { timeZone: 'America/Guayaquil', dateStyle: 'short', timeStyle: 'short' })} · {e.usuario}{e.evidencia ? ` · ${e.evidencia}` : ''}</div></li>
+              <li key={i} className="text-xs"><div><b>{e.accion}</b> · {e.motivo}</div><div className="text-xs text-muted-foreground">{new Date(e.fecha).toLocaleString('es-EC', { timeZone: 'America/Guayaquil', dateStyle: 'short', timeStyle: 'short' })} · {e.usuario}{e.evidencia ? ` · ${e.evidencia}` : ''}</div></li>
             ))}</ol>
           </section>
         </div>
@@ -413,7 +445,7 @@ function FormDialog({ titulo, descripcion, campos, accion, peligro, onClose, onC
 }
 
 function Estado({ e }: { e: EstadoContrato }) {
-  return <span className={cn('whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', api.ESTADO_CONTRATO[e].tono)}>{api.ESTADO_CONTRATO[e].label}</span>
+  return <span className={cn('whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', api.ESTADO_CONTRATO[e].tono)}>{api.ESTADO_CONTRATO[e].label}</span>
 }
 
 function Bloque({ id, titulo, children }: { id: string; titulo: string; children: React.ReactNode }) {
@@ -425,5 +457,5 @@ function Dato({ t, v, fuerte }: { t: string; v: string; fuerte?: boolean }) {
 }
 
 function Kpi({ t, v, d, tono }: { t: string; v: number | string; d: string; tono?: string }) {
-  return <div className="dashboard-card !p-4"><div className="text-[11px] text-muted-foreground">{t}</div><div className={cn('mt-1 text-xl font-semibold tabular-nums tracking-tight', tono)}>{v}</div><div className="mt-0.5 text-[11px] text-muted-foreground">{d}</div></div>
+  return <div className="dashboard-card !p-4"><div className="text-xs text-muted-foreground">{t}</div><div className={cn('mt-1 text-xl font-semibold tabular-nums tracking-tight', tono)}>{v}</div><div className="mt-0.5 text-xs text-muted-foreground">{d}</div></div>
 }

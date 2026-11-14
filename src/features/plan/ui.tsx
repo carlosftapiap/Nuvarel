@@ -14,7 +14,7 @@ export const colorBarra: Record<Color, string> = { rojo: '#e11d48', ambar: '#d97
 /** El color siempre lleva texto: no indica por sí solo el estado. */
 export function SemaforoBadge({ s, className }: { s: Semaforo; className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', COLOR[s.color].tono, className)}>
+    <span className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', COLOR[s.color].tono, className)}>
       <span className={cn('size-1.5 rounded-full', COLOR[s.color].punto)} aria-hidden="true" />{s.texto}
     </span>
   )
@@ -23,8 +23,8 @@ export function SemaforoBadge({ s, className }: { s: Semaforo; className?: strin
 export function EstadoBadge({ estado, bloqueada }: { estado: EstadoActividad; bloqueada?: boolean }) {
   return (
     <span className="inline-flex flex-wrap items-center gap-1">
-      <span className={cn('whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', ESTADO_ACTIVIDAD[estado].tone)}>{ESTADO_ACTIVIDAD[estado].label}</span>
-      {bloqueada && <span className="whitespace-nowrap rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-orange-800 ring-1 ring-inset ring-orange-200">Bloqueada</span>}
+      <span className={cn('whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', ESTADO_ACTIVIDAD[estado].tone)}>{ESTADO_ACTIVIDAD[estado].label}</span>
+      {bloqueada && <span className="whitespace-nowrap rounded-full bg-orange-50 px-2 py-0.5 text-xs font-medium text-orange-800 ring-1 ring-inset ring-orange-200">Bloqueada</span>}
     </span>
   )
 }
@@ -32,9 +32,9 @@ export function EstadoBadge({ estado, bloqueada }: { estado: EstadoActividad; bl
 export function Kpi({ t, v, d, tone }: { t: string; v: ReactNode; d?: string; tone?: string }) {
   return (
     <div className="dashboard-card !p-4">
-      <div className="text-[11px] text-muted-foreground">{t}</div>
+      <div className="text-xs text-muted-foreground">{t}</div>
       <div className={cn('mt-1 text-xl font-semibold tabular-nums tracking-tight', tone)}>{v}</div>
-      {d && <div className="mt-0.5 text-[11px] text-muted-foreground">{d}</div>}
+      {d && <div className="mt-0.5 text-xs text-muted-foreground">{d}</div>}
     </div>
   )
 }
@@ -49,7 +49,7 @@ export function fmtPct(v: number | null) {
   return v === null ? 'Sin dato' : `${v.toLocaleString('es-EC', { maximumFractionDigits: 1 })}%`
 }
 
-export const pendiente = <span className="text-[11px] italic text-muted-foreground">Pendiente</span>
+export const pendiente = <span className="text-xs italic text-muted-foreground">Pendiente</span>
 
 /** Nombre del responsable o texto original del archivo marcado como pendiente de vincular. */
 export function nombreResponsable(a: Actividad, personas: Map<string, string>) {

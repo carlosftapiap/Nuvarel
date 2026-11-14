@@ -1,6 +1,6 @@
 import type { Rol } from '@/features/inventario/types'
 
-export type Origen = 'instagram' | 'whatsapp' | 'referido' | 'corredor' | 'visita'
+export type Origen = 'instagram' | 'whatsapp' | 'referido' | 'corredor' | 'visita' | 'facebook' | 'web'
 export type Proposito = 'vivir' | 'invertir'
 export type FormaPago = 'contado' | 'banco' | 'biess'
 export type Etapa = 'nuevo' | 'contactado' | 'calificado' | 'visita' | 'cotizacion' | 'negociacion' | 'reserva' | 'perdido' | 'seguimiento'
@@ -95,7 +95,7 @@ export interface ClientesState {
 }
 
 export const ORIGENES: Record<Origen, string> = {
-  instagram: 'Instagram', whatsapp: 'WhatsApp', referido: 'Referido', corredor: 'Corredor', visita: 'Visita directa',
+  instagram: 'Instagram', whatsapp: 'WhatsApp', referido: 'Referido', corredor: 'Corredor', visita: 'Visita directa', facebook: 'Facebook', web: 'Página web',
 }
 export const PROPOSITOS: Record<Proposito, string> = { vivir: 'Para vivir', invertir: 'Para invertir' }
 export const FORMAS_PAGO: Record<FormaPago, string> = { contado: 'Contado', banco: 'Crédito bancario', biess: 'BIESS' }

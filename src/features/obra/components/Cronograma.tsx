@@ -13,7 +13,7 @@ import ImportarCronograma from './ImportarCronograma'
 import { Aviso, EtiquetaEstado, fechaCorta, fechaHora, pct, Vacio } from './ui'
 
 const PX_DIA = 3
-const campo = 'h-7 rounded border border-border bg-white px-1 text-[11px] disabled:bg-transparent disabled:border-transparent'
+const campo = 'h-7 rounded border border-border bg-white px-1 text-xs disabled:bg-transparent disabled:border-transparent'
 const porOrden = (a: Actividad, b: Actividad) => a.orden - b.orden || a.codigo.localeCompare(b.codigo, 'es', { numeric: true })
 
 const distinto = (a: Actividad, b: Actividad) =>
@@ -166,8 +166,8 @@ export default function Cronograma({ ctx }: { ctx: ContextoObra }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {frente.pesosAprobados
-            ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">Ponderaciones aprobadas por {frente.pesosAprobadosNombre}</span>
-            : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Ponderaciones sin aprobar</span>}
+            ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">Ponderaciones aprobadas por {frente.pesosAprobadosNombre}</span>
+            : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Ponderaciones sin aprobar</span>}
           {trabajo.length > 0 && (incompletos.length === 0
             ? <span className="text-emerald-700">Cada nivel suma 100 %</span>
             : <span className="text-amber-800">{incompletos.length} nivel(es) sin completar: {incompletos.slice(0, 3).map((g) => `${g.parentId ? porId.get(g.parentId)?.codigo ?? '' : 'principal'} suma ${g.suma.toLocaleString('es-EC')} %`).join(' · ')}{incompletos.length > 3 ? '…' : ''}</span>)}
@@ -195,7 +195,7 @@ export default function Cronograma({ ctx }: { ctx: ContextoObra }) {
           Las fechas y los porcentajes quedan vacíos hasta que el equipo técnico los defina. Puedes partir de una plantilla editable de etapas o importar el cronograma desde Excel.
           {editar && (
             <div className="mt-4 flex flex-wrap items-end justify-center gap-2 text-left">
-              <div className="grid gap-1"><label htmlFor="plantilla-motivo" className="text-[11px]">Motivo</label><Input id="plantilla-motivo" className="w-72" value={motivoPlantilla} onChange={(e) => setMotivoPlantilla(e.target.value)} /></div>
+              <div className="grid gap-1"><label htmlFor="plantilla-motivo" className="text-xs">Motivo</label><Input id="plantilla-motivo" className="w-72" value={motivoPlantilla} onChange={(e) => setMotivoPlantilla(e.target.value)} /></div>
               <Button size="sm" disabled={guardando || motivoPlantilla.trim().length < 5} onClick={() => void plantilla()}>Cargar etapas de la plantilla</Button>
             </div>
           )}
@@ -203,7 +203,7 @@ export default function Cronograma({ ctx }: { ctx: ContextoObra }) {
       ) : (
         <div className="dashboard-card !p-0 overflow-x-auto">
           <table className="w-full text-xs" aria-label={`Cronograma de ${frente.nombre}`}>
-            <thead className="bg-muted text-[11px] text-muted-foreground">
+            <thead className="bg-muted text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 text-left font-medium">Actividad</th>
                 <th className="px-1 py-2 text-right font-medium">Peso %</th>
@@ -218,7 +218,7 @@ export default function Cronograma({ ctx }: { ctx: ContextoObra }) {
                 <th className="px-1 py-2 text-left font-medium">Depende de</th>
                 {editar && <th className="px-2 py-2 text-right font-medium">Acciones</th>}
                 <th className="p-0 text-left font-medium" style={hayFechas ? { width: ancho, minWidth: ancho } : undefined}>
-                  {hayFechas ? <div className="flex" aria-label="Meses del diagrama">{meses.map((m, i) => <div key={i} className="shrink-0 border-l border-border px-1 py-2 text-[10px] capitalize" style={{ width: m.px }}>{m.px > 28 ? m.etiqueta : ''}</div>)}</div> : <span className="px-2">Diagrama</span>}
+                  {hayFechas ? <div className="flex" aria-label="Meses del diagrama">{meses.map((m, i) => <div key={i} className="shrink-0 border-l border-border px-1 py-2 text-xs capitalize" style={{ width: m.px }}>{m.px > 28 ? m.etiqueta : ''}</div>)}</div> : <span className="px-2">Diagrama</span>}
                 </th>
               </tr>
             </thead>
@@ -297,7 +297,7 @@ export default function Cronograma({ ctx }: { ctx: ContextoObra }) {
               })}
             </tbody>
           </table>
-          <p className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+          <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
             {hayFechas
               ? 'Diagrama: barra clara = previsto (relleno = avance actual) · barra oscura = real · línea roja = hoy.'
               : 'El diagrama aparece cuando se definan fechas. Las fechas pueden quedar vacías mientras no estén programadas.'}
@@ -308,7 +308,7 @@ export default function Cronograma({ ctx }: { ctx: ContextoObra }) {
       {sucio && (
         <div className="sticky bottom-3 z-10 flex flex-wrap items-end gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 shadow-md" role="region" aria-label="Cambios sin guardar">
           <p className="mr-auto text-xs font-medium text-amber-900">{cambios.length} actividad(es) con cambios sin guardar</p>
-          <div className="grid min-w-64 gap-1"><label htmlFor="cronograma-motivo" className="text-[11px] text-amber-900">Motivo del cambio *</label><Input id="cronograma-motivo" className="bg-white" value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
+          <div className="grid min-w-64 gap-1"><label htmlFor="cronograma-motivo" className="text-xs text-amber-900">Motivo del cambio *</label><Input id="cronograma-motivo" className="bg-white" value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
           <Button size="sm" variant="outline" disabled={guardando} onClick={() => { setTrabajo(base); setMotivo(''); setError(null) }}>Descartar</Button>
           <Button size="sm" disabled={guardando || motivo.trim().length < 5} onClick={() => void guardar()}>{guardando ? 'Guardando…' : 'Guardar cambios'}</Button>
         </div>

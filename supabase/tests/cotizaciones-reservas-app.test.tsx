@@ -73,7 +73,7 @@ beforeAll(async () => {
   carlos = await crearUsuario(db, 'Carlos Corredor', 'corredor')
   await db.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A2'`)
   await como(db, admin, () => db.query(`select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`))
-  cliente = (await como(db, cora, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Andrea Mora", "documento": "1712345678", "telefono": "0995556677", "email": "andrea@correo.com", "origen": "instagram"}'::jsonb, $1) as id`, [cora]))).rows[0].id
+  cliente = (await como(db, cora, () => db.query<{ id: string }>(`select public.clientes_crear(null, '{"nombre": "Andrea Mora", "documento": "1712345675", "telefono": "0995556677", "email": "andrea@correo.com", "origen": "instagram"}'::jsonb, $1) as id`, [cora]))).rows[0].id
 }, 60_000)
 
 describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
@@ -82,14 +82,14 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
     const s = await abrirComo(cora, `/cotizaciones?cliente=${cliente}&unidad=E1-PB-A2`)
     await waitFor(() => expect(screen.getByLabelText('Nombre completo *')).toHaveValue('Andrea Mora'))
     expect(screen.getByLabelText('Nombre completo *')).toBeDisabled()
-    expect(screen.getByLabelText('Cédula o RUC')).toHaveValue('1712345678')
+    expect(screen.getByLabelText('Cédula o RUC')).toHaveValue('1712345675')
     expect(screen.queryByLabelText('Nombre *')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '15 días' }))
     await user.click(screen.getByRole('button', { name: /Generar PDF/ }))
     expect(await screen.findByText(/COT-\d{4}-0001 generada para Andrea Mora/, undefined, { timeout: 10_000 })).toBeInTheDocument()
 
     const q = await uno<{ client_id: string; opportunity_id: string; estado: string; cliente: { documento: string }; precio_final: string }>(`select * from public.quotes where client_id = $1`, [cliente])
-    expect(q).toMatchObject({ client_id: cliente, estado: 'emitida', cliente: { documento: '1712345678' } })
+    expect(q).toMatchObject({ client_id: cliente, estado: 'emitida', cliente: { documento: '1712345675' } })
     expect(q.opportunity_id).toBeTruthy()
     expect((await uno<{ etapa: string }>(`select etapa from public.clients where id = $1`, [cliente])).etapa).toBe('cotizacion')
     expect(localStorage.getItem('amura.cotizaciones.v1')).toBeNull()
@@ -150,7 +150,7 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
     s.unmount()
   })
 
-  it('Finanzas verifica el ingreso y Gerencia aprueba: reserva, unidad y cliente cambian juntos', async () => {
+  it('Finanzas verifica el ingreso y la reserva normal se confirma sola: reserva, unidad y cliente cambian juntos', async () => {
     const user = userEvent.setup()
     const f = await abrirComo(finanzas, '/reservas')
     await user.click(await screen.findByRole('button', { name: /Verificar pago/ }))
@@ -160,18 +160,14 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
     await user.type(within(dlg).getByLabelText(/Monto recibido/), String(m.monto_reserva).replace('.', ','))
     await user.click(within(dlg).getByLabelText(/Verifiqué el ingreso/))
     await user.click(within(dlg).getByRole('button', { name: 'Verificar ingreso' }))
-    expect(await screen.findByText(/verificado · pendiente de aprobación/)).toBeInTheDocument()
-    expect(await estado()).toEqual({ reserva: 'pago_verificado', unidad: 'disponible', etapa: 'cotizacion' })
-    expect(screen.queryByRole('button', { name: /Aprobar/ })).not.toBeInTheDocument()
+    expect(await screen.findByText(/verificado · reserva confirmada y unidad reservada/)).toBeInTheDocument()
+    expect(await estado()).toEqual({ reserva: 'confirmada', unidad: 'reservado', etapa: 'reserva' })
     f.unmount()
 
+    // Sin excepciones, Gerencia no tiene nada que autorizar.
     const g = await abrirComo(gerente, '/reservas')
-    await user.click(await screen.findByRole('button', { name: /Aprobar/ }))
-    const a = await screen.findByRole('dialog', { name: /Aprobar la reserva/ })
-    await user.type(within(a).getByLabelText(/Motivo/), 'Condiciones revisadas en comité')
-    await user.click(within(a).getByRole('button', { name: 'Aprobar reserva' }))
-    expect(await screen.findByText(/aprobada · unidad bloqueada/)).toBeInTheDocument()
-    expect(await estado()).toEqual({ reserva: 'confirmada', unidad: 'reservado', etapa: 'reserva' })
+    await screen.findByText('Excepciones por autorizar')
+    expect(screen.queryByRole('button', { name: /Autorizar excepción/ })).not.toBeInTheDocument()
     g.unmount()
   })
 

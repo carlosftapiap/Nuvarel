@@ -5,7 +5,7 @@ import { cargarCobranza } from '../../src/features/cobranza/api'
 import { cargarClientes } from '../../src/features/clientes/remoto'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, sofia: string, cora: string, carlos: string, vera: string, jarval: string
@@ -15,7 +15,7 @@ const uno = async <T>(sql: string, p: unknown[] = []) => (await db.query<T>(sql,
 const rpc = <T = unknown>(u: string, sql: string, p: unknown[] = []) => como(db, u, async () => (await db.query<T>(sql, p)).rows[0])
 const cuenta = (u: string, tabla: string, col: string, id: string) => como(db, u, async () => (await db.query(`select 1 from public.${tabla} where ${col} = $1`, [id])).rows.length)
 const nuevoCliente = async (u: string, nombre: string, extra: Record<string, unknown> = {}) =>
-  (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: `0${++n}`, origen: 'whatsapp', ...extra }), extra.asesor ?? u])).id
+  (await rpc<{ id: string }>(u, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'whatsapp', ...extra }), extra.asesor ?? u])).id
 
 /** Cotización aceptada, reserva verificada y aprobada: el camino autorizado completo. */
 async function reservaAprobada(u: string, cliente: string, unidad: string) {
@@ -145,7 +145,7 @@ describe('origen y atribución para comisiones', () => {
 
   it('el origen no se cambia después; solo una corrección autorizada y auditada', async () => {
     const c = await nuevoCliente(cora, 'Origen fijo', { origen: 'instagram' })
-    const datos = JSON.stringify({ nombre: 'Origen fijo', telefono: `0${++n}`, origen: 'corredor', origen_detalle: 'Cora' })
+    const datos = JSON.stringify({ nombre: 'Origen fijo', telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'corredor', origen_detalle: 'Cora' })
     await expect(rpc(cora, `select public.clientes_editar($1, null, $2::jsonb)`, [c, datos])).rejects.toThrow(/no se cambia/)
     await expect(rpc(vera, `select public.clientes_corregir_origen($1, null, 'corredor', 'Cora', null, 'Sin permiso')`, [c])).rejects.toThrow(/Sin permiso/)
     await rpc(admin, `select public.clientes_corregir_origen($1, null, 'corredor', 'Cora Corredora', $2, 'Disputa resuelta por gerencia')`, [c, cora])
@@ -159,7 +159,7 @@ describe('cliente → oportunidad → cotización → reserva → contrato → c
   let c: string, f: { op: string; q: string; r: string }, contrato: string
 
   beforeAll(async () => {
-    c = await nuevoCliente(carlos, 'Flujo integral', { origen: 'corredor', origen_detalle: 'Carlos Corredor', documento: '1712345678', email: 'integral@correo.com' })
+    c = await nuevoCliente(carlos, 'Flujo integral', { origen: 'corredor', origen_detalle: 'Carlos Corredor', documento: '1712345675', email: 'integral@correo.com' })
     f = await reservaAprobada(carlos, c, 'E1-PB-A2')
     contrato = (await rpc<{ id: string }>(admin, `select public.contratos_crear($1, $2::date, 'Contrato del flujo integral') as id`, [f.r, hoyGuayaquil()])).id
   })
@@ -168,7 +168,7 @@ describe('cliente → oportunidad → cotización → reserva → contrato → c
     const q = await uno<{ client_id: string; opportunity_id: string; codigo: string; precio_final: string; cliente: { nombre: string; documento: string } }>(`select * from public.quotes where id = $1`, [f.q])
     const r = await uno<{ client_id: string; opportunity_id: string; codigo_unidad: string; precio_acordado: string; quote_id: string }>(`select * from public.reservations where id = $1`, [f.r])
     const k = await uno<{ client_id: string; opportunity_id: string; codigo_unidad: string; precio: string; reservation_id: string }>(`select * from public.contracts where id = $1`, [contrato])
-    expect(q).toMatchObject({ client_id: c, opportunity_id: f.op, codigo: 'E1-PB-A2', cliente: { nombre: 'Flujo integral', documento: '1712345678' } })
+    expect(q).toMatchObject({ client_id: c, opportunity_id: f.op, codigo: 'E1-PB-A2', cliente: { nombre: 'Flujo integral', documento: '1712345675' } })
     expect(r).toMatchObject({ client_id: c, opportunity_id: f.op, codigo_unidad: 'E1-PB-A2', quote_id: f.q })
     expect(k).toMatchObject({ client_id: c, opportunity_id: f.op, codigo_unidad: 'E1-PB-A2', reservation_id: f.r })
     expect(r.precio_acordado).toBe(q.precio_final)
@@ -188,6 +188,7 @@ describe('cliente → oportunidad → cotización → reserva → contrato → c
   })
 
   it('cobranza lee el mismo contrato y el dinero de la reserva ya verificado', async () => {
+    await aprobarCumplimiento(db)
     await rpc(admin, `select public.contratos_firmar($1, 'Firma de prueba', 'contratos/x.pdf')`, [contrato])
     const d = await cargarCobranza(datosPglite(db, finanzas))
     expect(d.contratos.find((x) => x.id === contrato)).toMatchObject({ cliente: 'Flujo integral', responsable: 'Carlos Corredor', estado: 'firmado' })
@@ -236,7 +237,7 @@ describe('cliente → oportunidad → cotización → reserva → contrato → c
 })
 
 describe('cierre de la importación', () => {
-  const fila = (id: string) => [{ origen_id: id, nombre: 'Importado', telefono: `0${++n}`, origen: 'whatsapp', etapa: 'nuevo', asesor_id: 'x', actividades: [] }]
+  const fila = (id: string) => [{ origen_id: id, nombre: 'Importado', telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'whatsapp', etapa: 'nuevo', asesor_id: 'x', actividades: [] }]
 
   it('administración la cierra; el equipo ya no puede usarla y administración conserva la recuperación', async () => {
     await expect(rpc(carlos, `select public.clientes_importacion_definir(false, 'Quiero cerrarla')`)).rejects.toThrow(/Solo administración/)

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { como, crearDb, crearUsuario, aprobarCumplimiento } from './db'
 
 let db: PGlite
 let admin: string, vera: string, finanzas: string, gerente: string
@@ -23,7 +23,7 @@ beforeAll(async () => {
   hoy = (await uno<{ hoy: string }>(`select ((now() at time zone 'America/Guayaquil')::date)::text as hoy`)).hoy
   await db.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A2'`)
   clienteId = (await db.query<{ id: string }>(
-    `insert into public.clients (nombre, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Cliente de cobranza', '0990000020', 'whatsapp', $1, $1, $1) returning id`,
+    `insert into public.clients (nombre, documento, telefono, origen, asesor_id, created_by, atribucion_usuario_id) values ('Cliente de cobranza', '1715000202', '0990000020', 'whatsapp', $1, $1, $1) returning id`,
     [vera])).rows[0].id
   // Cotización aceptada del ejemplo: precio final 172.147,20 (6% = 10.328,83; cuotas 14%; entrega 80%).
   const op = (await db.query<{ id: string }>(
@@ -71,6 +71,7 @@ describe('reserva configurable y cronograma al firmar', () => {
   })
 
   it('al firmar el cronograma pasa a ser exigible y las cuotas vencidas aparecen', async () => {
+    await aprobarCumplimiento(db)
     await como(db, admin, () => db.query(`select public.contratos_firmar($1, 'Firma de prueba', 'contratos/firmado.pdf')`, [contrato]))
     const b = await balance()
     expect(b.estado_contrato).toBe('firmado')
@@ -103,12 +104,16 @@ describe('pagos parciales, sobreaplicación, duplicados y anulaciones', () => {
     expect(Number(c?.pendiente)).toBeCloseTo(303.35, 2)
   })
 
-  it('un excedente no se aplica a cuotas futuras: queda como saldo a favor', async () => {
+  it('un excedente cubre la entrada y queda como saldo a favor: no reduce el 80 % sin autorización', async () => {
     const p = await registrar(200000, 'TRF-EXC-1')
     await verificar(p.rows[0].id)
     const b = await balance()
     expect(Number(b.saldo_a_favor)).toBeCloseTo(38681.63, 2)
-    expect(Number(b.saldo_exigible)).toBe(0)
+    // Solo queda exigible el saldo contra entrega, intacto.
+    expect(Number(b.saldo_exigible)).toBeCloseTo(137717.76, 2)
+    const e = await uno<{ saldo_entrada: string; excedente_disponible: string; aplicado_financiamiento: string; saldo_financiamiento: string }>(
+      `select saldo_entrada, excedente_disponible, aplicado_financiamiento, saldo_financiamiento from public.contract_balances where contract_id = $1`, [contrato])
+    expect(e).toEqual({ saldo_entrada: '0.00', excedente_disponible: '176399.39', aplicado_financiamiento: '0', saldo_financiamiento: '137717.76' })
   })
 
   it('anular un pago corrige los saldos y deja constancia', async () => {

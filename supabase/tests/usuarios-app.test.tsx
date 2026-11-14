@@ -17,7 +17,7 @@ beforeAll(async () => {
   await db.query(`insert into auth.users (id, email) values (gen_random_uuid(), 'pendiente@empresa.test')`)
 }, 60_000)
 
-async function pantalla(acciones = { enviarRecuperacion: vi.fn(async () => {}), crearUsuario: vi.fn(async () => {}), cambiarClave: vi.fn(async () => {}) }) {
+async function pantalla(acciones = { crearUsuario: vi.fn(async () => {}), cambiarClave: vi.fn(async () => {}) }) {
   const s = await como(db, admin, async () => (await db.query<{ s: { permisos: string[]; usuariosAlcance: string[] } }>(`select public.mi_sesion() as s`)).rows[0].s)
   render(
     <SessionProvider actorRemoto={{ id: admin, nombre: 'Carlos Tapia', rol: 'administrador', permisos: s.permisos, alcance: { tipo: 'empresa', usuarios: s.usuariosAlcance } }}>
@@ -69,10 +69,16 @@ describe('Configuración · usuarios reales (Postgres con RLS)', () => {
     expect(await screen.findByText('Cuenta pendiente@empresa.test habilitada')).toBeInTheDocument()
   })
 
-  it('envía la recuperación de contraseña de una cuenta', async () => {
+  it('restablece la contraseña de otra cuenta sin correos; la propia no se ofrece', async () => {
     const acciones = await pantalla()
-    fireEvent.click(within(fila('Persona Nueva')).getByRole('button', { name: /Enviar enlace de contraseña/ }))
-    expect(await screen.findByText('Se envió a pendiente@empresa.test el enlace para establecer su contraseña')).toBeInTheDocument()
-    expect(acciones.enviarRecuperacion).toHaveBeenCalledWith('pendiente@empresa.test')
+    expect(within(fila('Carlos Tapia')).queryByRole('button', { name: /Restablecer contraseña/ })).toBeNull()
+    fireEvent.click(within(fila('Persona Nueva')).getByRole('button', { name: /Restablecer contraseña/ }))
+    const guardar = await screen.findByRole('button', { name: 'Guardar contraseña' })
+    fireEvent.change(screen.getByLabelText(/Nueva contraseña/), { target: { value: 'corta' } })
+    expect(guardar).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/Nueva contraseña/), { target: { value: 'Otra-Clave-22' } })
+    fireEvent.click(guardar)
+    expect(await screen.findByText('Contraseña de Persona Nueva actualizada')).toBeInTheDocument()
+    expect(acciones.cambiarClave).toHaveBeenCalledWith(expect.objectContaining({ password: 'Otra-Clave-22' }))
   })
 })

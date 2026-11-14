@@ -15,6 +15,7 @@ import CobranzaPage from '@/pages/CobranzaPage'
 import ConfiguracionPage from '@/pages/ConfiguracionPage'
 import CotizacionesPage from '@/pages/CotizacionesPage'
 import DashboardPage from '@/pages/DashboardPage'
+import EquipoPage from '@/pages/EquipoPage'
 import FinanciamientoPage from '@/pages/FinanciamientoPage'
 import GestionComercialPage from '@/pages/GestionComercialPage'
 import InventarioPage from '@/pages/InventarioPage'
@@ -26,8 +27,10 @@ import VentaPage from '@/pages/VentaPage'
 import VentasPage from '@/pages/VentasPage'
 
 // Las pantallas reales del producto, leyendo de la base demostrativa en memoria (servidor-demo.mjs).
+// ?perfil=vendedor1 | supervisora | finanzas | gerente | obra: la misma base vista por cada perfil (sin ?perfil, administración).
+const perfil = new URLSearchParams(location.search).get('perfil') ?? undefined
 const pedir = async (cuerpo: Record<string, unknown>) => {
-  const { r, error } = await (await fetch('/demo-api', { method: 'POST', body: JSON.stringify(cuerpo) })).json()
+  const { r, error } = await (await fetch('/demo-api', { method: 'POST', body: JSON.stringify({ ...cuerpo, perfil }) })).json()
   if (error) throw new ErrorDatos(error)
   return r
 }
@@ -62,6 +65,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="configuracion" element={<ConfiguracionPage />} />
               <Route path="obra" element={<ObraPage />} />
               <Route path="plan" element={<PlanPage />} />
+              <Route path="equipo" element={<EquipoPage vista="dashboard" />} />
+              <Route path="mi-equipo" element={<EquipoPage vista="detalle" />} />
             </Route>
           </Routes>
         </ReservasProvider></ClientesProvider></InventoryProvider>

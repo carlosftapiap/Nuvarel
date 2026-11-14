@@ -74,19 +74,19 @@ function Corredores({ datos }: { datos: Datos }) {
       ) : (
         <div className="dashboard-card !p-0 overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="bg-muted text-[11px] text-muted-foreground">
+            <thead className="bg-muted text-xs text-muted-foreground">
               <tr><th className="px-4 py-2 text-left font-medium">Corredor</th><th className="px-2 py-2 text-left font-medium">Licencia</th><th className="px-2 py-2 text-left font-medium">Responsable</th><th className="px-2 py-2 text-left font-medium">Acceso a la app</th><th className="px-2 py-2 text-right font-medium">Clientes</th><th className="px-2 py-2 text-right font-medium">Ventas firmadas</th><th className="px-2 py-2 text-left font-medium">Estado</th><th className="px-2 py-2" /></tr>
             </thead>
             <tbody>
               {lista.map((c) => (
                 <tr key={c.id} className="border-t border-border">
-                  <td className="px-4 py-2"><div className="font-semibold">{c.nombre}</div><div className="text-[11px] text-muted-foreground">{c.documento || 'Sin documento'}{c.telefono ? ` · ${c.telefono}` : ''}</div></td>
+                  <td className="px-4 py-2"><div className="font-semibold">{c.nombre}</div><div className="text-xs text-muted-foreground">{c.documento || 'Sin documento'}{c.telefono ? ` · ${c.telefono}` : ''}</div></td>
                   <td className="px-2 py-2">{c.licencia || '—'}</td>
                   <td className="px-2 py-2">{c.responsable ?? '—'}</td>
                   <td className="px-2 py-2">{c.acceso ? <span className="text-emerald-700">{c.acceso}</span> : <span className="text-muted-foreground">Sin acceso</span>}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{c.clientes}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{c.ventas}</td>
-                  <td className="px-2 py-2"><span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset', c.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-200')}>{c.estado === 'activo' ? 'Activo' : 'Inactivo'}</span></td>
+                  <td className="px-2 py-2"><span className={cn('rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', c.estado === 'activo' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-200')}>{c.estado === 'activo' ? 'Activo' : 'Inactivo'}</span></td>
                   <td className="px-2 py-2"><div className="flex flex-wrap justify-end gap-1">
                     {gestiona && <Button size="xs" variant="ghost" onClick={() => setModo({ tipo: 'editar', corredor: c })}><Pencil />Editar</Button>}
                     {gestiona && c.estado === 'activo' && <Button size="xs" variant="ghost" onClick={() => setModo({ tipo: 'editar', corredor: c })}>Desactivar</Button>}
@@ -222,7 +222,7 @@ function AccesoCorredor({ datos, corredor, onClose, onDone }: { datos: Datos; co
               <SelectTrigger id="cor-cuenta" className="h-9 w-full"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="ninguna">Elige la cuenta</SelectItem>{cuentas.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>)}</SelectContent>
             </Select>
-            {cuentas.length === 0 && <p className="text-[11px] text-muted-foreground">No hay cuentas con rol Corredor disponibles. Crea o activa la cuenta en Configuración.</p>}
+            {cuentas.length === 0 && <p className="text-xs text-muted-foreground">No hay cuentas con rol Corredor disponibles. Crea o activa la cuenta en Configuración.</p>}
           </div>
         )}
         <div className="grid gap-1.5">

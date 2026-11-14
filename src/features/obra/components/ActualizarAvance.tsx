@@ -91,7 +91,7 @@ export default function ActualizarAvance({ ctx, frente, actividadInicial, onClos
                 <option value="">Elegir actividad</option>
                 {hojas.map((a) => <option key={a.id} value={a.id}>{a.codigo} · {a.nombre}</option>)}
               </select>
-              {actividad && <p className="text-[11px] text-muted-foreground">Avance actual: <b>{pct(actividad.avanceValidado ?? 0)}</b></p>}
+              {actividad && <p className="text-xs text-muted-foreground">Avance actual: <b>{pct(actividad.avanceValidado ?? 0)}</b></p>}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="av-responsable" className="text-xs">Responsable *</Label>
@@ -105,7 +105,7 @@ export default function ActualizarAvance({ ctx, frente, actividadInicial, onClos
               <div className="grid gap-1.5"><Label htmlFor="av-fecha" className="text-xs">Fecha *</Label><Input id="av-fecha" type="date" max={fechaLocalIso()} value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
               <div className="grid gap-1.5"><Label htmlFor="av-porcentaje" className="text-xs">Porcentaje de avance *</Label><Input id="av-porcentaje" type="number" min="0" max="100" step="0.01" value={avance} onChange={(e) => setAvance(e.target.value)} /></div>
             </div>
-            {anterior && <p className="text-[11px] text-amber-800">Esta fecha es anterior al último registro ({fechaCorta(actividad!.ultimoCorteValidado)}): queda en el historial, pero el avance actual sigue siendo el del registro más reciente.</p>}
+            {anterior && <p className="text-xs text-amber-800">Esta fecha es anterior al último registro ({fechaCorta(actividad!.ultimoCorteValidado)}): queda en el historial, pero el avance actual sigue siendo el del registro más reciente.</p>}
             <div className="grid gap-1.5"><Label htmlFor="av-obs" className="text-xs">Observaciones</Label><Textarea id="av-obs" rows={2} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} /></div>
             <div className="grid gap-1.5">
               <Label htmlFor="av-fotos" className="text-xs">Fotografías</Label>

@@ -29,10 +29,10 @@ export default function UnitPicker({
               <SelectLabel>Edificio {ed}</SelectLabel>
               {units.filter((u) => u.edificio === ed && (!soloPermitidos || !permitidos || permitidos.includes(u.estado))).map((u) => {
                 const efectivo = estadoEfectivo(u)
-                const bloqueada = permitidos ? !(permitidos as EstadoEfectivo[]).includes(efectivo) : false
+                const bloqueada = permitidos ? !(permitidos as EstadoEfectivo[]).includes(efectivo) || !!u.solicitud : false
                 return (
                   <SelectItem key={u.codigo} value={u.codigo} disabled={bloqueada}>
-                    {u.dpt} · {u.tipologia} · {fmtUsd(calcularPrecio(u, params).precioVenta)}{bloqueada || efectivo === 'por_confirmar' || efectivo === 'en_proceso_reserva' ? ` · ${ESTADOS_EFECTIVOS[efectivo].label}${u.solicitud && efectivo === 'en_proceso_reserva' ? ` (${u.solicitud.codigo})` : ''}` : ''}
+                    {u.dpt} · {u.tipologia} · {fmtUsd(calcularPrecio(u, params).precioVenta)}{u.solicitud ? ` · Solicitud ${u.solicitud.codigo} en trámite` : bloqueada ? ` · ${ESTADOS_EFECTIVOS[efectivo].label}` : ''}
                   </SelectItem>
                 )
               })}

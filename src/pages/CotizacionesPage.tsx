@@ -133,8 +133,8 @@ export default function CotizacionesPage() {
                 {registrados.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre} · {ETAPAS[c.etapa].label}</SelectItem>)}
               </SelectContent>
             </Select>
-            {clienteId && <p className="text-[11px] text-muted-foreground">La cotización quedará en el historial del cliente y lo moverá a la etapa Cotización si estaba antes.</p>}
-            {conectado && clienteId && <p className="text-[11px] text-muted-foreground">Estos datos vienen de la ficha del cliente. Para corregirlos, <Link className="text-primary hover:underline" to={`/clientes?cliente=${clienteId}`}>edita la ficha</Link>.</p>}
+            {clienteId && <p className="text-xs text-muted-foreground">La cotización quedará en el historial del cliente y lo moverá a la etapa Cotización si estaba antes.</p>}
+            {conectado && clienteId && <p className="text-xs text-muted-foreground">Estos datos vienen de la ficha del cliente. Para corregirlos, <Link className="text-primary hover:underline" to={`/clientes?cliente=${clienteId}`}>edita la ficha</Link>.</p>}
             <div className="grid gap-3 sm:grid-cols-2">
               <Campo id="cli-nombre" label="Nombre completo *" value={cliente.nombre} disabled={conectado} onChange={(v) => setCliente({ ...cliente, nombre: v })} />
               <Campo id="cli-doc" label="Cédula o RUC" value={cliente.documento ?? ''} disabled={conectado} onChange={(v) => setCliente({ ...cliente, documento: v })} />
@@ -159,7 +159,7 @@ export default function CotizacionesPage() {
               </div>
               {puedeDescontar
                 ? <Campo id="cot-desc" label="Descuento autorizado (%)" value={descuento} onChange={setDescuento} inputMode="decimal" />
-                : <p className="self-end rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">Los descuentos los autoriza gerencia.</p>}
+                : <p className="self-end rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Los descuentos los autoriza gerencia.</p>}
             </div>
             {unit && <CuotasExtraordinarias filas={extras} onChange={setExtras} meses={state.params.meses[unit.edificio]} fechaBase={fecha} />}
             <div className="grid gap-1.5">
@@ -184,24 +184,23 @@ export default function CotizacionesPage() {
                 <Fila t={`${plan.meses} cuotas`} v={fmtUsd2(plan.cuotaMensual)} />
                 {!!plan.extraordinarias?.length && <Fila t={`${plan.extraordinarias.length} extraordinarias`} v={fmtUsd2(plan.cuotasTotal - plan.cuotaMensual * (plan.meses - 1) - plan.ultimaCuota)} />}
                 <Fila t={`Contra entrega ${plan.entregaPct}%`} v={fmtUsd2(plan.contraEntrega)} />
-                <p className="text-[11px] text-muted-foreground">{NOTA_RESERVA}</p>
-                {unit.estado === 'por_confirmar' && <p className="mt-1 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">El PDF indicará que la disponibilidad está sujeta a confirmación.</p>}
+                <p className="text-xs text-muted-foreground">{NOTA_RESERVA}</p>
               </dl>
             ) : <p className="mt-2 text-xs text-muted-foreground">Selecciona un departamento.</p>}
             <Button className="mt-4 w-full" onClick={generar} disabled={errores.length > 0 || generando}><FileText />{generando ? 'Generando…' : 'Generar PDF'}</Button>
-            {errores.length > 0 && unit && <ul className="mt-2 list-disc pl-4 text-[11px] text-muted-foreground">{errores.map((e) => <li key={e}>{e}</li>)}</ul>}
+            {errores.length > 0 && unit && <ul className="mt-2 list-disc pl-4 text-xs text-muted-foreground">{errores.map((e) => <li key={e}>{e}</li>)}</ul>}
           </section>
 
           <section className="dashboard-card p-5 [&_.section-heading]:p-0" aria-labelledby="cot-hist">
             <h2 id="cot-hist" className="text-sm font-semibold">Cotizaciones emitidas</h2>
-            {avisoReserva && <p role="status" className="mt-2 rounded-md bg-muted px-2 py-1.5 text-[11px]">{avisoReserva} {avisoReserva.startsWith('Solicitud') && <Link className="text-primary hover:underline" to="/reservas">Ver reservas</Link>}</p>}
+            {avisoReserva && <p role="status" className="mt-2 rounded-md bg-muted px-2 py-1.5 text-xs">{avisoReserva} {avisoReserva.startsWith('Solicitud') && <Link className="text-primary hover:underline" to="/reservas">Ver reservas</Link>}</p>}
             {lista.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">Aún no hay cotizaciones.</p> : (
               <ul className="mt-2 grid max-h-80 gap-1.5 overflow-auto">
                 {lista.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
                     <div className="min-w-0 flex-1">
                       <div className="font-medium">{c.numero} · {c.unidad.dpt}</div>
-                      <div className="truncate text-[11px] text-muted-foreground">{c.cliente.nombre} · {fmtUsd(c.plan.precioFinal)} · vence {fmtFechaCorta(c.validaHasta)}</div>
+                      <div className="truncate text-xs text-muted-foreground">{c.cliente.nombre} · {fmtUsd(c.plan.precioFinal)} · vence {fmtFechaCorta(c.validaHasta)}</div>
                     </div>
                     <Button size="icon-sm" variant="ghost" aria-label={`Descargar ${c.numero}`} onClick={() => descargarCotizacionPdf(c)}><Download /></Button>
                     {c.clienteId && can('reservas.solicitar') && (!c.estado || c.estado === 'emitida' || c.estado === 'aceptada') && !reservas.res.reservas.some((r) => r.cotizacionId === c.id && r.estado !== 'anulada') && !state.units.find((u) => u.codigo === c.unidad.codigo)?.solicitud && (

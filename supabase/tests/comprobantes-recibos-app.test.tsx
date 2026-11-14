@@ -8,7 +8,7 @@ import { ConexionProvider } from '@/app/auth'
 import { SessionProvider } from '@/app/session'
 import { AVISO_RECIBO, aRecibo, construirReciboPdf, reportarPagoReserva } from '@/features/cobranza/comprobantes'
 import type { AlmacenContratos } from '@/features/contratos/almacen'
-import { hoyGuayaquil } from '@/features/financiamiento/plan'
+import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import type { Actor } from '@/features/inventario/types'
 import { ClientesProvider } from '@/features/clientes/store'
 import { InventoryProvider } from '@/features/inventario/store'
@@ -16,7 +16,14 @@ import { ReservasProvider } from '@/features/reservas/store'
 import CobranzaPage from '@/pages/CobranzaPage'
 import ReservasPage from '@/pages/ReservasPage'
 import { datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+
+/** Reservas: elige la reserva en la lista (todas) y devuelve su panel de detalle. */
+async function detalleDe(user: ReturnType<typeof userEvent.setup>, cliente: string) {
+  await user.click(await screen.findByRole('button', { name: /^Todas/ }))
+  await user.click(await screen.findByRole('button', { name: new RegExp(`^Abrir reserva .* de ${cliente}$`) }))
+  return screen.getByRole('region', { name: /^Detalle de la reserva/ })
+}
 
 configure({ asyncUtilTimeout: 15_000 })
 
@@ -41,11 +48,12 @@ const adjunto = (pre: string, id: string) => JSON.stringify({ ruta: `${pre}/${id
 /** Solicitud real de una unidad libre, para un cliente nuevo de Vera. */
 async function solicitud(monto = 600) {
   const { codigo } = await uno<{ codigo: string }>(`select codigo from public.inventory_units where estado = 'disponible' and codigo not in (select codigo_unidad from public.reservations where estado in ('solicitada', 'pago_verificado', 'confirmada')) order by codigo limit 1`)
-  const cli = (await rpc<{ id: string }>(vera, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Cliente ${codigo}`, documento: '1712345678', telefono: `0${++n}`, origen: 'instagram' }), vera])).id
+  const doc = cedulaPrueba(++n)
+  const cli = (await rpc<{ id: string }>(vera, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Cliente ${codigo}`, documento: doc, telefono: celularPrueba(++n), origen: 'instagram' }), vera])).id
   const op = (await rpc<{ id: string }>(vera, `select public.oportunidades_crear($1, $2, null) as id`, [cli, codigo])).id
   const q = (await rpc<{ id: string }>(vera, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op])).id
   const r = (await rpc<{ id: string }>(vera, `select public.reservas_solicitar_acordada($1, $2) as id`, [q, monto])).id
-  return { r, q, cli, codigo, op }
+  return { r, q, cli, codigo, op, doc }
 }
 const reportar = (u: string, r: string, monto = 600, referencia = `TRF-${++n}`) =>
   rpc<{ id: string }>(u, `select public.reservas_reportar_pago($1, $2, $3::date, 'Banco Pichincha', $4, $5::jsonb) as id`, [r, monto, hoy(), referencia, adjunto('reservas', r)])
@@ -55,7 +63,7 @@ const conteoRecibos = async () => (await uno<{ n: number }>(`select count(*)::in
 
 async function contratoFirmado(extras: unknown[] = []) {
   const { codigo } = await uno<{ codigo: string }>(`select codigo from public.inventory_units where estado = 'disponible' and codigo not in (select codigo_unidad from public.reservations where estado in ('solicitada', 'pago_verificado', 'confirmada')) order by codigo limit 1`)
-  const cli = (await rpc<{ id: string }>(vera, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Comprador ${codigo}`, telefono: `0${++n}`, origen: 'instagram' }), vera])).id
+  const cli = (await rpc<{ id: string }>(vera, `select public.clientes_crear(null, $1::jsonb, $2) as id`, [JSON.stringify({ nombre: `Comprador ${codigo}`, telefono: celularPrueba(++n), documento: cedulaPrueba(n), origen: 'instagram' }), vera])).id
   const op = (await rpc<{ id: string }>(vera, `select public.oportunidades_crear($1, $2, null) as id`, [cli, codigo])).id
   const q = (await rpc<{ id: string }>(vera, `select public.cotizaciones_emitir_extraordinarias($1, 0, 30, '', $2::jsonb) as id`, [op, JSON.stringify(extras)])).id
   const r = (await rpc<{ id: string }>(vera, `select public.reservas_solicitar_acordada($1, 600) as id`, [q])).id
@@ -145,15 +153,15 @@ describe('confirmar y rechazar', () => {
   })
 
   it('al confirmar emite un solo recibo numerado con sus datos; un segundo intento no duplica', async () => {
-    const { r, codigo } = await solicitud()
+    const { r, codigo, doc } = await solicitud()
     await reportar(vera, r)
     const id = (await confirmar(finanzas, r, 700)).id
     const v = await uno<Record<string, unknown>>(`select * from public.recibos_pago where id = $1`, [id])
     expect(v.comprobante_id).toBe((await uno<{ id: string }>(`select id from public.comprobantes_pago where reservation_id = $1`, [r])).id)
-    expect(v).toMatchObject({ emisor: 'NUVAREL S.A.S.', emisor_ruc: '0993413661001', emisor_direccion: expect.stringContaining('Daule, Guayas, Ecuador'), cliente: `Cliente ${codigo}`, documento: '1712345678', codigo_unidad: codigo, monto: '700.00', referencia: 'BAN-OK', banco: 'Banco Pichincha', aprobado_nombre: 'Fina Finanzas', anulado_en: null })
+    expect(v).toMatchObject({ emisor: 'NUVAREL S.A.S.', emisor_ruc: '0993413661001', emisor_direccion: expect.stringContaining('Daule, Guayas, Ecuador'), cliente: `Cliente ${codigo}`, documento: doc, codigo_unidad: codigo, monto: '700.00', referencia: 'BAN-OK', banco: 'Banco Pichincha', aprobado_nombre: 'Fina Finanzas', anulado_en: null })
     expect(String(v.numero)).toMatch(/^REC-\d{4}-\d{4}$/)
     expect(String(v.concepto)).toMatch(/^Reserva RES-/)
-    expect(await uno(`select estado, monto_recibido from public.reservations where id = $1`, [r])).toEqual({ estado: 'pago_verificado', monto_recibido: '700.00' })
+    expect(await uno(`select estado, monto_recibido from public.reservations where id = $1`, [r])).toEqual({ estado: 'confirmada', monto_recibido: '700.00' })
     const antes = await conteoRecibos()
     await expect(confirmar(finanzas, r, 700)).rejects.toThrow(/ya está/)
     expect(await conteoRecibos()).toBe(antes)
@@ -323,7 +331,7 @@ describe('Storage', () => {
     await como(base, a, () => base.query(`select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`))
     await base.query(`update public.inventory_units set estado = 'disponible' where codigo = 'E1-PB-A2'`)
     const sql = async <T,>(u: string, q: string, p: unknown[] = []) => como(base, u, async () => (await base.query<T>(q, p)).rows)
-    const cli = (await sql<{ id: string }>(v, `select public.clientes_crear(null, '{"nombre":"Ana Paz","telefono":"0991112233","origen":"instagram"}'::jsonb, $1) as id`, [v]))[0].id
+    const cli = (await sql<{ id: string }>(v, `select public.clientes_crear(null, '{"nombre":"Ana Paz","telefono":"0991112233","documento": "1721122339","origen":"instagram"}'::jsonb, $1) as id`, [v]))[0].id
     const op = (await sql<{ id: string }>(v, `select public.oportunidades_crear($1, 'E1-PB-A2', null) as id`, [cli]))[0].id
     const q = (await sql<{ id: string }>(v, `select public.cotizaciones_emitir($1, 0, 30, '') as id`, [op]))[0].id
     const r = (await sql<{ id: string }>(v, `select public.reservas_solicitar_acordada($1, 600) as id`, [q]))[0].id
@@ -396,7 +404,7 @@ describe('Cobranzas en pantalla', () => {
     await reportar(vera, r)
     const quitar = vi.fn(async () => {})
     const subir = vi.fn(async () => {})
-    await expect(reportarPagoReserva(datosPglite(db, vera), { subir, descargar: async () => new ArrayBuffer(0), quitar }, r, { monto: 1, fecha: hoy(), banco: 'Banco', referencia: 'TRF-DOBLE', archivo: new File(['x'], 'a.pdf', { type: 'application/pdf' }) })).rejects.toThrow(/ya tiene un pago registrado/)
+    await expect(reportarPagoReserva(datosPglite(db, vera), { subir, descargar: async () => new ArrayBuffer(0), quitar }, r, { monto: 1, fecha: hoy(), banco: 'Banco', referencia: 'TRF-DOBLE', archivo: new File(['x'], 'a.pdf', { type: 'application/pdf' }), medio: 'transferencia' })).rejects.toThrow(/ya tiene un pago registrado/)
     expect(subir).toHaveBeenCalledTimes(1)
     expect(quitar).toHaveBeenCalledTimes(1)
   })
@@ -434,7 +442,8 @@ describe('Cobranzas en pantalla', () => {
     const v = await uno<{ numero: string }>(`select numero from public.recibos_pago where reservation_id = $1`, [r])
     await waitFor(async () => expect((await uno<{ pdf_ruta: string }>(`select pdf_ruta from public.recibos_pago where reservation_id = $1`, [r])).pdf_ruta).toMatch(new RegExp(`^recibos/${v.numero}-[0-9a-f]{12}\\.pdf$`)))
     expect(archivos.has((await uno<{ pdf_ruta: string }>(`select pdf_ruta from public.recibos_pago where reservation_id = $1`, [r])).pdf_ruta)).toBe(true)
-    await within((await screen.findByText(nombre)).closest('tr')!).findByText(/Pago verificado/)
+    // Reserva normal: queda confirmada al verificar el ingreso.
+    await within((await screen.findByText(nombre)).closest('tr')!).findByText('Confirmada')
     f.unmount()
   })
 
@@ -469,10 +478,10 @@ describe('Cobranzas en pantalla', () => {
       )
     }
     const v = await abrirReservas(vera)
-    expect(within((await screen.findByText(`Cliente ${codigo}`)).closest('tr')!).queryByRole('button', { name: 'Rechazar pago' })).toBeNull()
+    expect(within(await detalleDe(user, `Cliente ${codigo}`)).queryByRole('button', { name: 'Rechazar pago' })).toBeNull()
     v.unmount()
     const f = await abrirReservas(finanzas)
-    await user.click(within((await screen.findByText(`Cliente ${codigo}`)).closest('tr')!).getByRole('button', { name: 'Rechazar pago' }))
+    await user.click(within(await detalleDe(user, `Cliente ${codigo}`)).getByRole('button', { name: 'Rechazar pago' }))
     const d = await screen.findByRole('dialog', { name: /Rechazar el pago/ })
     expect(within(d).getByRole('button', { name: 'Rechazar pago' })).toBeDisabled()
     await user.type(within(d).getByLabelText(/Motivo del rechazo/), 'El valor no ingresó al banco')
@@ -480,6 +489,35 @@ describe('Cobranzas en pantalla', () => {
     await screen.findByText(/rechazado · la reserva vuelve a esperar el pago/)
     expect(await uno(`select estado, motivo_revision from public.comprobantes_pago where reservation_id = $1`, [r])).toEqual({ estado: 'rechazado', motivo_revision: 'El valor no ingresó al banco' })
     f.unmount()
+  }, 60_000)
+
+  it('el vendedor ve el pago rechazado con su motivo y fecha, reemplaza el comprobante y lo reenvía a revisión', async () => {
+    const user = userEvent.setup()
+    const { r, codigo } = await solicitud()
+    await reportar(vera, r)
+    await rpc(finanzas, `select public.reservas_rechazar_pago($1, 'Documento de servicio básico, no es comprobante bancario')`, [r])
+    const s = await como(db, vera, async () => (await db.query<{ s: { id: string; nombre: string; rol: string; permisos: string[]; alcance: 'propio' | 'equipo' | 'empresa'; usuariosAlcance: string[] } }>(`select public.mi_sesion() as s`)).rows[0].s)
+    const actor: Actor = { id: s.id, nombre: s.nombre, rol: s.rol, permisos: s.permisos, alcance: { tipo: s.alcance, usuarios: s.usuariosAlcance } }
+    const v = render(
+      <ConexionProvider value={{ remoto: true, datos: datosPglite(db, vera), cuenta: null, salir: async () => {}, almacen }}>
+        <SessionProvider actorRemoto={actor}><InventoryProvider><ClientesProvider><ReservasProvider><MemoryRouter><ReservasPage /></MemoryRouter></ReservasProvider></ClientesProvider></InventoryProvider></SessionProvider>
+      </ConexionProvider>,
+    )
+    const fila = await detalleDe(user, `Cliente ${codigo}`)
+    expect((await within(fila).findByText('Pago rechazado')).parentElement).toHaveTextContent(`Pago rechazado el ${fmtFechaCorta(hoy())}`)
+    expect(within(fila).getByText('Motivo: Documento de servicio básico, no es comprobante bancario')).toBeInTheDocument()
+    expect(within(fila).getByRole('link', { name: /Documentos/ })).toHaveAttribute('href', expect.stringMatching(/^\/clientes\?cliente=/))
+    await user.click(within(fila).getByRole('button', { name: 'Reemplazar comprobante y reenviar' }))
+    const dlg = await screen.findByRole('dialog', { name: /Registrar pago/ })
+    await user.type(within(dlg).getByLabelText('Banco *'), 'Banco Pichincha')
+    await user.type(within(dlg).getByLabelText(/Número de transferencia/), 'TRF-REEMPLAZO')
+    fireEvent.change(within(dlg).getByLabelText(/Foto o PDF/), { target: { files: [new File(['pdf'], 'transferencia.pdf', { type: 'application/pdf' })] } })
+    await user.click(within(dlg).getByRole('button', { name: 'Registrar' }))
+    await screen.findByText(/Pago de RES-.* registrado/)
+    expect((await db.query(`select estado, referencia from public.comprobantes_pago where reservation_id = $1 order by cargado_en`, [r])).rows)
+      .toEqual([{ estado: 'rechazado', referencia: expect.any(String) }, { estado: 'reportado', referencia: 'TRF-REEMPLAZO' }])
+    await vi.waitFor(() => expect(within(screen.getByRole('region', { name: /^Detalle de la reserva/ })).queryByText(/Pago rechazado/)).toBeNull())
+    v.unmount()
   }, 60_000)
 
   it('Gerencia revisa el comprobante, pero no confirma: lo hace Finanzas', async () => {

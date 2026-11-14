@@ -156,24 +156,15 @@ describe('InventarioPage', () => {
     const ficha = await screen.findByRole('dialog')
     expect(within(ficha).getByText(/Precio congelado/)).toBeInTheDocument()
     expect(within(ficha).queryByLabelText('Simular nuevo USD/m²')).not.toBeInTheDocument()
-    expect(within(ficha).getByText(/se libera solo anulándola/)).toBeInTheDocument()
+    expect(within(ficha).getByText(/se libera anulándola en Reservas/)).toBeInTheDocument()
     expect(within(ficha).queryByText('Solicitar cambio de estado')).not.toBeInTheDocument()
   })
 
-  it('cambio de estado: muestra actual, solicitado y responsable, y exige motivo', async () => {
-    const user = userEvent.setup()
+  it('el estado no se cambia a mano: la ficha explica que lo fijan Reservas y Contratos', async () => {
     renderPage('administrador', '/inventario?unidad=E1-PB-A1')
     const ficha = await screen.findByRole('dialog')
-    await user.click(within(ficha).getByText('Solicitar cambio de estado'))
-    await user.click(within(ficha).getByLabelText('Cambiar a'))
-    expect(screen.queryByRole('option', { name: 'Reservado' })).not.toBeInTheDocument()
-    await user.click(await screen.findByRole('option', { name: 'Bloqueado' }))
-    expect(within(ficha).getByText(/Responsable:/)).toBeInTheDocument()
-    const guardar = within(ficha).getByRole('button', { name: 'Guardar estado' })
-    expect(guardar).toBeDisabled()
-    await user.type(within(ficha).getByLabelText('Motivo'), 'Disponibilidad confirmada por Jarval')
-    await user.click(guardar)
-    expect(await within(ficha).findByRole('status')).toHaveTextContent(/Departamento 1001: estado actualizado a Bloqueado/)
+    expect(within(ficha).getByText(/Pasa a reservado cuando se aprueba una reserva/)).toBeInTheDocument()
+    expect(within(ficha).queryByText('Solicitar cambio de estado')).not.toBeInTheDocument()
   })
 
   it('un ajuste masivo no empieza con todo elegido, y muestra afectadas y excluidas con su motivo', async () => {

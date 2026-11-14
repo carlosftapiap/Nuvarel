@@ -29,7 +29,9 @@ export default function SolicitudesAnulacion({ onDone }: { onDone: (m: string) =
   if (!datos || pendientes.length === 0) return null
   const nombre = (id: string) => state.clientes.find((c) => c.id === id)?.nombre ?? 'Cliente'
 
-  const puedeDecidir = (d: Desistimiento) => d.registradoPorId !== actor.id && can(d.nivel === 'gerencia_y_finanzas' ? 'ventas.desistimiento_con_dinero' : 'ventas.desistimiento_autorizar')
+  // Como en la base: sin alcance de empresa, nadie decide la anulación de su propio cliente (la decide Gerencia).
+  const clientePropio = (d: Desistimiento) => actor.alcance?.tipo !== 'empresa' && state.clientes.find((c) => c.id === d.clienteId)?.asesorId === actor.id
+  const puedeDecidir = (d: Desistimiento) => d.registradoPorId !== actor.id && !clientePropio(d) && can(d.nivel === 'gerencia_y_finanzas' ? 'ventas.desistimiento_con_dinero' : 'ventas.desistimiento_autorizar')
   const puedeAutorizar = (d: Desistimiento) => puedeDecidir(d) && !d.autorizadoPorId && d.revisadoPorId !== actor.id
   const puedeRevisar = (d: Desistimiento) => d.nivel === 'gerencia_y_finanzas' && !d.revisadoPorId && d.registradoPorId !== actor.id && d.autorizadoPorId !== actor.id && can('cobranzas.verificar')
 
@@ -51,8 +53,8 @@ export default function SolicitudesAnulacion({ onDone }: { onDone: (m: string) =
               <span className="text-muted-foreground">{d.codigoUnidad} · {MOTIVOS_DESISTIMIENTO[d.motivo]}</span>
               {d.montoRecibido ? <span className="font-medium tabular-nums">{fmtUsd2(d.montoRecibido)} recibidos</span> : d.nivel === 'gerencia_y_finanzas' && <span className="text-muted-foreground">Comprobante sin verificar</span>}
             </div>
-            <div className="text-[11px] text-muted-foreground">Solicitó {d.registradoPor}{d.observaciones ? ` · ${d.observaciones}` : ''}</div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+            <div className="text-xs text-muted-foreground">Solicitó {d.registradoPor}{d.observaciones ? ` · ${d.observaciones}` : ''}</div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
               <Paso listo={!!d.autorizadoPorId} texto={d.autorizadoPorId ? `Autorizó ${d.autorizadoPor}` : d.nivel === 'gerencia_y_finanzas' ? 'Gerencia: pendiente' : 'Supervisor o Gerencia: pendiente'} />
               {d.nivel === 'gerencia_y_finanzas' && <Paso listo={!!d.revisadoPorId} texto={d.revisadoPorId ? `Revisó ${d.revisadoPor}` : 'Finanzas: pendiente'} />}
             </div>
@@ -61,7 +63,7 @@ export default function SolicitudesAnulacion({ onDone }: { onDone: (m: string) =
               {puedeRevisar(d) && <Button size="xs" onClick={() => setPedido({ d, accion: 'finanzas' })}>Registrar revisión</Button>}
               {puedeDecidir(d) && <Button size="xs" variant="outline" onClick={() => setPedido({ d, accion: 'rechazar' })}>Rechazar</Button>}
               {!puedeAutorizar(d) && !puedeRevisar(d) && !puedeDecidir(d) && (
-                <span className="text-[11px] text-muted-foreground">{d.registradoPorId === actor.id ? 'Es tu solicitud: otra persona debe decidirla. ' : ''}{faltaPara(d)}.</span>
+                <span className="text-xs text-muted-foreground">{d.registradoPorId === actor.id ? 'Es tu solicitud: otra persona debe decidirla. ' : clientePropio(d) ? 'Es tu cliente: la decide Gerencia. ' : ''}{faltaPara(d)}.</span>
               )}
             </div>
           </li>

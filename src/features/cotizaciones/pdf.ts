@@ -74,7 +74,7 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
       ['Tipología', u.tipologia, 'Ubicación', u.ubicacion],
       ['Área departamento', m2(u.areaM2), 'Bodega', u.bodegaCodigo ? `${u.bodegaCodigo} · ${m2(u.bodegaM2)}` : 'Sin bodega'],
       ['Área + bodega', m2(c.plan.areaVendibleM2), 'Patio', u.patioM2 ? m2(u.patioM2) : 'Sin patio'],
-      ['Parqueo', u.parqueo ?? 'Sin asignar', 'Estado', u.estado === 'por_confirmar' ? 'Disponibilidad sujeta a confirmación' : ESTADOS[u.estado].label],
+      ['Parqueo', u.parqueo ?? 'Sin asignar', 'Estado', ESTADOS[u.estado].label],
     ],
   })
   y = lastY(doc) + 6
@@ -155,7 +155,6 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
   // Observaciones y condiciones
   const condiciones = [
     'Precios referenciales en dólares de los Estados Unidos, sujetos a cambio sin previo aviso y a aprobación de la gerencia.',
-    u.estado === 'por_confirmar' ? 'La disponibilidad de la unidad está sujeta a confirmación al momento de la reserva.' : '',
     'Esta cotización no constituye reserva ni promesa de compraventa; la unidad se separa únicamente con la reserva confirmada.',
     `El pago a la firma y las cuotas forman la entrada del ${num(c.plan.reservaPct + c.plan.cuotasPct, 0)} %. ${NOTA_RESERVA}`,
     extras.length ? 'Las cuotas extraordinarias son pagos programados dentro de las cuotas del 14 %; no constituyen pagos recibidos.' : '',

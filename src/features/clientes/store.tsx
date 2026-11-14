@@ -184,3 +184,9 @@ export function useClientes() {
   if (!ctx) throw new Error('useClientes debe usarse dentro de ClientesProvider')
   return ctx
 }
+
+/** Para piezas que también se muestran fuera de los módulos (menú lateral, paneles): sin proveedor devuelve null. */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useClientesOpcional() {
+  return useContext(Ctx)
+}

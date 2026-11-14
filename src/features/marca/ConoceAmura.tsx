@@ -14,7 +14,7 @@ export default function ConoceAmura({ medios }: { medios: Medio[] | null }) {
         ? <p className="mt-2 text-xs text-muted-foreground">Todavía no hay material publicado para esta pantalla.</p>
         : (
           <>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{NOTA_VISUALIZACION}.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{NOTA_VISUALIZACION}.</p>
             <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {medios.map((m, i) => <li key={m.id}><TarjetaMedio medio={m} onAbrir={() => setAbierto(i)} className="aspect-[4/5]" /></li>)}
             </ul>

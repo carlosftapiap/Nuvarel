@@ -53,7 +53,7 @@ export default function VisorMedios({ medios, inicio, pantallaCompleta = false, 
             <div className="min-w-48 flex-1">
               <DialogTitle className="marca-titulo text-lg font-normal leading-tight">{m.titulo}</DialogTitle>
               <DialogDescription className="text-xs text-[#f7f4ed]/85">{m.descripcion || NOTA_VISUALIZACION}</DialogDescription>
-              <small className="text-[11px] text-[#f7f4ed]/70">{i + 1} de {total} · {NOTA_VISUALIZACION}</small>
+              <small className="text-xs text-[#f7f4ed]/70">{i + 1} de {total} · {NOTA_VISUALIZACION}</small>
             </div>
             <div className="flex items-center gap-1.5">
               {total > 1 && <Button size="sm" variant="outline" className={claro} aria-label="Anterior" onClick={() => mover(-1)}><ChevronLeft /></Button>}
@@ -78,7 +78,7 @@ export function TarjetaMedio({ medio, onAbrir, className }: { medio: Medio; onAb
       {video && <span aria-hidden="true" className="absolute inset-0 grid place-items-center"><span className="grid size-12 place-items-center rounded-full bg-[#282828]/75 text-white transition-transform group-hover:scale-110 motion-reduce:transition-none"><Play className="size-5 translate-x-px" /></span></span>}
       <span className="marca-titulo absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-[#282828]/90 to-transparent px-3 pb-2.5 pt-8 text-left text-base leading-tight text-white">
         <span>{medio.titulo}</span>
-        {video && medio.duracion !== null && <small className="font-sans text-[11px]">{fmtDuracion(medio.duracion)}</small>}
+        {video && medio.duracion !== null && <small className="font-sans text-xs">{fmtDuracion(medio.duracion)}</small>}
       </span>
     </button>
   )

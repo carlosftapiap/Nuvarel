@@ -27,7 +27,8 @@ describe('registro de clientes', () => {
 
   it('valida datos y origen', () => {
     expect(() => nuevo({ nombre: '' })).toThrow(/nombre/)
-    expect(() => nuevo({ telefono: '', email: '' })).toThrow(/teléfono o un correo/)
+    expect(() => nuevo({ telefono: '' })).toThrow(/celular/)
+    expect(() => nuevo({ telefono: '0291234567' })).toThrow(/09/)
     expect(() => nuevo({ email: 'malo' })).toThrow(/correo/)
     expect(() => nuevo({ origen: 'referido' })).toThrow(/refirió/)
     expect(() => nuevo({ origen: 'corredor' })).toThrow(/corredor/)
@@ -37,8 +38,8 @@ describe('registro de clientes', () => {
 
   it('evita duplicados por teléfono o correo', () => {
     const { state } = nuevo()
-    expect(() => crearCliente(state, input({ nombre: 'Otra persona', email: '', telefono: '+593 99 123 4567' }), asesor, inv)).toThrow(/Ya existe/)
-    expect(() => crearCliente(state, input({ nombre: 'Otra persona', telefono: '', email: 'MARIA@correo.com' }), asesor, inv)).toThrow(/Ya existe/)
+    expect(() => crearCliente(state, input({ nombre: 'Otra persona', email: '', telefono: '+593 99 123 4567' }), asesor, inv)).toThrow(/Este celular ya se encuentra registrado en AMURA/)
+    expect(() => crearCliente(state, input({ nombre: 'Otra persona', telefono: '0990000000', email: 'MARIA@correo.com' }), asesor, inv)).toThrow(/Ya existe/)
   })
 
   it('solo quien tiene permiso asigna o reasigna, y la atribución de origen se conserva', () => {
@@ -60,8 +61,8 @@ describe('registro de clientes', () => {
   it('el aviso de duplicado no revela datos de otro equipo', () => {
     const { state } = nuevo()
     const otro: Actor = { id: 'u-otro', nombre: 'Otro', rol: 'asesor' }
-    expect(() => crearCliente(state, input({ nombre: 'X Y Z', email: '', asesorId: 'u-otro', asesor: 'Otro' }), otro, inv)).toThrow(/otro equipo/)
-    expect(() => crearCliente(state, input({ nombre: 'X Y Z', email: '', asesorId: 'u-otro', asesor: 'Otro' }), otro, inv)).not.toThrow(/María/)
+    expect(() => crearCliente(state, input({ nombre: 'X Y Z', telefono: '0991234567', email: '', asesorId: 'u-otro', asesor: 'Otro' }), otro, inv)).toThrow(/Este celular ya se encuentra registrado en AMURA/)
+    expect(() => crearCliente(state, input({ nombre: 'X Y Z', telefono: '0991234567', email: '', asesorId: 'u-otro', asesor: 'Otro' }), otro, inv)).not.toThrow(/María/)
   })
 
   it('corredores ven solo sus clientes', () => {

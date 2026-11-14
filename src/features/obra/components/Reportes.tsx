@@ -24,10 +24,10 @@ export default function Reportes({ ctx }: { ctx: ContextoBase }) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 id="rep-titulo" className="text-sm font-semibold">Comparación de avance</h2>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">El planificado sale del cronograma aprobado; sin cronograma o sin ponderaciones aprobadas no se muestra una cifra.</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">El planificado sale del cronograma aprobado; sin cronograma o sin ponderaciones aprobadas no se muestra una cifra.</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <div className="grid gap-1"><Label htmlFor="rep-fecha" className="text-[11px]">Fecha de corte</Label><Input id="rep-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value || hoy)} /></div>
+            <div className="grid gap-1"><Label htmlFor="rep-fecha" className="text-xs">Fecha de corte</Label><Input id="rep-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value || hoy)} /></div>
             {exporta && (
               <>
                 <Button size="sm" variant="outline" onClick={() => descargarLibro(libroReporte(filas, historial, obra.frentes, fecha, usuario), nombreArchivo('Avance-de-obra', 'AMURA', 'xlsx', fecha))}><FileSpreadsheet />Excel</Button>
@@ -38,7 +38,7 @@ export default function Reportes({ ctx }: { ctx: ContextoBase }) {
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-xs" aria-label="Comparación de avance por frente">
-            <thead className="text-[11px] text-muted-foreground">
+            <thead className="text-xs text-muted-foreground">
               <tr><th className="py-1 text-left font-medium">Frente</th><th className="text-right font-medium">Planificado</th><th className="text-right font-medium">Avance actual</th><th className="text-right font-medium">Desviación</th><th className="text-right font-medium">Con avance</th><th className="text-right font-medium">Retrasadas</th><th className="pl-3 text-left font-medium">Último corte</th></tr>
             </thead>
             <tbody>
@@ -60,11 +60,11 @@ export default function Reportes({ ctx }: { ctx: ContextoBase }) {
 
       <section className="dashboard-card" aria-labelledby="rep-historial">
         <h2 id="rep-historial" className="text-sm font-semibold">Historial mensual del avance</h2>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">Avance a fin de cada mes. Nada se sobrescribe: cada registro se conserva.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Avance a fin de cada mes. Nada se sobrescribe: cada registro se conserva.</p>
         {historial.length === 0 ? <p className="mt-3 text-xs text-muted-foreground">Todavía no hay avances.</p> : (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-xs" aria-label="Historial mensual">
-              <thead className="text-[11px] text-muted-foreground"><tr><th className="py-1 text-left font-medium">Corte</th>{obra.frentes.map((f) => <th key={f.id} className="text-right font-medium">{f.nombre}</th>)}</tr></thead>
+              <thead className="text-xs text-muted-foreground"><tr><th className="py-1 text-left font-medium">Corte</th>{obra.frentes.map((f) => <th key={f.id} className="text-right font-medium">{f.nombre}</th>)}</tr></thead>
               <tbody>{historial.map((p) => (
                 <tr key={p.fecha} className="border-t border-border"><td className="py-1.5 tabular-nums">{fechaCorta(p.fecha)}</td>{obra.frentes.map((f) => <td key={f.id} className="text-right tabular-nums">{pct(p.valores[f.id] ?? null)}</td>)}</tr>
               ))}</tbody>

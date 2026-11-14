@@ -11,7 +11,7 @@ import type { AlmacenContratos } from '@/features/contratos/almacen'
 import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2, leerMonto } from '@/features/inventario/pricing'
-import { AVISO_RECIBO, archivoComprobante, cargarHistorial, completarRecibo, descargarRecibo, rechazarPagoContrato, rechazarPagoReserva, type Comprobante, type EventoHistorial, type Recibo } from '../comprobantes'
+import { AVISO_RECIBO, archivoComprobante, cargarHistorial, completarRecibo, descargarConstancia, descargarRecibo, MEDIOS_PAGO, rechazarPagoContrato, rechazarPagoReserva, type Comprobante, type EventoHistorial, type Recibo } from '../comprobantes'
 
 export interface PagoEnRevision {
   tipo: 'reserva' | 'pago'
@@ -93,11 +93,14 @@ export default function RevisionPago({ pago, comprobantes, recibo, datos, almace
                 <b className="tabular-nums">{fmtUsd2(c.monto)} · {fmtFechaCorta(c.fecha)}</b>
                 <span className="capitalize text-muted-foreground">{c.estado}</span>
               </div>
-              <p className="mt-1 text-muted-foreground">{c.banco} · ref. {c.referencia} · cargado el {new Date(c.cargadoEn).toLocaleString('es-EC')}</p>
+              <p className="mt-1 text-muted-foreground">{MEDIOS_PAGO[c.medio].label} · {c.banco} · ref. {c.referencia} · cargado el {new Date(c.cargadoEn).toLocaleString('es-EC')}</p>
               {c.motivoRevision && <p className="mt-1">Revisión: {c.motivoRevision}</p>}
-              {c.ruta
-                ? <Button size="xs" variant="outline" className="mt-2" onClick={() => void verArchivo(c)}><Paperclip />Ver comprobante · {c.archivoNombre}</Button>
-                : <p className="mt-1 text-amber-800">Sin archivo adjunto.</p>}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {c.ruta
+                  ? <Button size="xs" variant="outline" onClick={() => void verArchivo(c)}><Paperclip />Ver comprobante · {c.archivoNombre}</Button>
+                  : <p className="text-amber-800">Sin archivo adjunto.</p>}
+                {c.constanciaNumero && <Button size="xs" variant="outline" onClick={() => void descargarConstancia(datos, c).catch((e: Error) => setErrorArchivo(e.message))}><Download />Constancia {c.constanciaNumero}</Button>}
+              </div>
             </section>
           ))}
           <FieldError>{errorArchivo}</FieldError>
@@ -107,8 +110,8 @@ export default function RevisionPago({ pago, comprobantes, recibo, datos, almace
 
           {recibo && (
             <section className="flex flex-wrap items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-900">
-              <span className="min-w-0 flex-1">Recibo {recibo.numero}{recibo.anuladoEn ? ' · anulado' : ''}. <span className="text-[11px]">{AVISO_RECIBO}</span></span>
-              <Button size="xs" variant="outline" onClick={() => void descargarRecibo(almacen, recibo, comprobantes.find((c) => c.id === recibo.comprobanteId)?.archivoNombre)}><Download />Descargar recibo</Button>
+              <span className="min-w-0 flex-1">Recibo {recibo.numero}{recibo.anuladoEn ? ' · anulado' : ''}. <span className="text-xs">{AVISO_RECIBO}</span></span>
+              <Button size="xs" variant="outline" onClick={() => void descargarRecibo(almacen, recibo, comprobantes.find((c) => c.id === recibo.comprobanteId)?.archivoNombre, datos)}><Download />Descargar recibo</Button>
             </section>
           )}
 
@@ -119,17 +122,17 @@ export default function RevisionPago({ pago, comprobantes, recibo, datos, almace
             <section className="grid gap-3 rounded-lg border border-border p-3">
               {esReserva && (
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="grid gap-1"><Label htmlFor="rv-monto" className="text-[11px]">Monto recibido (USD) *</Label><Input id="rv-monto" inputMode="decimal" className="h-8" value={monto} onChange={(e) => setMonto(e.target.value)} /></div>
-                  <div className="grid gap-1"><Label htmlFor="rv-fecha" className="text-[11px]">Fecha del ingreso *</Label><Input id="rv-fecha" type="date" max={hoyGuayaquil()} className="h-8" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
-                  <div className="grid gap-1"><Label htmlFor="rv-ref" className="text-[11px]">Referencia bancaria *</Label><Input id="rv-ref" className="h-8" value={referencia} onChange={(e) => setReferencia(e.target.value)} /></div>
+                  <div className="grid gap-1"><Label htmlFor="rv-monto" className="text-xs">Monto recibido (USD) *</Label><Input id="rv-monto" inputMode="decimal" className="h-8" value={monto} onChange={(e) => setMonto(e.target.value)} /></div>
+                  <div className="grid gap-1"><Label htmlFor="rv-fecha" className="text-xs">Fecha del ingreso *</Label><Input id="rv-fecha" type="date" max={hoyGuayaquil()} className="h-8" value={fecha} onChange={(e) => setFecha(e.target.value)} /></div>
+                  <div className="grid gap-1"><Label htmlFor="rv-ref" className="text-xs">Referencia bancaria *</Label><Input id="rv-ref" className="h-8" value={referencia} onChange={(e) => setReferencia(e.target.value)} /></div>
                 </div>
               )}
               <label className="flex items-start gap-2"><input type="checkbox" className="mt-0.5" checked={verificado} onChange={(e) => setVerificado(e.target.checked)} />Verifiqué el ingreso en la cuenta bancaria correspondiente</label>
-              <div className="grid gap-1"><Label htmlFor="rv-nota" className="text-[11px]">Observación</Label><Textarea id="rv-nota" rows={2} value={nota} onChange={(e) => setNota(e.target.value)} /></div>
+              <div className="grid gap-1"><Label htmlFor="rv-nota" className="text-xs">Observación</Label><Textarea id="rv-nota" rows={2} value={nota} onChange={(e) => setNota(e.target.value)} /></div>
             </section>
           )}
           {puedeDecidir && rechazando && (
-            <div className="grid gap-1"><Label htmlFor="rv-motivo" className="text-[11px]">Motivo del rechazo *</Label><Textarea id="rv-motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
+            <div className="grid gap-1"><Label htmlFor="rv-motivo" className="text-xs">Motivo del rechazo *</Label><Textarea id="rv-motivo" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></div>
           )}
 
           {historial.length > 0 && (

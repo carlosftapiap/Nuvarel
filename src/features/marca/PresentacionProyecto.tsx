@@ -21,7 +21,7 @@ export default function PresentacionProyecto() {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="min-w-52 flex-1">
           <h2 id="pres-tit" className="marca-titulo text-xl leading-tight">Presentación del proyecto AMURA</h2>
-          <p className="text-[11px] text-muted-foreground">Material para mostrar al cliente sin salir de esta pantalla · {NOTA_VISUALIZACION}.</p>
+          <p className="text-xs text-muted-foreground">Material para mostrar al cliente sin salir de esta pantalla · {NOTA_VISUALIZACION}.</p>
         </div>
         {lista.length > 0 && <Button size="sm" className="bg-[#584536] text-white hover:bg-[#6a5442]" onClick={() => setAbierto({ inicio: 0, completa: true })}><Maximize />Presentar en pantalla completa</Button>}
         <Button size="sm" variant="ghost" aria-expanded={!oculta} aria-controls="pres-contenido" onClick={alternar}>{oculta ? <ChevronDown /> : <ChevronUp />}{oculta ? 'Mostrar' : 'Ocultar'}</Button>

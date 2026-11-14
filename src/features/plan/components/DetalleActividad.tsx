@@ -33,7 +33,7 @@ interface Props {
 }
 
 function Campo({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="min-w-0"><dt className="text-[11px] text-muted-foreground">{label}</dt><dd className="mt-0.5 text-sm">{children}</dd></div>
+  return <div className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-0.5 text-sm">{children}</dd></div>
 }
 
 /** Panel de detalle: datos, plazos, dependencias, acciones permitidas, evidencias e historial. */
@@ -88,7 +88,7 @@ export default function DetalleActividad({ d, a, datos, puede, onAccion, onClose
               <SheetTitle className="text-base"><span className="font-mono">{a.codigo}</span> · {a.nombre}</SheetTitle>
               <SheetDescription className="mt-1 flex flex-wrap items-center gap-1.5">
                 <EstadoBadge estado={a.estado} bloqueada={a.bloqueada} /><SemaforoBadge s={semaforo(a, plan.fechaCorte, plan.alertaDias)} />
-                {a.tipo === 'hito' && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] text-violet-700 ring-1 ring-inset ring-violet-200">Hito</span>}
+                {a.tipo === 'hito' && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700 ring-1 ring-inset ring-violet-200">Hito</span>}
               </SheetDescription>
             </div>
             <button type="button" aria-label="Cerrar" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
@@ -110,19 +110,19 @@ export default function DetalleActividad({ d, a, datos, puede, onAccion, onClose
             <Campo label="Línea base">{fmtFecha(a.baseInicio)} – {fmtFecha(a.baseFin)}</Campo>
             <Campo label="Vigente">{fmtFecha(a.planInicio)} – {fmtFecha(a.planFin)} {duracion(a.planInicio, a.planFin) !== null && <span className="text-muted-foreground">({duracion(a.planInicio, a.planFin)} d)</span>}</Campo>
             <Campo label="Real">{a.realInicio || a.realFin ? `${fmtFecha(a.realInicio)} – ${a.realFin ? fmtFecha(a.realFin) : 'en curso'}` : <i className="text-muted-foreground">Sin inicio real</i>}</Campo>
-            <Campo label="Retraso vs línea base">{retraso === null ? '—' : retraso > 0 ? <span className="text-rose-700">{retraso} días</span> : 'Sin retraso'}{tardia ? <div className="text-[11px] text-rose-700">Finalizó {tardia} días tarde</div> : null}</Campo>
+            <Campo label="Retraso vs línea base">{retraso === null ? '—' : retraso > 0 ? <span className="text-rose-700">{retraso} días</span> : 'Sin retraso'}{tardia ? <div className="text-xs text-rose-700">Finalizó {tardia} días tarde</div> : null}</Campo>
             {a.bloqueada && <div className="col-span-2 rounded-md bg-orange-50 px-3 py-2 text-xs text-orange-900 ring-1 ring-orange-200">Bloqueada: {a.motivoBloqueo}</div>}
           </dl>
           {(a.descripcion || a.resultadoEsperado || a.observaciones) && (
             <div className="grid gap-3 text-sm">
-              {a.descripcion && <div><div className="text-[11px] text-muted-foreground">Qué hacer</div><p className="mt-0.5 whitespace-pre-line">{a.descripcion}</p></div>}
-              {a.resultadoEsperado && <div><div className="text-[11px] text-muted-foreground">Resultado para darla por terminada</div><p className="mt-0.5 whitespace-pre-line">{a.resultadoEsperado}</p></div>}
-              {a.observaciones && <div><div className="text-[11px] text-muted-foreground">Comentarios</div><p className="mt-0.5 whitespace-pre-line">{a.observaciones}</p></div>}
+              {a.descripcion && <div><div className="text-xs text-muted-foreground">Qué hacer</div><p className="mt-0.5 whitespace-pre-line">{a.descripcion}</p></div>}
+              {a.resultadoEsperado && <div><div className="text-xs text-muted-foreground">Resultado para darla por terminada</div><p className="mt-0.5 whitespace-pre-line">{a.resultadoEsperado}</p></div>}
+              {a.observaciones && <div><div className="text-xs text-muted-foreground">Comentarios</div><p className="mt-0.5 whitespace-pre-line">{a.observaciones}</p></div>}
             </div>
           )}
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <div><div className="mb-1 text-[11px] text-muted-foreground">Predecesoras</div>{preds.length ? preds.map((p) => <div key={p.id} className={p.planFin && a.planInicio && a.planInicio <= p.planFin ? 'text-amber-800' : ''}>{p.codigo} · fin {fmtFecha(p.planFin)}{p.planFin && a.planInicio && a.planInicio <= p.planFin ? ' (revisar)' : ''}</div>) : <span className="text-muted-foreground">Ninguna</span>}</div>
-            <div><div className="mb-1 text-[11px] text-muted-foreground">Sucesoras</div>{sucs.length ? sucs.map((s) => <div key={s.id}>{s.codigo} · inicio {fmtFecha(s.planInicio)}</div>) : <span className="text-muted-foreground">Ninguna</span>}</div>
+            <div><div className="mb-1 text-xs text-muted-foreground">Predecesoras</div>{preds.length ? preds.map((p) => <div key={p.id} className={p.planFin && a.planInicio && a.planInicio <= p.planFin ? 'text-amber-800' : ''}>{p.codigo} · fin {fmtFecha(p.planFin)}{p.planFin && a.planInicio && a.planInicio <= p.planFin ? ' (revisar)' : ''}</div>) : <span className="text-muted-foreground">Ninguna</span>}</div>
+            <div><div className="mb-1 text-xs text-muted-foreground">Sucesoras</div>{sucs.length ? sucs.map((s) => <div key={s.id}>{s.codigo} · inicio {fmtFecha(s.planInicio)}</div>) : <span className="text-muted-foreground">Ninguna</span>}</div>
           </div>
           <FieldError>{error}</FieldError>
           <section>
@@ -149,14 +149,14 @@ export default function DetalleActividad({ d, a, datos, puede, onAccion, onClose
                   <li key={h.id} className="border-l-2 border-border pl-3">
                     <div className="font-medium">{h.accion} <span className="font-normal text-muted-foreground">· {new Date(h.fecha).toLocaleString('es-EC')} · {h.userId ? personas.get(h.userId) ?? 'Usuario' : 'Sistema'}</span></div>
                     <div className="text-muted-foreground">{h.motivo}</div>
-                    {h.antes && h.despues && <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{resumenCambio(h.antes, h.despues)}</div>}
+                    {h.antes && h.despues && <div className="mt-0.5 font-mono text-xs text-muted-foreground">{resumenCambio(h.antes, h.despues)}</div>}
                   </li>
                 ))}
                 {!hist.length && <li className="text-muted-foreground">Sin movimientos.</li>}
               </ol>
             )}
           </section>
-          <p className="text-[10px] text-muted-foreground">Versión {a.version} · actualizado {a.updatedAt ? new Date(a.updatedAt).toLocaleString('es-EC') : '—'}{a.updatedBy ? ` por ${personas.get(a.updatedBy) ?? 'otro usuario'}` : ''}</p>
+          <p className="text-xs text-muted-foreground">Versión {a.version} · actualizado {a.updatedAt ? new Date(a.updatedAt).toLocaleString('es-EC') : '—'}{a.updatedBy ? ` por ${personas.get(a.updatedBy) ?? 'otro usuario'}` : ''}</p>
         </div>
       </SheetContent>
     </Sheet>
@@ -278,19 +278,19 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
             <div className="grid gap-1.5">
               <Label htmlFor="ac-av" className="text-xs">Avance (0 a 100). Vacío = sin dato</Label>
               <Input id="ac-av" inputMode="decimal" value={avance} onChange={(e) => setAvance(e.target.value)} placeholder="Sin dato" />
-              {baja && <p className="text-[11px] text-amber-800">Bajar el avance es una corrección: indica el motivo.</p>}
+              {baja && <p className="text-xs text-amber-800">Bajar el avance es una corrección: indica el motivo.</p>}
             </div>
           )}
           {accion === 'reprogramar' && (
             <>
-              <p className="text-[11px] text-muted-foreground">Línea base: {fmtFecha(a.baseInicio)} – {fmtFecha(a.baseFin)}. Se conserva; el retraso respecto de ella seguirá visible.</p>
+              <p className="text-xs text-muted-foreground">Línea base: {fmtFecha(a.baseInicio)} – {fmtFecha(a.baseFin)}. Se conserva; el retraso respecto de ella seguirá visible.</p>
               <div className="grid grid-cols-2 gap-2">
                 <div className="grid gap-1.5"><Label htmlFor="ac-ini" className="text-xs">Nuevo inicio</Label><Input id="ac-ini" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} /></div>
                 <div className="grid gap-1.5"><Label htmlFor="ac-fin" className="text-xs">Nuevo fin</Label><Input id="ac-fin" type="date" value={fin} onChange={(e) => setFin(e.target.value)} /></div>
               </div>
-              {fin && inicio && fin < inicio && <p className="text-[11px] text-rose-700">El fin debe ser igual o posterior al inicio.</p>}
+              {fin && inicio && fin < inicio && <p className="text-xs text-rose-700">El fin debe ser igual o posterior al inicio.</p>}
               {conflictos.length > 0 && (
-                <div className="rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-900 ring-1 ring-amber-200">
+                <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
                   <p className="font-medium">Impacto en sucesoras (no se moverán automáticamente):</p>
                   <ul className="mt-1 list-disc pl-4">{conflictos.map((c) => <li key={c.codigo}>{c.codigo} {c.nombre} empieza el {fmtFecha(c.plan_inicio)}</li>)}</ul>
                   <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={aceptaImpacto} onChange={(e) => setAceptaImpacto(e.target.checked)} />Entiendo el impacto y autorizo la reprogramación</label>
@@ -329,7 +329,7 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
               </div>
               <div className="grid gap-1.5"><Label htmlFor="ed-obs" className="text-xs">Comentarios</Label><Textarea id="ed-obs" rows={2} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} /></div>
               <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={requiereEvidencia} onChange={(e) => setRequiereEvidencia(e.target.checked)} />Exige evidencia para cerrarse</label>
-              <p className="text-[11px] text-muted-foreground">Responsable, fechas, peso y avance se cambian con sus propios botones, para que cada cambio quede con su motivo.</p>
+              <p className="text-xs text-muted-foreground">Responsable, fechas, peso y avance se cambian con sus propios botones, para que cada cambio quede con su motivo.</p>
             </>
           )}
           {accion === 'asignar' && (
@@ -349,7 +349,7 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
                   <Input id="ac-ext" value={responsableExterno} onChange={(e) => setResponsableExterno(e.target.value)} placeholder="Ej.: Juan Pérez (proveedor)" />
                 </div>
               )}
-              {a.responsableTexto && <p className="text-[11px] text-muted-foreground">Texto original del cronograma: “{a.responsableTexto}”.</p>}
+              {a.responsableTexto && <p className="text-xs text-muted-foreground">Texto original del cronograma: “{a.responsableTexto}”.</p>}
             </div>
           )}
           {accion === 'peso' && (
@@ -360,7 +360,7 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
           )}
           {accion === 'cerrar' && (
             <>
-              <p className="text-[11px] text-muted-foreground">Para cerrar se exige avance de 100%, fecha real de fin{a.requiereEvidencia ? ' y la evidencia obligatoria' : ''}.</p>
+              <p className="text-xs text-muted-foreground">Para cerrar se exige avance de 100%, fecha real de fin{a.requiereEvidencia ? ' y la evidencia obligatoria' : ''}.</p>
               <div className="grid gap-1.5"><Label htmlFor="ac-fecha" className="text-xs">Fecha real de fin</Label><Input id="ac-fecha" type="date" value={fecha} max={hoy} onChange={(e) => setFecha(e.target.value)} /></div>
             </>
           )}
@@ -368,7 +368,7 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
             <div className="grid gap-1.5">
               <Label htmlFor="ac-url" className="text-xs">Enlace al documento (Drive, carpeta compartida…)</Label>
               <Input id="ac-url" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" />
-              <p className="text-[11px] text-muted-foreground">La carga de archivos al almacenamiento privado está pendiente; por ahora se registran enlaces.</p>
+              <p className="text-xs text-muted-foreground">La carga de archivos al almacenamiento privado está pendiente; por ahora se registran enlaces.</p>
             </div>
           )}
           <div className="grid gap-1.5">
@@ -376,7 +376,7 @@ export function AccionDialog({ d, datos, a, accion, onClose, ejecutar }: DialogP
             <Textarea id="ac-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)}
               placeholder={motivoExigido ? 'Ej.: El proveedor confirmó nueva fecha de entrega' : undefined} />
           </div>
-          {falta && <p className="text-[11px] text-amber-800">Para guardar: {falta}.</p>}
+          {falta && <p className="text-xs text-amber-800">Para guardar: {falta}.</p>}
           <FieldError>{error}</FieldError>
         </div>
         <DialogFooter>

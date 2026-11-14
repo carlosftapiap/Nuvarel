@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate, useLocation } from 'react-router-dom'
-import { Eye, EyeOff, Loader2, Mail } from 'lucide-react'
+import { Navigate } from 'react-router-dom'
+import { Loader2, Mail } from 'lucide-react'
 import { MarcoAcceso, useConexion } from '@/app/auth'
+import ClaveInput from '@/components/ClaveInput'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,25 +12,10 @@ import { supabase } from '@/lib/supabase'
 /** Inicio de sesión con Supabase Auth. No hay registro público: las cuentas las crea un administrador. */
 export default function LoginPage() {
   const { estado } = useConexion()
-  const location = useLocation()
-  const desde = (location.state as { desde?: string } | null)?.desde
-  // Con sesión iniciada (con o sin perfil) se sale de /login: la ruta privada muestra la app o el motivo por el que no hay acceso
-  // (y, si corresponde, el botón para activar al administrador inicial).
-  if (estado && ['listo', 'sin_perfil', 'inactivo', 'error'].includes(estado.tipo)) return <Navigate to={desde && desde !== '/login' ? desde : '/'} replace />
+  // Con sesión iniciada (con o sin perfil) se sale de /login siempre al inicio: cada perfil entra a su propia pantalla
+  // y nunca a la ruta que dejó otra sesión. Sin perfil, la ruta privada muestra el motivo (o activa al administrador inicial).
+  if (estado && ['listo', 'sin_perfil', 'inactivo', 'error'].includes(estado.tipo)) return <Navigate to="/" replace />
   return <MarcoAcceso>{estado?.tipo === 'recuperacion' ? <NuevaClave /> : <Formulario />}</MarcoAcceso>
-}
-
-function ClaveInput({ id, value, onChange, autoComplete }: { id: string; value: string; onChange: (v: string) => void; autoComplete: string }) {
-  const [ver, setVer] = useState(false)
-  return (
-    <div className="relative">
-      <Input id={id} type={ver ? 'text' : 'password'} autoComplete={autoComplete} required value={value} onChange={(e) => onChange(e.target.value)} className="pr-9" />
-      <button type="button" onClick={() => setVer(!ver)} aria-label={ver ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={ver}
-        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-muted-foreground hover:text-foreground">
-        {ver ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-      </button>
-    </div>
-  )
 }
 
 function mensajeAuth(m: string) {
@@ -109,7 +95,7 @@ function Formulario() {
       {error && <p role="alert" className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700 ring-1 ring-rose-200">{error}</p>}
       <Button type="submit" disabled={enviando}>{enviando && <Loader2 className="animate-spin" />}{enviando ? 'Ingresando…' : 'Iniciar sesión'}</Button>
       <button type="button" onClick={() => { setRecuperar(true); setError(null) }} className="text-xs text-primary hover:underline">¿Olvidaste tu contraseña?</button>
-      <p className="text-center text-[11px] text-muted-foreground">Las cuentas las crea el administrador. No hay registro público.</p>
+      <p className="text-center text-xs text-muted-foreground">Las cuentas las crea el administrador. No hay registro público.</p>
     </form>
   )
 }

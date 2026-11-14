@@ -96,18 +96,14 @@ function InventarioComercial() {
         {(sinPlano > 0 || sinImagenes > 0 || enRevision > 0) && (
           <p className="flex gap-2"><FileWarning className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /><span><b>Documentación incompleta:</b> {sinPlano} planos e {sinImagenes} grupos de imágenes pendientes de cargar{enRevision > 0 ? `; ${enRevision} en revisión` : ''}. Ninguno figura como validado hasta completar su revisión.</span></p>
         )}
-        {!editaPrecios && <p className="text-[11px]">Rol {ROLES[actor.rol]?.label ?? actor.rol}: solo consulta.</p>}
+        {!editaPrecios && <p className="text-xs">Rol {ROLES[actor.rol]?.label ?? actor.rol}: solo consulta.</p>}
       </div>
 
-      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6" role="group" aria-label="Unidades por estado">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="Unidades por estado">
         <Indicador t="Total" v={r.unidades} activo={filtros.estado === 'todos'} onClick={() => filtrarEstado('todos')} />
         <Indicador t="Disponibles" v={r.porEstado.disponible} activo={filtros.estado === 'disponible'} onClick={() => filtrarEstado('disponible')} tono="text-emerald-700" />
-        {r.porEstado.en_proceso_reserva > 0 && <Indicador t="En proceso de reserva" v={r.porEstado.en_proceso_reserva} activo={filtros.estado === 'en_proceso_reserva'} onClick={() => filtrarEstado('en_proceso_reserva')} tono="text-yellow-700" />}
         <Indicador t="Reservadas" v={r.porEstado.reservado} activo={filtros.estado === 'reservado'} onClick={() => filtrarEstado('reservado')} tono="text-violet-700" />
         <Indicador t="Vendidas" v={r.porEstado.vendido} activo={filtros.estado === 'vendido'} onClick={() => filtrarEstado('vendido')} tono="text-blue-800" />
-        <Indicador t="Bloqueadas" v={r.porEstado.bloqueado} activo={filtros.estado === 'bloqueado'} onClick={() => filtrarEstado('bloqueado')} tono="text-slate-700" />
-        {r.porEstado.promesa > 0 && <Indicador t="Prometidas" v={r.porEstado.promesa} activo={filtros.estado === 'promesa'} onClick={() => filtrarEstado('promesa')} tono="text-sky-700" />}
-        {r.porEstado.no_disponible > 0 && <Indicador t="No disponibles" v={r.porEstado.no_disponible} activo={filtros.estado === 'no_disponible'} onClick={() => filtrarEstado('no_disponible')} tono="text-rose-700" />}
       </div>
       <p className="mb-4 flex flex-wrap gap-x-5 gap-y-1 px-1 text-xs text-muted-foreground">
         <span>Valor total de lista: <b className="tabular-nums text-foreground">{fmtUsd(r.total)}</b> · promedio {fmtUsd(r.promedio)} por unidad</span>
@@ -148,7 +144,7 @@ function InventarioComercial() {
 function Indicador({ t, v, activo, onClick, tono }: { t: string; v: number; activo: boolean; onClick: () => void; tono?: string }) {
   return (
     <button type="button" aria-pressed={activo} onClick={onClick} className={cn('dashboard-card !p-3 text-left transition hover:-translate-y-px', activo && 'ring-2 ring-primary')}>
-      <div className="text-[11px] text-muted-foreground">{t}</div>
+      <div className="text-xs text-muted-foreground">{t}</div>
       <div className={cn('mt-0.5 text-xl font-semibold tabular-nums', tono)}>{v}</div>
     </button>
   )

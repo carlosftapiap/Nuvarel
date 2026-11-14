@@ -34,7 +34,7 @@ async function abrir(url = '/clientes') {
 }
 
 interface FilaCliente { id: string; nombre: string; primer_nombre: string | null; segundo_nombre: string | null; primer_apellido: string | null; segundo_apellido: string | null; version: number }
-const cliente = async (telefono: string) => (await db.query<FilaCliente>(`select * from public.clients where telefono = $1`, [telefono])).rows[0]
+const cliente = async (telefono: string) => (await db.query<FilaCliente>(`select * from public.clients where telefono = public.celular_normalizado($1)`, [telefono])).rows[0]
 const rpc = (sql: string, p: unknown[] = []) => como(db, vera, () => db.query(sql, p))
 
 beforeEach(() => {
@@ -58,7 +58,7 @@ describe('nombres y apellidos del cliente', () => {
     await user.click((await screen.findAllByRole('button', { name: /Nuevo cliente/ }))[0])
     const dlg = await screen.findByRole('dialog', { name: 'Nuevo cliente' })
     expect(within(dlg).queryByLabelText('Nombre *')).toBeNull()
-    await user.type(within(dlg).getByLabelText('Teléfono'), '0991000001')
+    await user.type(within(dlg).getByLabelText('Celular *'), '0991000001')
     await user.click(within(dlg).getByRole('button', { name: 'Registrar cliente' }))
     expect(await within(dlg).findByRole('alert')).toHaveTextContent(/primer nombre/)
     expect(await cliente('0991000001')).toBeUndefined()
