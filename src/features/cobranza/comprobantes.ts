@@ -1,9 +1,9 @@
 import { jsPDF } from 'jspdf'
 import { modoRemoto } from '@/app/auth'
-import type { Datos, Filtro } from '@/features/conexion/datos'
+import type { Datos } from '@/features/conexion/datos'
 import { almacenContratosSupabase, nombreSeguro, type AlmacenContratos } from '@/features/contratos/almacen'
 import { fmtFechaCorta } from '@/features/financiamiento/plan'
-import { nombreEdificio } from '@/features/inventario/nomenclatura'
+import { edificioDocumento, ERROR_ORIGINAL_DOCUMENTO } from '@/features/inventario/nomenclatura'
 
 /**
  * Comprobantes de pago y recibos. El archivo va al bucket privado; en las tablas solo queda su ruta.
@@ -32,24 +32,29 @@ export interface Comprobante {
   id: string; reservaId: string | null; pagoId: string | null; monto: number; fecha: string; banco: string; referencia: string
   ruta: string | null; archivoNombre: string | null; archivoMime: string | null; estado: 'reportado' | 'confirmado' | 'rechazado'
   cargadoPor: string; cargadoEn: string; motivoRevision: string | null; medio: MedioPago; constanciaNumero: string | null
+  constanciaSnapshot?: (DatosConstancia & { unidad: UnidadDocumento; estadoEmision: Comprobante['estado']; comprobante: Pick<Comprobante, 'monto' | 'fecha' | 'banco' | 'referencia' | 'medio' | 'cargadoEn' | 'constanciaNumero'> }) | null
 }
 
 export interface Recibo {
   id: string; numero: string; reservaId: string | null; pagoId: string | null; emisor: string; emisorRuc: string | null; emisorDireccion: string | null; comprobanteId: string | null; cliente: string; documento: string
   departamento: string; codigoUnidad: string; concepto: string; monto: number; fechaPago: string; referencia: string; banco: string | null
   aprobadoNombre: string; emitidoEn: string; pdfRuta: string | null; anuladoEn: string | null; motivoAnulacion: string | null
+  pdfHash?: string | null
+  unidadSnapshot?: UnidadDocumento | null
 }
 
 export const aComprobante = (e: Fila): Comprobante => ({
   id: String(e.id), reservaId: s(e.reservation_id), pagoId: s(e.payment_id), monto: Number(e.monto), fecha: String(e.fecha).slice(0, 10), banco: String(e.banco), referencia: String(e.referencia),
   ruta: s(e.ruta), archivoNombre: s(e.archivo_nombre), archivoMime: s(e.archivo_mime), estado: e.estado as Comprobante['estado'], cargadoPor: String(e.cargado_por), cargadoEn: String(e.cargado_en), motivoRevision: s(e.motivo_revision),
   medio: (s(e.medio) ?? 'transferencia') as MedioPago, constanciaNumero: s(e.constancia_numero),
+  constanciaSnapshot: (e.constancia_snapshot as Comprobante['constanciaSnapshot']) ?? null,
 })
 
 export const aRecibo = (v: Fila): Recibo => ({
   id: String(v.id), numero: String(v.numero), reservaId: s(v.reservation_id), pagoId: s(v.payment_id), emisor: String(v.emisor), emisorRuc: s(v.emisor_ruc), emisorDireccion: s(v.emisor_direccion), comprobanteId: s(v.comprobante_id), cliente: String(v.cliente), documento: String(v.documento ?? ''),
   departamento: String(v.departamento), codigoUnidad: String(v.codigo_unidad), concepto: String(v.concepto), monto: Number(v.monto), fechaPago: String(v.fecha_pago).slice(0, 10), referencia: String(v.referencia), banco: s(v.banco),
   aprobadoNombre: String(v.aprobado_nombre), emitidoEn: String(v.emitido_en), pdfRuta: s(v.pdf_ruta), anuladoEn: s(v.anulado_en), motivoAnulacion: s(v.motivo_anulacion),
+  pdfHash: s(v.pdf_hash), unidadSnapshot: (v.unidad_snapshot as UnidadDocumento | null) ?? null,
 })
 
 /** Sin la migración, Cobranzas sigue funcionando sin comprobantes ni recibos. */
@@ -151,9 +156,10 @@ export async function archivoComprobante(almacen: AlmacenContratos | null, c: Co
 
 const usd = (v: number) => `USD ${v.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-/** Datos de la unidad tomados de Inventario al generar el documento: no se copian en la base. */
+/** Datos congelados al emitir; Inventario solo se consulta para reportes nuevos. */
 export interface UnidadDocumento {
   dpt: string; edificio: number; piso: string; tipologia: string; areaM2: number; ubicacion: string
+  edificioNombre?: string
   bodegaCodigo: string | null; bodegaM2: number; patioM2: number; parqueo: string | null
 }
 
@@ -173,7 +179,7 @@ export async function cargarUnidadDocumento(d: Datos | null, codigo: string): Pr
 export function filasUnidad(u: UnidadDocumento | null | undefined): [string, string][] {
   if (!u) return []
   return [
-    ['Edificio y piso', `${nombreEdificio(u.edificio)} · ${u.piso === 'PB' ? 'Planta baja' : `Piso ${u.piso}`}${u.ubicacion ? ` · ${u.ubicacion}` : ''}`],
+    ['Edificio y piso', `${edificioDocumento(u)} · ${u.piso === 'PB' ? 'Planta baja' : `Piso ${u.piso}`}${u.ubicacion ? ` · ${u.ubicacion}` : ''}`],
     ['Tipología y área', `${u.tipologia} · ${m2(u.areaM2)}`],
     ...(u.patioM2 > 0 ? [['Patio', m2(u.patioM2)] as [string, string]] : []),
     ...(u.bodegaCodigo ? [['Bodega', `${u.bodegaCodigo}${u.bodegaM2 > 0 ? ` · ${m2(u.bodegaM2)}` : ''}`] as [string, string]] : []),
@@ -278,33 +284,6 @@ export function construirConstanciaPdf(c: Comprobante, x: DatosConstancia, unida
   })
 }
 
-/** Reúne cliente, unidad y emisor desde las tablas existentes. Lo que no se pueda leer queda como "—". */
-async function datosConstancia(d: Datos, c: Comprobante): Promise<DatosConstancia & { unidad: UnidadDocumento | null }> {
-  const uno = async (tabla: string, filtros: Filtro) =>(await d.select<Fila>(tabla, { filtros }).catch(() => [] as Fila[]))[0] ?? null
-  let origen: Fila | null = null
-  let concepto = 'Pago'
-  if (c.reservaId) {
-    origen = await uno('reservations', { id: c.reservaId })
-    concepto = `Reserva ${origen ? String(origen.codigo) : ''}`.trim()
-  } else if (c.pagoId) {
-    const pago = await uno('payments', { id: c.pagoId })
-    origen = pago ? await uno('contracts', { id: String(pago.contract_id) }) : null
-    concepto = `Contrato ${origen ? String(origen.codigo) : ''}`.trim()
-  }
-  const codigo = origen ? String(origen.codigo_unidad) : '—'
-  const [cliente, emisor, perfil, unidad] = await Promise.all([
-    origen ? uno('clients', { id: String(origen.client_id) }) : null,
-    uno('emisor_recibos', { id: 1 }),
-    uno('profiles', { id: c.cargadoPor }),
-    cargarUnidadDocumento(d, codigo),
-  ])
-  return {
-    cliente: cliente ? String(cliente.nombre) : '—', documento: cliente ? String(cliente.documento ?? '') : '', departamento: unidad?.dpt ?? codigo, codigoUnidad: codigo, concepto,
-    emisor: emisor ? String(emisor.razon_social) : 'NUVAREL S.A.S.', emisorRuc: emisor ? s(emisor.ruc) : null, emisorDireccion: emisor ? s(emisor.direccion) : null,
-    registradoPor: perfil ? String(perfil.nombre) : 'Usuario', unidad,
-  }
-}
-
 export function descargarPdf(bytes: ArrayBuffer, nombre: string) {
   const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
   const a = document.createElement('a')
@@ -316,11 +295,12 @@ export function descargarPdf(bytes: ArrayBuffer, nombre: string) {
   URL.revokeObjectURL(url)
 }
 
-/** Se genera al pedirla, con el estado actual del comprobante: no se guarda una copia. */
-export async function descargarConstancia(d: Datos, c: Comprobante) {
+/** Reproduce los datos de emisión; el estado actual se consulta en la pantalla de pagos. */
+export async function descargarConstancia(_d: Datos, c: Comprobante) {
   if (!c.constanciaNumero) throw new Error('Este comprobante se registró antes de las constancias y no tiene número.')
-  const { unidad, ...x } = await datosConstancia(d, c)
-  descargarPdf(construirConstanciaPdf(c, x, unidad).output('arraybuffer'), `${c.constanciaNumero}.pdf`)
+  if (!c.constanciaSnapshot) throw new Error(ERROR_ORIGINAL_DOCUMENTO)
+  const { unidad, estadoEmision, comprobante, ...x } = c.constanciaSnapshot
+  descargarPdf(construirConstanciaPdf({ ...c, ...comprobante, estado: estadoEmision }, x, unidad).output('arraybuffer'), `${c.constanciaNumero}.pdf`)
 }
 
 /** La constancia del último comprobante de una reserva, para quien lo registró desde Atender cliente. */
@@ -333,7 +313,8 @@ export async function descargarConstanciaReserva(d: Datos, reservaId: string) {
 /** Guarda el PDF una sola vez. Si otra persona ya lo guardó, no hace nada. */
 export async function guardarPdfRecibo(d: Datos, almacen: AlmacenContratos | null, r: Recibo, comprobante?: string | null) {
   if (!almacen || r.pdfRuta) return
-  const bytes = construirReciboPdf(r, comprobante, await cargarUnidadDocumento(d, r.codigoUnidad)).output('arraybuffer')
+  if (!r.unidadSnapshot || r.anuladoEn) throw new Error(ERROR_ORIGINAL_DOCUMENTO)
+  const bytes = construirReciboPdf(r, comprobante, r.unidadSnapshot).output('arraybuffer')
   const hash = await huella(bytes)
   // La huella en la ruta hace única cada carga: nunca se reutiliza un archivo que ya estuviera en el bucket.
   const ruta = `recibos/${r.numero}-${hash.slice(0, 12)}.pdf`
@@ -352,12 +333,18 @@ export async function completarRecibo(d: Datos, almacen: AlmacenContratos | null
   return r
 }
 
-/** `d` permite completar los datos de la unidad cuando el PDF se genera en ese momento. */
-export async function descargarRecibo(almacen: AlmacenContratos | null, r: Recibo, comprobante?: string | null, d: Datos | null = null) {
-  // Anulado se muestra con su leyenda; el archivo guardado no se reemplaza.
-  const bytes = r.pdfRuta && almacen && !r.anuladoEn
-    ? await almacen.descargar(BUCKET_COMPROBANTES, r.pdfRuta)
-    : construirReciboPdf(r, comprobante, await cargarUnidadDocumento(d, r.codigoUnidad)).output('arraybuffer')
+/** Entrega el original o utiliza exclusivamente los datos de emisión; nunca completa desde Inventario. */
+export async function descargarRecibo(almacen: AlmacenContratos | null, r: Recibo, comprobante?: string | null, _d: Datos | null = null) {
+  // Incluso anulado se descarga el original; su estado y motivo siguen visibles en la pantalla.
+  let bytes: ArrayBuffer
+  if (r.pdfRuta) {
+    if (!almacen) throw new Error('El almacenamiento del documento original no está disponible.')
+    bytes = await almacen.descargar(BUCKET_COMPROBANTES, r.pdfRuta)
+    if (r.pdfHash && await huella(bytes) !== r.pdfHash) throw new Error('El recibo no coincide con su huella de integridad registrada.')
+  } else {
+    if (!r.unidadSnapshot || r.anuladoEn) throw new Error(ERROR_ORIGINAL_DOCUMENTO)
+    bytes = construirReciboPdf(r, comprobante, r.unidadSnapshot).output('arraybuffer')
+  }
   descargarPdf(bytes, `${r.numero}.pdf`)
 }
 

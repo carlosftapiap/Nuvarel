@@ -5,7 +5,7 @@ import type {
   Actor, Edificio, EstadoComercial, InventoryState, Piso, PriceChange, PriceHistoryEntry,
   PriceProposal, PricingParams, StatusHistoryEntry, Tipologia, Unit,
 } from './types'
-import { nombreEdificio } from './nomenclatura'
+import { nombreEdificio, numeroComercial } from './nomenclatura'
 
 export class InventoryError extends Error {
   constructor(message: string) {
@@ -50,7 +50,7 @@ export function unidadesEnAlcance(units: Unit[], a: Alcance) {
 
 export function describirAlcance(a: Alcance) {
   const partes: string[] = []
-  if (a.codigos) partes.push(a.codigos.length === 1 ? a.codigos[0] : `${a.codigos.length} unidades seleccionadas`)
+  if (a.codigos) partes.push(a.codigos.length === 1 ? numeroComercial(a.codigos[0]) : `${a.codigos.length} unidades seleccionadas`)
   if (a.edificio) partes.push(nombreEdificio(a.edificio))
   if (a.piso) partes.push(a.piso === 'PB' ? 'Planta baja' : `Piso ${a.piso}`)
   if (a.tipologia) partes.push(a.tipologia)

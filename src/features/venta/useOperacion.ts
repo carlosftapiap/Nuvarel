@@ -16,6 +16,7 @@ import { useReservaFlujo } from '@/features/reservas/flujo'
 import { acreditacion, operacionesAbiertas, siguientePaso, type EstadoContrato, type EstadoCumplimiento } from './operacion'
 import { borradorVacio, type Borrador } from './borrador'
 import { identificacionCompleta } from '@/features/clientes/categoria'
+import { resolverUnidad } from '@/features/inventario/nomenclatura'
 
 /**
  * Estado de una operación comercial: cotización, solicitud de reserva, pagos y contrato.
@@ -67,7 +68,8 @@ export function useOperacion(b: Borrador, setB: (f: (x: Borrador) => Borrador) =
   // Con cotización emitida, cliente, unidad y condiciones salen de ella: son las que quedaron en la base.
   const cotizacion = lista.find((c) => c.id === b.cotizacionId) ?? null
   const clienteId = cotizacion?.clienteId ?? b.clienteId
-  const codigo = cotizacion?.unidad.codigo ?? b.codigo
+  const referencia = cotizacion?.unidad.codigo ?? b.codigo
+  const codigo = resolverUnidad(inv.units, referencia)?.codigo ?? referencia
   const cliente = cs.clientes.find((c) => c.id === clienteId)
   const unit = inv.units.find((u) => u.codigo === codigo)
   const reservasCot = cotizacion ? flujo.res.reservas.filter((r) => r.cotizacionId === cotizacion.id) : []

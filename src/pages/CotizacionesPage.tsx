@@ -72,7 +72,7 @@ export default function CotizacionesPage() {
         : vigente(c) ? <Estado tono="info" punto>Vigente</Estado> : <Estado tono="aviso" punto>Vencida</Estado>)
   const acciones = (c: Cotizacion) => (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
-      <Button size="icon-sm" variant="outline" aria-label={`Descargar ${c.numero}`} title="Descargar PDF" onClick={() => descargarCotizacionPdf(c)}><Download /></Button>
+      <Button size="icon-sm" variant="outline" aria-label={`Descargar ${c.numero}`} title="Descargar PDF" onClick={() => { void descargarCotizacionPdf(c).catch((e: Error) => setAviso(e.message)) }}><Download /></Button>
       {conectado && <Button size="sm" variant="ghost" asChild><Link to={`/venta?cotizacion=${c.id}`}>Continuar<ArrowRight /></Link></Button>}
       {puedeReservar(c) && <Button size="sm" variant="outline" onClick={() => solicitar(c)}>{c.estado === 'emitida' ? 'Cliente acepta: solicitar reserva' : 'Solicitar reserva'}</Button>}
     </div>

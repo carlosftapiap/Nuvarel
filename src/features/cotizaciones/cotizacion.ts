@@ -2,6 +2,7 @@ import { assertCan, can } from '@/app/permissions'
 import { generarPlan, type CuotaExtraordinaria, type PlanFinanciamiento } from '@/features/financiamiento/plan'
 import { ESTADOS } from '@/features/inventario/estados'
 import type { Actor, EstadoComercial, InventoryState, Unit } from '@/features/inventario/types'
+import { nombreEdificio } from '@/features/inventario/nomenclatura'
 
 /** Solo se cotizan unidades sin compromiso con otro cliente. */
 export const ESTADOS_COTIZABLES: EstadoComercial[] = ['disponible']
@@ -32,7 +33,9 @@ export interface Cotizacion {
   fecha: string
   validaHasta: string
   vigenciaDias: number
-  unidad: Pick<Unit, 'codigo' | 'dpt' | 'edificio' | 'piso' | 'ubicacion' | 'tipologia' | 'areaM2' | 'bodegaCodigo' | 'bodegaM2' | 'patioM2' | 'parqueo' | 'usdM2' | 'estado'>
+  unidad: Pick<Unit, 'codigo' | 'dpt' | 'edificio' | 'piso' | 'ubicacion' | 'tipologia' | 'areaM2' | 'bodegaCodigo' | 'bodegaM2' | 'patioM2' | 'parqueo' | 'usdM2' | 'estado'> & { edificioNombre?: string }
+  /** false: registro remoto anterior a las instantáneas. No reconstruir su documento desde Inventario. */
+  documentoDisponible?: boolean
   plan: PlanFinanciamiento
   cliente: DatosPersona
   asesor: DatosPersona
@@ -88,7 +91,7 @@ export function crearCotizacion(state: InventoryState, input: CotizacionInput, a
     vigenciaDias: input.vigenciaDias,
     validaHasta: sumarDias(input.fecha, input.vigenciaDias),
     unidad: {
-      codigo: u.codigo, dpt: u.dpt, edificio: u.edificio, piso: u.piso, ubicacion: u.ubicacion, tipologia: u.tipologia,
+      codigo: u.codigo, dpt: u.dpt, edificio: u.edificio, edificioNombre: nombreEdificio(u.edificio), piso: u.piso, ubicacion: u.ubicacion, tipologia: u.tipologia,
       areaM2: u.areaM2, bodegaCodigo: u.bodegaCodigo, bodegaM2: u.bodegaM2, patioM2: u.patioM2, parqueo: u.parqueo, usdM2: u.usdM2, estado: u.estado,
     },
     plan,

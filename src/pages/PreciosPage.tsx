@@ -147,7 +147,7 @@ function Simulacion({ rangos }: { rangos: Record<string, RangoFratelli> | null }
                     const pos = rangos ? posicion(nuevoComp.precioAreaBodega / nuevoComp.areaVendibleM2, rangoParaPiso(u.piso, rangos)) : null
                     return (
                       <tr key={c.codigo} className="border-t border-border">
-                        <td className="px-4 py-1.5"><b>{u.dpt}</b> <span className="text-muted-foreground">E{u.edificio} · {pisoCorto(u.piso)} · {u.tipologia}</span></td>
+                        <td className="px-4 py-1.5"><b>{u.dpt}</b> <span className="text-muted-foreground">{nombreEdificio(u.edificio)} · {pisoCorto(u.piso)} · {u.tipologia}</span></td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{fmtNum(c.antesUsdM2)} → <b>{fmtNum(c.despuesUsdM2)}</b></td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{fmtUsd(c.antesPrecio)}</td>
                         <td className="px-2 py-1.5 text-right font-semibold tabular-nums">{fmtUsd(c.despuesPrecio)}</td>

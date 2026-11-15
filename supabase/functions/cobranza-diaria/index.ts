@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
   }
 
   // 1. Datos reales de la base (contratos, cuotas, pagos, excedentes autorizados, compromisos y responsables).
-  const [contratosQ, cuotasQ, pagosQ, compromisosQ, personasQ, opQ, clientesQ, aplicacionesQ] = await Promise.all([
+  const [contratosQ, cuotasQ, pagosQ, compromisosQ, personasQ, opQ, clientesQ, aplicacionesQ, unidadesQ] = await Promise.all([
     admin.from('contracts').select('id,codigo,client_id,codigo_unidad,precio,estado,opportunity_id'),
     admin.from('installments').select('contract_id,numero,concepto,vencimiento,monto'),
     admin.from('payments').select('id,contract_id,monto,estado,referencia,registrado_en'),
@@ -49,8 +49,11 @@ Deno.serve(async (req) => {
     admin.from('opportunities').select('id,responsable_id'),
     admin.from('clients').select('id,nombre'),
     admin.from('aplicaciones_excedente').select('contract_id,monto').is('anulado_en', null),
+    admin.from('inventory_units').select('codigo,dpt'),
   ])
-  for (const r of [contratosQ, cuotasQ, pagosQ, compromisosQ, personasQ, opQ, clientesQ, aplicacionesQ]) if (r.error) return json({ error: r.error.message }, 500)
+  for (const r of [contratosQ, cuotasQ, pagosQ, compromisosQ, personasQ, opQ, clientesQ, aplicacionesQ, unidadesQ]) if (r.error) return json({ error: r.error.message }, 500)
+  const numerosUnidad = new Map((unidadesQ.data ?? []).map((u) => [String(u.codigo), String(u.dpt)]))
+  if ((contratosQ.data ?? []).some((c) => !numerosUnidad.has(String(c.codigo_unidad)))) return json({ error: 'Hay contratos sin unidad en Inventario: revisar antes de generar avisos.' }, 500)
 
   const personas = personasQ.data ?? []
   const correos = (roles: string[]) => personas.filter((p) => roles.includes(p.rol_id)).map((p) => p.email as string)
@@ -63,7 +66,7 @@ Deno.serve(async (req) => {
     const datos = resp ? emailPorId.get(resp) : undefined
     return {
       id: c.id as string, codigo: c.codigo as string, cliente: clientePorId.get(c.client_id as string) ?? 'Cliente',
-      unidad: c.codigo_unidad as string, precio: Number(c.precio), estado: c.estado as ContratoEntrada['estado'],
+      unidad: numerosUnidad.get(String(c.codigo_unidad))!, precio: Number(c.precio), estado: c.estado as ContratoEntrada['estado'],
       responsableEmail: datos?.email ?? null, responsableNombre: datos?.nombre ?? null,
     }
   })

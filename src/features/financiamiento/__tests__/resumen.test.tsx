@@ -85,7 +85,7 @@ describe('resumen financiero en pantalla', () => {
     expect(within(r).getByText('− $500,00')).toBeInTheDocument()
     expect(within(r).getByText('$7.212,97')).toBeInTheDocument()
     expect(within(r).getByText('$17.996,93')).toBeInTheDocument()
-    expect(within(r).getByText('30 (edificio 1)')).toBeInTheDocument()
+    expect(within(r).getByText('30 (Edificio A)')).toBeInTheDocument()
     expect(within(r).getByText('30 cuotas: 29 de $599,90 y una de $599,83')).toBeInTheDocument()
     expect(within(r).getByText('$102.839,60')).toBeInTheDocument()
     expect(within(r).getByText('Ninguna')).toBeInTheDocument()

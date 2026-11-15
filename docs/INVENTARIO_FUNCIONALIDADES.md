@@ -8,8 +8,8 @@ Documento de solo lectura. Cuando se agregue, cambie o quite una funcionalidad, 
 
 - **Clientes y pipeline:** seguimiento por etapas integrado en Clientes; la ruta anterior `/comercial` redirige a Clientes. Ficha del cliente y listado de cotizaciones reorganizados para continuar la operación.
 - **Dashboard y equipo:** mapa de unidades con búsqueda y navegación, y detalle comercial de vendedores en los paneles del equipo.
-- **Nomenclatura comercial en preparación:** pantallas y salidas utilizan Edificio A/B y códigos A001–A505/B001–B507. Se conservan las claves técnicas `E1-…`/`E2-…` y los identificadores numéricos de edificio. SQL 0015 está PENDIENTE; guardar estos archivos en Git no autoriza su ejecución ni la publicación de la aplicación.
-- **Revisión documental pendiente:** antes de aprobar la nomenclatura hay que resolver la reconstrucción de cotizaciones, recibos sin PDF guardado y constancias con datos actuales. La existencia de pruebas de nomenclatura no acredita que los documentos históricos mantengan su contenido original. La auditoría y la decisión de implementación siguen abiertas.
+- **Nomenclatura comercial implementada en el repositorio:** pantallas y salidas utilizan Edificio A/B y códigos A001–A505/B001–B507. Se conservan las claves técnicas `E1-…`/`E2-…` y los identificadores numéricos de edificio. El SQL definitivo 0016 incorpora 0015 y las protecciones en una sola transacción; está PENDIENTE de ejecución manual. No ejecutar 0015 por separado. Guardar estos archivos en Git no autoriza la publicación.
+- **Protección documental implementada en el repositorio (SQL 0016 PENDIENTE):** las nuevas cotizaciones, simulaciones, constancias y recibos guardan instantáneas inmutables. Los recibos almacenados se descargan como originales, incluso anulados, verificando su huella. Los históricos sin original ni instantánea no se reconstruyen con Inventario actual. Las constancias conservan su estado de emisión; el estado vigente se consulta en pantalla. Contratos conservan archivos, firmas e instantáneas originales. Mapeo y procedimiento: `docs/NOMENCLATURA_COMERCIAL.md`.
 
 ## General
 

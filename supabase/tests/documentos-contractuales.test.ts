@@ -240,8 +240,9 @@ describe('generación de documentos', () => {
       cuotas: await rows(`select numero, concepto, vencimiento, monto from public.installments where contract_id = $1 order by numero`, [c.id]),
       unidad: await uno(`select estado from public.inventory_units where codigo = $1`, [c.codigo]),
     }
-    const d = await datosDoc(c.id, { lugar_firma: 'Quito' }) as { pago: { cuotas: unknown[]; reserva: number; saldo: number }; precio: { total: number }; unidad: { codigo: string } }
-    expect(d.unidad.codigo).toBe(c.codigo)
+    const d = await datosDoc(c.id, { lugar_firma: 'Quito' }) as { pago: { cuotas: unknown[]; reserva: number; saldo: number }; precio: { total: number }; unidad: { codigo: string; codigo_interno: string } }
+    expect(d.unidad.codigo).toBe((await uno<{ dpt: string }>('select dpt from inventory_units where codigo=$1',[c.codigo])).dpt)
+    expect(d.unidad.codigo_interno).toBe(c.codigo)
     expect(d.pago.cuotas.length).toBeGreaterThan(20)
     expect(d.precio.total).toBe(Number((antes.contrato as { precio: string }).precio))
     const v = await registrar(legal, c.id, p.id, d)

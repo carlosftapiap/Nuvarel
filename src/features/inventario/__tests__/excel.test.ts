@@ -29,7 +29,7 @@ describe('exportación e importación Excel', () => {
     expect(v.sinCambios).toBe(72)
     const wb = XLSX.read(buf, { type: 'array' })
     const datos = XLSX.utils.sheet_to_json<Record<string, number>>(wb.Sheets.Inventario)
-    expect(datos.find((d) => d.Codigo as unknown as string === 'E1-PB-A2')!['Precio de venta']).toBe(172147.2)
+    expect(datos.find((d) => d.Codigo as unknown as string === 'A002')!['Precio de venta']).toBe(172147.2)
   })
 
   it('la plantilla también se reimporta sin cambios', () => {

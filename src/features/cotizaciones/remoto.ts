@@ -14,13 +14,16 @@ const diasEntre = (a: string, b: string) => Math.round((Date.UTC(+b.slice(0, 4),
 const planDesdeServidor = (p: Omit<PlanFinanciamiento, 'cronograma'>, fecha: string): PlanFinanciamiento => ({ ...p, cronograma: armarCronograma(p, fecha) })
 
 export function aCotizacion(q: Fila, units: Unit[]): Cotizacion | null {
-  const u = units.find((x) => x.codigo === q.codigo)
+  const snapshot = q.unidad_snapshot as Cotizacion['unidad'] | null | undefined
+  const u = snapshot ?? units.find((x) => x.codigo === q.codigo)
   if (!u) return null
-  const fecha = String(q.fecha).slice(0, 10)
-  const validaHasta = String(q.valida_hasta).slice(0, 10)
+  const fechaIso = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v)).slice(0, 10)
+  const fecha = fechaIso(q.fecha)
+  const validaHasta = fechaIso(q.valida_hasta)
   return {
     id: String(q.id), numero: String(q.numero), fecha, validaHasta, vigenciaDias: diasEntre(fecha, validaHasta),
-    unidad: { codigo: u.codigo, dpt: u.dpt, edificio: u.edificio, piso: u.piso, ubicacion: u.ubicacion, tipologia: u.tipologia, areaM2: u.areaM2, bodegaCodigo: u.bodegaCodigo, bodegaM2: u.bodegaM2, patioM2: u.patioM2, parqueo: u.parqueo, usdM2: u.usdM2, estado: u.estado },
+    unidad: { codigo: u.codigo, dpt: u.dpt, edificio: u.edificio, edificioNombre: snapshot?.edificioNombre, piso: u.piso, ubicacion: u.ubicacion, tipologia: u.tipologia, areaM2: u.areaM2, bodegaCodigo: u.bodegaCodigo, bodegaM2: u.bodegaM2, patioM2: u.patioM2, parqueo: u.parqueo, usdM2: u.usdM2, estado: u.estado },
+    documentoDisponible: !!snapshot,
     plan: planDesdeServidor(q.plan as Omit<PlanFinanciamiento, 'cronograma'>, fecha),
     cliente: q.cliente as DatosPersona, asesor: q.asesor as DatosPersona, observaciones: String(q.observaciones ?? ''),
     clienteId: q.client_id ? String(q.client_id) : undefined,

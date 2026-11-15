@@ -26,7 +26,7 @@ import { fmtUsd } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
-import { numeroComercial } from '@/features/inventario/nomenclatura'
+import { numeroAnterior, numeroComercial } from '@/features/inventario/nomenclatura'
 
 const norm = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
@@ -92,7 +92,7 @@ export default function ClientesPage() {
   const enBusqueda = (c: Cliente) =>
     (embudo || etapaFiltro === 'todas' || c.etapa === etapaFiltro) &&
     (asesor === 'todos' || c.asesor === asesor) &&
-    (!q.trim() || norm(`${c.nombre} ${c.telefono} ${celularLocal(c.telefono)} ${c.email} ${c.unidadesInteres.join(' ')}`).includes(norm(q.trim())))
+    (!q.trim() || norm(`${c.nombre} ${c.telefono} ${celularLocal(c.telefono)} ${c.email} ${c.unidadesInteres.join(' ')} ${c.unidadesInteres.map(numeroComercial).join(' ')} ${c.unidadesInteres.map(numeroAnterior).join(' ')}`).includes(norm(q.trim())))
   // El embudo muestra todas las etapas: el filtro rápido solo aplica a la lista de trabajo.
   const filtrados = ordenarPorUrgencia(visibles.filter((c) => (embudo || filtroActual.fn(c)) && enBusqueda(c)), hoy)
   const cuenta = (f: (c: Cliente) => boolean) => visibles.filter(f).length

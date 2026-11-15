@@ -57,7 +57,7 @@ describe('Configuración: Notificaciones', () => {
     expect(within(fila).getByText('gema.gerencia@prueba.local')).toBeInTheDocument()
     expect(within(fila).getByText('carlosftapiap@gmail.com')).toBeInTheDocument()
     expect(within(fila).getByText('Enviada')).toBeInTheDocument()
-    expect(within(fila).getByRole('link', { name: /Reserva con excepción por autorizar · E1-PB-A2/ })).toHaveAttribute('href', '/reservas')
+    expect(within(fila).getByRole('link', { name: /Reserva con excepción por autorizar · A002/ })).toHaveAttribute('href', '/reservas')
     fireEvent.change(screen.getByLabelText('Estado del envío'), { target: { value: 'fallida' } })
     expect(await screen.findByText('Sin notificaciones.')).toBeInTheDocument()
   })

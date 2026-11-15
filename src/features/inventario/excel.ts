@@ -4,6 +4,7 @@ import { dataFlags } from './data/data-quality'
 import { ESTADOS, ESTADOS_PRECIO_BLOQUEADO, MOTIVO_SIN_CAMBIO, parseEstado, puedeCambiarManual } from './estados'
 import { calcularPrecio, round2, totalVenta } from './pricing'
 import type { Actor, EstadoComercial, InventoryState, PriceChange, PriceHistoryEntry, StatusHistoryEntry, Unit } from './types'
+import { letraEdificio, numeroAnterior, resolverUnidad } from './nomenclatura'
 
 /* ------------------------------------------------------------------ lectura */
 
@@ -120,15 +121,15 @@ function parseBodega(v: unknown): string | null | undefined {
 }
 
 export function validarImportacion(state: InventoryState, filas: FilaExcel[]): ResultadoValidacion {
-  const porCodigo = new Map(state.units.map((u) => [u.codigo, u]))
   const vistos = new Map<string, number>()
   const resultado: FilaValidada[] = filas.map((f) => {
-    const codigo = String(f.valores.codigo ?? '').trim().toUpperCase()
+    const entrada = String(f.valores.codigo ?? '').trim().toUpperCase()
+    const u = resolverUnidad(state.units, entrada)
+    const codigo = u?.codigo ?? entrada
     const errores: string[] = []
     const advertencias: string[] = []
     const cambios: CambioCampo[] = []
     const nuevo: FilaValidada['nuevo'] = {}
-    const u = porCodigo.get(codigo)
     if (vistos.has(codigo)) errores.push(`Código duplicado (también en la fila ${vistos.get(codigo)}).`)
     vistos.set(codigo, f.fila)
     if (!u) {
@@ -250,7 +251,7 @@ export function filasExportacion(state: InventoryState) {
   return state.units.map((u) => {
     const p = calcularPrecio(u, state.params)
     return {
-      Codigo: u.codigo, DPT: u.dpt, Edificio: u.edificio, Piso: u.piso === 'PB' ? 'PB' : `P${u.piso}`, Ubicacion: u.ubicacion, Tipologia: u.tipologia,
+      Codigo: u.dpt, DPT: u.dpt, 'Codigo interno': u.codigo, 'Numero anterior': numeroAnterior(u.codigo), Edificio: letraEdificio(u.edificio), Piso: u.piso === 'PB' ? 'PB' : `P${u.piso}`, Ubicacion: u.ubicacion, Tipologia: u.tipologia,
       'Area m2': u.areaM2, Bodega: u.bodegaCodigo ?? 'sin bodega', 'Bodega m2': u.bodegaM2, 'Area + bodega m2': p.areaVendibleM2,
       'Patio m2': u.patioM2, Parqueo: u.parqueo ?? 'sin asignar', 'USD/m2': u.usdM2, 'Precio area + bodega': p.precioAreaBodega, 'Valor patio': p.valorPatio,
       'Precio de venta': p.precioVenta, [`Pago a la firma ${state.params.reservaPct}%`]: p.reserva, 'Cuota mensual': p.cuotaMensual, Meses: p.meses,
@@ -263,7 +264,7 @@ export function filasExportacion(state: InventoryState) {
 export function construirLibro(state: InventoryState, opts: { plantilla?: boolean } = {}) {
   const wb = XLSX.utils.book_new()
   const filas = opts.plantilla
-    ? state.units.map((u) => ({ Codigo: u.codigo, 'Area m2': u.areaM2, Bodega: u.bodegaCodigo ?? 'sin bodega', 'Bodega m2': u.bodegaM2, 'Patio m2': u.patioM2, Parqueo: u.parqueo ?? '', 'USD/m2': u.usdM2, Estado: ESTADOS[u.estado].label, Observaciones: u.notas }))
+    ? state.units.map((u) => ({ Codigo: u.dpt, 'Area m2': u.areaM2, Bodega: u.bodegaCodigo ?? 'sin bodega', 'Bodega m2': u.bodegaM2, 'Patio m2': u.patioM2, Parqueo: u.parqueo ?? '', 'USD/m2': u.usdM2, Estado: ESTADOS[u.estado].label, Observaciones: u.notas }))
     : filasExportacion(state)
   const ws = XLSX.utils.json_to_sheet(filas)
   ws['!cols'] = Object.keys(filas[0]).map((k) => ({ wch: Math.max(10, Math.min(28, k.length + 2)) }))

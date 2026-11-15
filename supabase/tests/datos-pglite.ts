@@ -74,8 +74,18 @@ export function datosPglite(db: PGlite, userId: string): Datos {
 /** Storage simulado para las pantallas: la subida se registra en memoria. */
 export const almacenPrueba = {
   archivos: new Set<string>(),
-  async subir(_b: string, ruta: string) { almacenPrueba.archivos.add(ruta) },
-  async descargar() { return new ArrayBuffer(4) },
-  async quitar(_b: string, ruta: string) { almacenPrueba.archivos.delete(ruta) },
+  contenido: new Map<string, Blob>(),
+  async subir(_b: string, ruta: string, archivo?: Blob) {
+    almacenPrueba.archivos.add(ruta); almacenPrueba.contenido.set(ruta,archivo ?? new Blob())
+  },
+  async descargar(_b: string, ruta: string) {
+    const archivo=almacenPrueba.archivos.has(ruta) ? almacenPrueba.contenido.get(ruta) : null
+    if (!archivo) throw new Error('El archivo original no existe en Storage')
+    if (typeof archivo.arrayBuffer==='function') return archivo.arrayBuffer()
+    return new Promise<ArrayBuffer>((resolve,reject)=>{
+      const reader=new FileReader(); reader.onload=()=>resolve(reader.result as ArrayBuffer); reader.onerror=()=>reject(reader.error); reader.readAsArrayBuffer(archivo)
+    })
+  },
+  async quitar(_b: string, ruta: string) { almacenPrueba.archivos.delete(ruta); almacenPrueba.contenido.delete(ruta) },
 }
 export const archivoPrueba = () => new File(['comprobante'], 'comprobante.pdf', { type: 'application/pdf' })

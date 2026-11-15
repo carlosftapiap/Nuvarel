@@ -687,6 +687,7 @@ function Integral({ unit, precio, fechaFirma, entrada, credito, asesor, datos }:
     setEnviando(true); setError(null); setAviso(null)
     try {
       let numeroDoc = 'BORRADOR'
+      let unidadDocumento: IntegralProps['unit'] & { edificioNombre?: string } = unit
       if (datos) {
         // Se guarda primero: la base congela la versión del producto usada, así un cambio de catálogo no altera esta cotización.
         const r = await datos.rpc<{ numero: string }>('financiamiento_guardar_simulacion', {
@@ -699,8 +700,11 @@ function Integral({ unit, precio, fechaFirma, entrada, credito, asesor, datos }:
             totalIntereses: credito.totalIntereses, costoTotal: credito.costoTotal, faltantes: credito.faltantes, entrada },
         })
         numeroDoc = r.numero
+        const [guardada] = await datos.select<{ unidad_snapshot: typeof unidadDocumento | null }>('mortgage_simulations', { filtros: { numero: numeroDoc } })
+        if (!guardada?.unidad_snapshot) throw new Error('La simulación no tiene una instantánea de emisión. Conserva el original y solicita actualizar la base antes de generar otra.')
+        unidadDocumento = guardada.unidad_snapshot
       }
-      await descargarPdfIntegral({ numero: numeroDoc, fecha: hoyGuayaquil(), cliente: cliente.trim(), asesor, unidad: unit, precioFinal: precio, fechaFirma, entrada, credito })
+      await descargarPdfIntegral({ numero: numeroDoc, fecha: hoyGuayaquil(), cliente: cliente.trim(), asesor, unidad: unidadDocumento, precioFinal: precio, fechaFirma, entrada, credito })
       setAviso(datos ? `Cotización ${numeroDoc} guardada y descargada.` : 'PDF descargado como borrador (sin conexión a Supabase no se guarda).')
     } catch (e) {
       setError((e as Error).message)

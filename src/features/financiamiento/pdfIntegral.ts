@@ -4,7 +4,7 @@ import { cargarLogo, type LogoPdf } from '@/features/cotizaciones/pdf'
 import type { EntradaCalculada } from '@/features/cobranza/entrada'
 import { fmtFechaCorta, sumarMeses } from './plan'
 import type { Simulacion } from './hipoteca'
-import { nombreEdificio } from '@/features/inventario/nomenclatura'
+import { edificioDocumento } from '@/features/inventario/nomenclatura'
 
 // Paleta del manual de marca AMURA (la misma de la cotización).
 const INK: [number, number, number] = [40, 40, 40]
@@ -25,7 +25,7 @@ export interface CotizacionIntegral {
   fecha: string
   cliente: string
   asesor: string
-  unidad: { codigo: string; dpt: string; edificio: number; tipologia: string }
+  unidad: { codigo: string; dpt: string; edificio: number; tipologia: string; edificioNombre?: string }
   precioFinal: number
   fechaFirma: string
   entrada: EntradaCalculada
@@ -59,7 +59,8 @@ export function construirPdfIntegral(c: CotizacionIntegral, logo?: LogoPdf) {
   doc.setDrawColor(...SAND).setLineWidth(0.4).line(M, y, W - M, y)
   y += 8
   doc.setFont('helvetica', 'bold').setFontSize(13).setTextColor(...INK).text(`Departamento ${c.unidad.dpt}`, M, y)
-  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...SLATE).text(`${nombreEdificio(c.unidad.edificio)} · ${c.unidad.tipologia}`, W - M, y, { align: 'right' })
+  const referencia = /^[12][0-5]0[1-7]$/.test(c.unidad.dpt) ? `${c.unidad.codigo} · ` : ''
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...SLATE).text(`${referencia}${edificioDocumento(c.unidad)} · ${c.unidad.tipologia}`, W - M, y, { align: 'right' })
   y += 7
   doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(...BROWN).text(`Precio final: ${usd(c.precioFinal)}`, M, y)
   y += 6

@@ -20,6 +20,7 @@ import { descargarLibro } from '@/features/inventario/excel'
 import { ESTADOS_EFECTIVOS, type EstadoEfectivo } from '@/features/inventario/estados'
 import { fmtNum, fmtUsd } from '@/features/inventario/pricing'
 import { estadoPrecio, resumenInventario, unidadesTxt } from '@/features/inventario/service'
+import { edificioTecnico, resolverUnidad } from '@/features/inventario/nomenclatura'
 import { useInventory } from '@/features/inventario/store'
 import { cn } from '@/lib/utils'
 
@@ -37,8 +38,8 @@ function InventarioComercial() {
   // El Dashboard enlaza con ?estado= y ?edificio=: solo se aceptan valores conocidos.
   const [filtros, setFiltros] = useState<Filtros>(() => {
     const estado = params.get('estado')
-    const edificio = params.get('edificio')
-    return { ...FILTROS_VACIOS, estado: estado && estado in ESTADOS_EFECTIVOS ? (estado as EstadoEfectivo) : 'todos', edificio: edificio === '1' || edificio === '2' ? edificio : 'todos' }
+    const edificio = edificioTecnico(params.get('edificio'))
+    return { ...FILTROS_VACIOS, estado: estado && estado in ESTADOS_EFECTIVOS ? (estado as EstadoEfectivo) : 'todos', edificio: edificio ? String(edificio) : 'todos' }
   })
   // Desde el Dashboard, «Ver mapa completo» abre la pestaña del mapa.
   const [pestana, setPestana] = useState(() => (params.get('vista') === 'mapa' ? 'mapa' : 'tabla'))
@@ -47,7 +48,7 @@ function InventarioComercial() {
   const [importar, setImportar] = useState(false)
   const [aviso, setAviso] = useState<string | null>(null)
 
-  const abierta = params.get('unidad')
+  const abierta = resolverUnidad(state.units, params.get('unidad'))?.codigo ?? params.get('unidad')
   const abrir = (codigo: string) => setParams((p) => { p.set('unidad', codigo); return p }, { replace: !!abierta })
   const cerrar = () => setParams((p) => { p.delete('unidad'); return p })
 

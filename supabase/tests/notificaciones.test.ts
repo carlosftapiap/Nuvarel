@@ -57,7 +57,7 @@ describe('avisos por evento', () => {
     const a = await avisos('reserva_confirmada')
     expect(a.map((x) => x.destinatario_usuario)).toEqual(expect.arrayContaining([legal, lea, vera]))
     expect(a.map((x) => x.destinatario_usuario)).not.toContain(gerente)
-    expect(a[0].asunto).toBe('[AMURA] Reserva confirmada · E1-PB-A2')
+    expect(a[0].asunto).toBe('[AMURA] Reserva confirmada · A002')
     expect(a[0].enlace).toBe('/ventas')
   })
 

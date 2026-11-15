@@ -38,6 +38,10 @@ const simular = async (user: ReturnType<typeof userEvent.setup>, ficha: HTMLElem
 }
 
 describe('InventarioPage', () => {
+  it('un enlace con B007 abre la misma unidad técnica y acepta Edificio B como filtro', () => {
+    renderPage('administrador','/inventario?unidad=B007&edificio=B')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Departamento B007')
+  })
   it('con ?vista=mapa abre directamente el mapa por edificio', () => {
     renderPage('asesor', '/inventario?vista=mapa')
     expect(screen.getByRole('heading', { name: 'Edificio B' })).toBeInTheDocument()

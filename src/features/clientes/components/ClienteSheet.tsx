@@ -15,6 +15,7 @@ import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { EstadoBadge, FieldError } from '@/features/inventario/components/shared'
 import { calcularPrecio, fmtUsd } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
+import { nombreEdificio } from '@/features/inventario/nomenclatura'
 import { ETAPA_ORDEN, ETAPAS, FORMAS_PAGO, ORIGENES, PROPOSITOS, TIPOS_ACTIVIDAD, type Cliente, type Etapa, type ProximaActividad } from '../model'
 import { completarProxima, moverEtapa, programarProxima, registrarActividad, registrarContactoWhatsApp, urgencia } from '../service'
 import { useClientes } from '../store'
@@ -192,7 +193,7 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
                     return (
                       <li key={u!.codigo} className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-xs">
                         <Link to={`/inventario?unidad=${u!.codigo}`} className="font-semibold hover:underline">{u!.dpt}</Link>
-                        <span className="text-muted-foreground">{u!.tipologia} · E{u!.edificio}</span>
+                        <span className="text-muted-foreground">{u!.tipologia} · {nombreEdificio(u!.edificio)}</span>
                         <EstadoBadge estado={u!.estado} />
                         <span className="ml-auto font-medium tabular-nums">{fmtUsd(precio)}</span>
                         {excede > 0 && <span className="basis-full text-xs text-amber-700">Supera el presupuesto en {fmtUsd(excede)}</span>}
@@ -257,7 +258,7 @@ export default function ClienteSheet({ id, onClose, onEdit, onPedirEtapa, onMess
                       <li key={n} className="flex items-center gap-2 text-xs">
                         <FileText className="size-3.5 text-muted-foreground" /><b>{n}</b>
                         {q && <span className="text-muted-foreground">{q.unidad.dpt} · {fmtUsd(q.plan.precioFinal)} · vence {fmtFechaCorta(q.validaHasta)}</span>}
-                        {q && <Button size="icon-xs" variant="ghost" className="ml-auto" aria-label={`Descargar ${n}`} onClick={() => descargarCotizacionPdf(q)}><Download /></Button>}
+                        {q && <Button size="icon-xs" variant="ghost" className="ml-auto" aria-label={`Descargar ${n}`} onClick={() => { void descargarCotizacionPdf(q).catch((e: Error) => setError(e.message)) }}><Download /></Button>}
                       </li>
                     )
                   })}

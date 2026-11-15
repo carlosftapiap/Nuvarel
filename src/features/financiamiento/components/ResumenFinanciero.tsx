@@ -2,6 +2,7 @@ import { fmtUsd2, round2 } from '@/features/inventario/pricing'
 import { cn } from '@/lib/utils'
 import type { Calculo } from '../condiciones'
 import type { PlanFinanciamiento } from '../plan'
+import { nombreEdificio } from '@/features/inventario/nomenclatura'
 
 /** Texto de las cuotas mensuales. La última absorbe los centavos del reparto, así el total queda exacto. */
 export function textoCuotas(p: { meses: number; cuotaMensual: number; ultimaCuota: number }) {
@@ -31,7 +32,7 @@ export default function ResumenFinanciero({ calc, plan, edificio }: { calc: Calc
     { t: '5. Reserva descontada del 6 %', v: `− ${fmtUsd2(calc.reserva)}`, sub: true },
     { t: '6. Saldo pendiente a pagar a la firma', v: fmtUsd2(e.pagoFirma), n: 'Lo que falta pagar del 6 %' },
     { t: '7. Total del 14 % en cuotas', v: fmtUsd2(e.saldoCuotas), n: 'Cuotas ordinarias más extraordinarias' },
-    { t: '8. Número de cuotas mensuales', v: `${plan.meses} (edificio ${edificio})` },
+    { t: '8. Número de cuotas mensuales', v: `${plan.meses} (${nombreEdificio(edificio)})` },
     { t: '9. Valor de cada cuota', v: textoCuotas(ordinarias), n: e.cuotaMensual !== e.ultimaCuota ? 'La última cuota ajusta los centavos' : undefined, bloque: true },
   ]
   if (extras.length) {

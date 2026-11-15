@@ -99,7 +99,7 @@ export default function UnitsTable({
       { id: 'estado', accessorFn: (r) => ESTADO_EFECTIVO_ORDEN.indexOf(estadoEfectivo(r)), header: ({ column }) => <SortHeader label="Estado" column={column} />,
         cell: ({ row }) => <EstadoBadge estado={estadoEfectivo(row.original)} /> },
       { id: 'edificio', accessorFn: (r) => r.edificio * 10 + (r.piso === 'PB' ? 0 : Number(r.piso)), header: ({ column }) => <SortHeader label="Ubicación" column={column} />,
-        cell: ({ row }) => (<div><div>E{row.original.edificio} · {pisoCorto(row.original.piso)}</div><div className="max-w-40 truncate text-xs text-foreground/70">{row.original.ubicacion}</div></div>) },
+        cell: ({ row }) => (<div><div>{nombreEdificio(row.original.edificio)} · {pisoCorto(row.original.piso)}</div><div className="max-w-40 truncate text-xs text-foreground/70">{row.original.ubicacion}</div></div>) },
       { id: 'tipologia', accessorKey: 'tipologia', header: ({ column }) => <SortHeader label="Tipología" column={column} /> },
       { id: 'area', accessorFn: (r) => r.precio.areaVendibleM2, header: ({ column }) => <SortHeader label="Área + bodega" column={column} align="right" />,
         cell: ({ row }) => <div className="text-right tabular-nums" title={`Área ${fmtM2(row.original.areaM2)} + bodega ${fmtM2(row.original.bodegaM2)}`}>{fmtM2(row.original.precio.areaVendibleM2)}</div> },

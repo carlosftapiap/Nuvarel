@@ -104,7 +104,7 @@ export default function PriceAdjustDialog({
               <div className="flex flex-wrap gap-2">
                 {codigos.length > 0 && (
                   <Opcion activo={tipo === 'seleccion'} onClick={() => setTipo('seleccion')}>
-                    {codigos.length === 1 ? `Unidad ${codigos[0]}` : `${codigos.length} unidades seleccionadas`}
+                    {codigos.length === 1 ? `Unidad ${dpt(codigos[0])}` : `${codigos.length} unidades seleccionadas`}
                   </Opcion>
                 )}
                 <Opcion activo={tipo === 'filtro'} onClick={() => setTipo('filtro')}>Por edificio, piso o tipología</Opcion>

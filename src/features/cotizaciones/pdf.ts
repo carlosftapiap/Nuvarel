@@ -4,7 +4,7 @@ import autoTable from 'jspdf-autotable'
 import { cronogramaPorMes, fmtFechaCorta } from '@/features/financiamiento/plan'
 import { ESTADOS } from '@/features/inventario/estados'
 import type { Cotizacion } from './cotizacion'
-import { nombreEdificio } from '@/features/inventario/nomenclatura'
+import { edificioDocumento, ERROR_ORIGINAL_DOCUMENTO } from '@/features/inventario/nomenclatura'
 
 // Paleta del manual de marca AMURA.
 const INK: [number, number, number] = [40, 40, 40]
@@ -23,6 +23,7 @@ const pisoTxt = (p: string) => (p === 'PB' ? 'Planta baja' : `Piso ${p}`)
 const lastY = (doc: jsPDF) => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
 
 export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
+  if (c.documentoDisponible === false) throw new Error(ERROR_ORIGINAL_DOCUMENTO)
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   doc.setProperties({ title: `Cotización ${c.numero} · AMURA`, subject: `Departamento ${c.unidad.dpt}`, author: c.asesor.nombre, creator: 'AMURA · Nuvarel' })
   const W = doc.internal.pageSize.getWidth()
@@ -62,7 +63,8 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
   doc.setDrawColor(...SAND).setLineWidth(0.4).line(M, y, W - M, y)
   y += 8
   doc.setFont('helvetica', 'bold').setFontSize(13).setTextColor(...INK).text(`Departamento ${c.unidad.dpt}`, M, y)
-  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...SLATE).text(`${nombreEdificio(c.unidad.edificio)} · ${pisoTxt(c.unidad.piso)}`, W - M, y, { align: 'right' })
+  const referencia = /^[12][0-5]0[1-7]$/.test(c.unidad.dpt) ? `${c.unidad.codigo} · ` : ''
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...SLATE).text(`${referencia}${edificioDocumento(c.unidad)} · ${pisoTxt(c.unidad.piso)}`, W - M, y, { align: 'right' })
   y += 4
   const u = c.unidad
   autoTable(doc, {

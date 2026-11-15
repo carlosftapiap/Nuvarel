@@ -7,6 +7,7 @@ import { estadoPrecio, resumenInventario } from '@/features/inventario/service'
 import { useInventory } from '@/features/inventario/store'
 import { useDatosPanel } from './datos'
 import { calcularPanel, type EdificioFiltro } from './panel'
+import { edificioTecnico } from '@/features/inventario/nomenclatura'
 
 /** Datos del proyecto que comparten los inicios: inventario por edificio, panel comercial y financiero. */
 export function usePanelProyecto() {
@@ -14,7 +15,7 @@ export function usePanelProyecto() {
   const { can } = useSession()
   const { datos } = useConexion()
   const [params, setParams] = useSearchParams()
-  const filtro: EdificioFiltro = params.get('edificio') === '1' ? 1 : params.get('edificio') === '2' ? 2 : 'todos'
+  const filtro: EdificioFiltro = edificioTecnico(params.get('edificio')) ?? 'todos'
   const entrada = useDatosPanel(datos, can)
   const hoy = hoyGuayaquil()
   const unidades = useMemo(() => (filtro === 'todos' ? state.units : state.units.filter((u) => u.edificio === filtro)), [state.units, filtro])

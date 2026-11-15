@@ -169,6 +169,7 @@ export function mapearLeadMeta(l: LeadMeta): { datos: DatosLead } | { error: str
       externo_id: l.id,
       nombre, telefono,
       email: campos.get('email') ?? '',
+      unidad_interes: campos.get('unidad') || campos.get('departamento') || campos.get('codigo_de_departamento') || null,
       mensaje: preguntas.join('\n'),
       campana: l.campaign_name ?? null,
       anuncio: l.ad_name ?? null,

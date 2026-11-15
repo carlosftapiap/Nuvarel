@@ -29,7 +29,7 @@ import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2 } from '@/features/inventario/pricing'
 import { cn } from '@/lib/utils'
-import { numeroComercial } from '@/features/inventario/nomenclatura'
+import { numeroAnterior, numeroComercial } from '@/features/inventario/nomenclatura'
 
 const ESTADO_PAGO: Record<string, { label: string; tono: string }> = {
   registrado: { label: 'Por verificar', tono: 'bg-amber-50 text-amber-800 ring-amber-200' },
@@ -105,7 +105,7 @@ function Cobranza({ datos }: { datos: Datos }) {
   const vencidas = entradas.filter((q) => q.situacion === 'vencida').length
   const proximas = entradas.filter(esProxima).length
   const q = busqueda.trim().toLowerCase()
-  const filas = filasCuotas(tablero.contratos, filtro).filter(({ r }) => !q || `${r.contrato.cliente} ${departamento(r.contrato.unidad)} ${r.contrato.responsable}`.toLowerCase().includes(q))
+  const filas = filasCuotas(tablero.contratos, filtro).filter(({ r }) => !q || `${r.contrato.cliente} ${departamento(r.contrato.unidad)} ${numeroAnterior(r.contrato.unidad) ?? ''} ${r.contrato.unidad} ${r.contrato.responsable}`.toLowerCase().includes(q))
   const visibles = verTodas ? filas : filas.slice(0, 100)
   const porVerificar = d.pagos.filter((p) => p.estado === 'registrado' && d.contratosVigentes.has(p.contratoId))
   const nombreDe = (contratoId: string) => tablero.contratos.find((r) => r.contrato.id === contratoId)?.contrato
