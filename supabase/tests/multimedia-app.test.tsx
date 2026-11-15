@@ -78,7 +78,7 @@ describe('Configuración → Multimedia del proyecto', () => {
 
   it('lista el material actual, sube, reemplaza y restaura sin perder la versión anterior', async () => {
     await abrir(admin, <MultimediaProyecto datos={datosPglite(db, admin)} />)
-    for (const t of ['Video promocional de AMURA', 'Torres AMURA', 'Sala y comedor', 'Dormitorio', 'Piso Edificio 1']) expect(await fila(t)).toBeInTheDocument()
+    for (const t of ['Video promocional de AMURA', 'Torres AMURA', 'Sala y comedor', 'Dormitorio', 'Piso Edificio A']) expect(await fila(t)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Subir fotografía o video' }))
     const d = await screen.findByRole('dialog', { name: 'Subir fotografía o video' })
@@ -130,7 +130,7 @@ describe('Configuración → Multimedia del proyecto', () => {
     await waitFor(() => expect(titulos()).not.toEqual(antes))
     expect(titulos().indexOf('Dormitorio')).toBe(antes.indexOf('Dormitorio') - 1)
 
-    fireEvent.click(within(await fila('Piso Edificio 1')).getByRole('button', { name: 'Editar' }))
+    fireEvent.click(within(await fila('Piso Edificio A')).getByRole('button', { name: 'Editar' }))
     await screen.findByRole('dialog', { name: 'Editar contenido' })
     fireEvent.change(screen.getByLabelText('Título *'), { target: { value: 'Piso tipo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
@@ -142,7 +142,7 @@ describe('Configuración → Multimedia del proyecto', () => {
     expect(screen.queryByRole('listitem', { name: 'Piso tipo' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Recuperar' }))
     await waitFor(async () => expect(within(await fila('Piso tipo')).getByText('Oculto')).toBeInTheDocument())
-    await como(db, admin, () => db.query(`select public.medio_actualizar('a1000000-0000-4000-8000-000000000005', 'Piso Edificio 1', 'Distribución de un piso del Edificio 1 en vista tridimensional.', true, true, true)`))
+    await como(db, admin, () => db.query(`select public.medio_actualizar('a1000000-0000-4000-8000-000000000005', 'Piso Edificio A', 'Distribución de un piso del Edificio A en vista tridimensional.', true, true, true)`))
   })
 
   it('si el servidor rechaza el registro no quedan archivos huérfanos', async () => {

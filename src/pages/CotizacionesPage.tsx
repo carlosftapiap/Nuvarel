@@ -1,231 +1,158 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { CheckCircle2, Download, FileText } from 'lucide-react'
+import { useState } from 'react'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
+import { ArrowRight, Download, Info, Plus, Search } from 'lucide-react'
 import DatosLocalesAviso from '@/components/DatosLocalesAviso'
+import Estado from '@/components/Estado'
 import PageHeader from '@/components/PageHeader'
-import { useConexion } from '@/app/auth'
 import { useSession } from '@/app/session'
 import { puedeVerDe } from '@/app/permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { crearCotizacion, ESTADOS_COTIZABLES, validarCotizacion, type DatosPersona } from '@/features/cotizaciones/cotizacion'
 import { descargarCotizacionPdf } from '@/features/cotizaciones/pdf'
-import CuotasExtraordinarias, { filasDeParam, leerFilas, type FilaExtra } from '@/features/financiamiento/components/CuotasExtraordinarias'
-import { guardarAsesor, leerAsesor, useCotizaciones } from '@/features/cotizaciones/store'
-import { fmtFechaCorta, generarPlan, hoyGuayaquil } from '@/features/financiamiento/plan'
-import UnitPicker from '@/features/inventario/components/UnitPicker'
-import { FieldError } from '@/features/inventario/components/shared'
-import { fmtUsd, fmtUsd2, etiquetaPagoFirma, NOTA_RESERVA, RESERVA_PREDETERMINADA } from '@/features/inventario/pricing'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ETAPAS } from '@/features/clientes/model'
-import { clientesVisibles, vincularCotizacion } from '@/features/clientes/service'
-import { useClientes } from '@/features/clientes/store'
-import { useReservaFlujo } from '@/features/reservas/flujo'
-import { Link } from 'react-router-dom'
+import { useCotizaciones } from '@/features/cotizaciones/store'
+import type { Cotizacion } from '@/features/cotizaciones/cotizacion'
+import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
+import { fmtUsd, RESERVA_PREDETERMINADA } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
+import { useReservaFlujo } from '@/features/reservas/flujo'
+import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
+import { numeroAnterior } from '@/features/inventario/nomenclatura'
 
-const CLIENTE_VACIO: DatosPersona = { nombre: '', documento: '', email: '', telefono: '' }
+const norm = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+type Filtro = 'vigentes' | 'vencidas' | 'todas'
 
+/**
+ * Cotizaciones: historial y consulta. Se emiten en un solo recorrido, «Atender cliente», que lleva del cliente al
+ * departamento, al plan de pagos y a la cotización. Los enlaces antiguos para cotizar abren ese mismo recorrido.
+ */
 export default function CotizacionesPage() {
   const { state } = useInventory()
   const { actor, can } = useSession()
   const [params] = useSearchParams()
-  const { lista: todas, agregar, emitir, error: errorCarga, remoto: conectado } = useCotizaciones()
-  const { cuenta } = useConexion()
-  // Solo las cotizaciones del alcance del usuario. Con Supabase ya llegan filtradas por la base de datos.
-  const lista = conectado ? todas : todas.filter((c) => puedeVerDe(actor, [c.creadaPor.id]))
-  const { state: cs, update: updateClientes, recargar: recargarClientes } = useClientes()
+  const { lista: todas, remoto: conectado } = useCotizaciones()
   const reservas = useReservaFlujo()
-  const [avisoReserva, setAvisoReserva] = useState<string | null>(null)
-  const registrados = clientesVisibles(cs.clientes, actor).filter((c) => c.etapa !== 'perdido')
-  const [codigo, setCodigo] = useState(params.get('unidad') ?? '')
-  const [clienteId, setClienteId] = useState(() => (registrados.some((c) => c.id === params.get('cliente')) ? params.get('cliente')! : ''))
-  const desdeRegistro = (id: string): DatosPersona => {
-    const c = cs.clientes.find((x) => x.id === id)
-    return c ? { nombre: c.nombre, documento: c.documento ?? '', email: c.email, telefono: c.telefono } : CLIENTE_VACIO
-  }
-  const [cliente, setCliente] = useState<DatosPersona>(() => (clienteId ? desdeRegistro(clienteId) : CLIENTE_VACIO))
-  // Con Supabase los clientes llegan después de abrir la página: se aplica el cliente indicado en el enlace.
-  const clienteEnlace = params.get('cliente')
-  const enlaceListo = !clienteId && !!clienteEnlace && registrados.some((c) => c.id === clienteEnlace)
-  useEffect(() => {
-    if (!enlaceListo) return
-    setClienteId(clienteEnlace!)
-    setCliente(desdeRegistro(clienteEnlace!))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enlaceListo])
-  const [asesor, setAsesor] = useState<DatosPersona>(() => leerAsesor())
-  const [descuento, setDescuento] = useState(params.get('descuento') ?? '0')
-  const [vigencia, setVigencia] = useState('')
-  const [fechaElegida, setFecha] = useState(params.get('fecha') ?? hoyGuayaquil())
-  // Con Supabase la fecha la pone el servidor: no se puede emitir con otra.
-  const fecha = conectado ? hoyGuayaquil() : fechaElegida
-  const [observaciones, setObservaciones] = useState('')
-  const [extras, setExtras] = useState<FilaExtra[]>(() => filasDeParam(params.get('extras')))
-  const [error, setError] = useState<string | null>(null)
-  const [ok, setOk] = useState<string | null>(null)
-  const [generando, setGenerando] = useState(false)
-
-  const puedeDescontar = can('cotizaciones.descuento')
-  const unit = state.units.find((u) => u.codigo === codigo)
-  // Con Supabase el asesor es quien inició sesión y los datos del cliente vienen de su ficha: no se escriben dos veces.
-  const asesorDatos = conectado ? { nombre: actor.nombre, email: cuenta?.email ?? '', telefono: '—' } : asesor
-  const input = {
-    codigo, cliente, asesor: asesorDatos, fecha, observaciones, clienteId: clienteId || undefined,
-    descuentoPct: puedeDescontar ? Number(descuento.replace(',', '.')) || 0 : 0,
-    vigenciaDias: Number(vigencia), extraordinarias: leerFilas(extras),
-  }
-  const errores = validarCotizacion(input, unit, actor)
-  if (conectado && !clienteId) errores.unshift('Elige un cliente registrado.')
-  const { plan, errorPlan } = useMemo(() => {
-    if (!unit) return { plan: null, errorPlan: null }
-    try { return { plan: generarPlan(unit, state.params, { descuentoPct: input.descuentoPct, fechaReserva: fecha, extraordinarias: leerFilas(extras) }), errorPlan: null } } catch (e) { return { plan: null, errorPlan: (e as Error).message } }
-  }, [unit, state.params, input.descuentoPct, fecha, extras])
-  if (errorPlan) errores.push(errorPlan)
-
-  async function generar() {
-    setError(null); setOk(null); setGenerando(true)
-    try {
-      if (conectado) {
-        const c = await emitir({ clienteId, codigo, descuentoPct: input.descuentoPct, vigenciaDias: input.vigenciaDias, observaciones, extraordinarias: input.extraordinarias })
-        await recargarClientes()
-        await descargarCotizacionPdf(c)
-        setOk(`Cotización ${c.numero} generada para ${c.cliente.nombre}.`)
-        setObservaciones('')
-        return
-      }
-      const c = crearCotizacion(state, input, actor, todas)
-      agregar(c)
-      guardarAsesor(asesor)
-      if (c.clienteId) updateClientes((s) => vincularCotizacion(s, c.clienteId!, { numero: c.numero, codigo: c.unidad.codigo, precioFinal: c.plan.precioFinal }, actor))
-      await descargarCotizacionPdf(c)
-      setOk(`Cotización ${c.numero} generada para ${c.cliente.nombre}.`)
-      if (!c.clienteId) setCliente(CLIENTE_VACIO)
-      setObservaciones('')
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setGenerando(false)
-    }
-  }
+  const movil = useIsMobile()
+  const [filtro, setFiltro] = useState<Filtro>('todas')
+  const [q, setQ] = useState('')
+  const [aviso, setAviso] = useState<string | null>(null)
+  const hoy = hoyGuayaquil()
 
   if (!can('cotizaciones.crear')) return <PageHeader title="Cotizaciones" subtitle="Tu rol no puede emitir cotizaciones." />
+  // Un enlace para cotizar (cliente o departamento) abre el creador único.
+  const cliente = params.get('cliente')
+  const unidad = params.get('unidad')
+  if (cliente || unidad) {
+    const destino = new URLSearchParams()
+    if (cliente) destino.set('cliente', cliente)
+    if (unidad) destino.set('unidad', unidad)
+    return <Navigate to={`/venta?${destino}`} replace />
+  }
+
+  // Solo las cotizaciones del alcance del usuario. Con Supabase ya llegan filtradas por la base de datos.
+  const lista = (conectado ? todas : todas.filter((c) => puedeVerDe(actor, [c.creadaPor.id])))
+  const vigente = (c: Cotizacion) => c.validaHasta >= hoy && c.estado !== 'anulada' && c.estado !== 'reemplazada'
+  const enFiltro = (c: Cotizacion) => filtro === 'todas' || (filtro === 'vigentes' ? vigente(c) : !vigente(c))
+  const visibles = lista
+    .filter((c) => enFiltro(c) && (!q.trim() || norm(`${c.numero} ${c.cliente.nombre} ${c.unidad.dpt} ${c.unidad.codigo} ${numeroAnterior(c.unidad.codigo) ?? ''}`).includes(norm(q.trim()))))
+    .sort((a, b) => b.numero.localeCompare(a.numero))
+  const cuenta = (f: Filtro) => lista.filter((c) => f === 'todas' || (f === 'vigentes' ? vigente(c) : !vigente(c))).length
+  // Misma condición de siempre para pedir la reserva desde una cotización.
+  const puedeReservar = (c: Cotizacion) => !!c.clienteId && can('reservas.solicitar') && (!c.estado || c.estado === 'emitida' || c.estado === 'aceptada')
+    && !reservas.res.reservas.some((r) => r.cotizacionId === c.id && r.estado !== 'anulada') && !state.units.find((u) => u.codigo === c.unidad.codigo)?.solicitud
+  const solicitar = (c: Cotizacion) => {
+    setAviso(null)
+    void reservas.solicitar(c, Math.min(state.params.reservaPredeterminada ?? RESERVA_PREDETERMINADA, c.plan.reserva))
+      .then(() => setAviso(`Solicitud de reserva creada para ${c.numero}. Pendiente de verificación de pago.`))
+      .catch((e: Error) => setAviso(e.message))
+  }
+  const estado = (c: Cotizacion) => (c.estado === 'anulada' ? <Estado tono="neutro">Anulada</Estado>
+    : c.estado === 'reemplazada' ? <Estado tono="neutro">Reemplazada</Estado>
+      : c.estado === 'aceptada' ? <Estado tono="ok" punto>Aceptada</Estado>
+        : vigente(c) ? <Estado tono="info" punto>Vigente</Estado> : <Estado tono="aviso" punto>Vencida</Estado>)
+  const acciones = (c: Cotizacion) => (
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      <Button size="icon-sm" variant="outline" aria-label={`Descargar ${c.numero}`} title="Descargar PDF" onClick={() => descargarCotizacionPdf(c)}><Download /></Button>
+      {conectado && <Button size="sm" variant="ghost" asChild><Link to={`/venta?cotizacion=${c.id}`}>Continuar<ArrowRight /></Link></Button>}
+      {puedeReservar(c) && <Button size="sm" variant="outline" onClick={() => solicitar(c)}>{c.estado === 'emitida' ? 'Cliente acepta: solicitar reserva' : 'Solicitar reserva'}</Button>}
+    </div>
+  )
 
   return (
     <>
-      <PageHeader eyebrow="Ventas · Cotizaciones" title="Cotizaciones" subtitle="Genera una cotización en PDF con precio, condiciones de pago, cronograma y vigencia." />
+      <PageHeader eyebrow="Comercial" title="Cotizaciones"
+        subtitle="Historial y consulta. Para emitir una cotización se usa un solo recorrido: cliente, departamento y plan de pagos en Atender cliente."
+        actions={<Button asChild><Link to="/venta"><Plus />Nueva cotización</Link></Button>} />
       <DatosLocalesAviso solo="amura.cotizaciones.v1" />
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <section className="dashboard-card p-5 grid content-start gap-5" aria-label="Datos de la cotización">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <UnitPicker id="cot-unidad" units={state.units} params={state.params} value={codigo} onChange={setCodigo} permitidos={ESTADOS_COTIZABLES} />
-            <Campo id="cot-fecha" label="Fecha de la cotización (inicio del cronograma)" type="date" value={fecha} onChange={setFecha} disabled={conectado} />
-          </div>
-          <fieldset className="grid gap-3">
-            <legend className="mb-1 text-sm font-semibold">Cliente</legend>
-            <Select value={clienteId || 'ninguno'} onValueChange={(v) => { const id = v === 'ninguno' ? '' : v; setClienteId(id); setCliente(id ? desdeRegistro(id) : CLIENTE_VACIO) }}>
-              <SelectTrigger aria-label="Cliente registrado" className="h-9 w-full sm:max-w-md"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {!conectado && <SelectItem value="ninguno">Sin vincular a un cliente registrado</SelectItem>}
-                {conectado && <SelectItem value="ninguno">Elige un cliente</SelectItem>}
-                {registrados.map((c) => <SelectItem key={c.id} value={c.id}>{c.nombre} · {ETAPAS[c.etapa].label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            {clienteId && <p className="text-xs text-muted-foreground">La cotización quedará en el historial del cliente y lo moverá a la etapa Cotización si estaba antes.</p>}
-            {conectado && clienteId && <p className="text-xs text-muted-foreground">Estos datos vienen de la ficha del cliente. Para corregirlos, <Link className="text-primary hover:underline" to={`/clientes?cliente=${clienteId}`}>edita la ficha</Link>.</p>}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Campo id="cli-nombre" label="Nombre completo *" value={cliente.nombre} disabled={conectado} onChange={(v) => setCliente({ ...cliente, nombre: v })} />
-              <Campo id="cli-doc" label="Cédula o RUC" value={cliente.documento ?? ''} disabled={conectado} onChange={(v) => setCliente({ ...cliente, documento: v })} />
-              <Campo id="cli-email" label="Correo" type="email" value={cliente.email} disabled={conectado} onChange={(v) => setCliente({ ...cliente, email: v })} />
-              <Campo id="cli-tel" label="Teléfono" value={cliente.telefono} disabled={conectado} onChange={(v) => setCliente({ ...cliente, telefono: v })} />
-            </div>
-          </fieldset>
-          {conectado ? <p className="text-xs text-muted-foreground">Asesor en la cotización: <b>{actor.nombre}</b>{cuenta?.email ? ` · ${cuenta.email}` : ''}</p> : <fieldset className="grid gap-3">
-            <legend className="mb-1 text-sm font-semibold">Asesor</legend>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Campo id="ase-nombre" label="Nombre *" value={asesor.nombre} onChange={(v) => setAsesor({ ...asesor, nombre: v })} />
-              <Campo id="ase-email" label="Correo" type="email" value={asesor.email} onChange={(v) => setAsesor({ ...asesor, email: v })} />
-              <Campo id="ase-tel" label="Teléfono" value={asesor.telefono} onChange={(v) => setAsesor({ ...asesor, telefono: v })} />
-            </div>
-          </fieldset>}
-          <fieldset className="grid gap-3">
-            <legend className="mb-1 text-sm font-semibold">Condiciones</legend>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Campo id="cot-vigencia" label="Vigencia (días) *" value={vigencia} onChange={setVigencia} inputMode="numeric" />
-                <div className="flex gap-1.5">{[8, 15, 30].map((d) => <Button key={d} type="button" size="xs" variant="outline" onClick={() => setVigencia(String(d))}>{d} días</Button>)}</div>
-              </div>
-              {puedeDescontar
-                ? <Campo id="cot-desc" label="Descuento autorizado (%)" value={descuento} onChange={setDescuento} inputMode="decimal" />
-                : <p className="self-end rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">Los descuentos los autoriza gerencia.</p>}
-            </div>
-            {unit && <CuotasExtraordinarias filas={extras} onChange={setExtras} meses={state.params.meses[unit.edificio]} fechaBase={fecha} />}
-            <div className="grid gap-1.5">
-              <Label htmlFor="cot-obs" className="text-xs">Observaciones para el cliente</Label>
-              <Textarea id="cot-obs" rows={2} value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
-            </div>
-          </fieldset>
-          <FieldError>{error ?? errorCarga}</FieldError>
-          {ok && <p role="status" className="flex items-center gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-200"><CheckCircle2 className="size-4" />{ok}</p>}
-        </section>
 
-        <aside className="grid content-start gap-4">
-          <section className="dashboard-card p-5 [&_.section-heading]:p-0" aria-labelledby="cot-resumen">
-            <h2 id="cot-resumen" className="text-sm font-semibold">Resumen</h2>
-            {plan && unit ? (
-              <dl className="mt-3 grid gap-2 text-xs">
-                <Fila t="Departamento" v={`${unit.dpt} · ${unit.tipologia}`} />
-                <Fila t="Precio de lista" v={fmtUsd(plan.precioLista)} />
-                {plan.descuentoPct > 0 && <Fila t={`Descuento ${plan.descuentoPct}%`} v={`− ${fmtUsd2(plan.descuentoMonto)}`} />}
-                <Fila t="Precio final" v={fmtUsd(plan.precioFinal)} fuerte />
-                <Fila t={etiquetaPagoFirma(plan.reservaPct)} v={fmtUsd2(plan.reserva)} />
-                <Fila t={`${plan.meses} cuotas`} v={fmtUsd2(plan.cuotaMensual)} />
-                {!!plan.extraordinarias?.length && <Fila t={`${plan.extraordinarias.length} extraordinarias`} v={fmtUsd2(plan.cuotasTotal - plan.cuotaMensual * (plan.meses - 1) - plan.ultimaCuota)} />}
-                <Fila t={`Contra entrega ${plan.entregaPct}%`} v={fmtUsd2(plan.contraEntrega)} />
-                <p className="text-xs text-muted-foreground">{NOTA_RESERVA}</p>
-              </dl>
-            ) : <p className="mt-2 text-xs text-muted-foreground">Selecciona un departamento.</p>}
-            <Button className="mt-4 w-full" onClick={generar} disabled={errores.length > 0 || generando}><FileText />{generando ? 'Generando…' : 'Generar PDF'}</Button>
-            {errores.length > 0 && unit && <ul className="mt-2 list-disc pl-4 text-xs text-muted-foreground">{errores.map((e) => <li key={e}>{e}</li>)}</ul>}
-          </section>
+      <p className="mb-4 flex items-start gap-2 rounded-xl border border-border bg-white px-4 py-3 text-xs text-slate-600">
+        <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <span>El precio sale del inventario y puede ser referencial hasta su aprobación. La simulación de crédito es referencial: tasas y condiciones las define cada banco o el BIESS.</span>
+      </p>
 
-          <section className="dashboard-card p-5 [&_.section-heading]:p-0" aria-labelledby="cot-hist">
-            <h2 id="cot-hist" className="text-sm font-semibold">Cotizaciones emitidas</h2>
-            {avisoReserva && <p role="status" className="mt-2 rounded-md bg-muted px-2 py-1.5 text-xs">{avisoReserva} {avisoReserva.startsWith('Solicitud') && <Link className="text-primary hover:underline" to="/reservas">Ver reservas</Link>}</p>}
-            {lista.length === 0 ? <p className="mt-2 text-xs text-muted-foreground">Aún no hay cotizaciones.</p> : (
-              <ul className="mt-2 grid max-h-80 gap-1.5 overflow-auto">
-                {lista.map((c) => (
-                  <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium">{c.numero} · {c.unidad.dpt}</div>
-                      <div className="truncate text-xs text-muted-foreground">{c.cliente.nombre} · {fmtUsd(c.plan.precioFinal)} · vence {fmtFechaCorta(c.validaHasta)}</div>
-                    </div>
-                    <Button size="icon-sm" variant="ghost" aria-label={`Descargar ${c.numero}`} onClick={() => descargarCotizacionPdf(c)}><Download /></Button>
-                    {c.clienteId && can('reservas.solicitar') && (!c.estado || c.estado === 'emitida' || c.estado === 'aceptada') && !reservas.res.reservas.some((r) => r.cotizacionId === c.id && r.estado !== 'anulada') && !state.units.find((u) => u.codigo === c.unidad.codigo)?.solicitud && (
-                      <Button size="xs" variant="outline" className="basis-full" onClick={() => { setAvisoReserva(null); void reservas.solicitar(c, Math.min(state.params.reservaPredeterminada ?? RESERVA_PREDETERMINADA, c.plan.reserva)).then(() => setAvisoReserva(`Solicitud de reserva creada para ${c.numero}. Pendiente de verificación de pago.`)).catch((e: Error) => setAvisoReserva(e.message)) }}>{c.estado === 'emitida' ? 'Cliente acepta: solicitar reserva' : 'Solicitar reserva'}</Button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </aside>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[min(100%,260px)] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <label htmlFor="cot-q" className="sr-only">Buscar cotización</label>
+          <Input id="cot-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por número, cliente o departamento" className="h-10 bg-white pl-9 text-sm" />
+        </div>
+        <div className="flex gap-1 rounded-xl bg-[#eaedf2] p-1" role="group" aria-label="Filtrar cotizaciones">
+          {(['todas', 'vigentes', 'vencidas'] as Filtro[]).map((f) => (
+            <button key={f} type="button" aria-pressed={filtro === f} onClick={() => setFiltro(f)}
+              className={cn('h-8 rounded-lg px-3 text-[13px] font-semibold capitalize text-slate-600', filtro === f && 'bg-white text-foreground shadow-xs')}>
+              {f === 'todas' ? 'Todas' : f === 'vigentes' ? 'Vigentes' : 'Vencidas'} <span className="tabular-nums text-slate-500">{cuenta(f)}</span>
+            </button>
+          ))}
+        </div>
       </div>
+
+      {aviso && <p role="status" className="mb-3 rounded-lg bg-muted px-3 py-2 text-xs">{aviso} {aviso.startsWith('Solicitud') && <Link className="text-primary hover:underline" to="/reservas">Ver reservas</Link>}</p>}
+
+      {lista.length === 0 ? (
+        <div className="module-empty">
+          <h2 className="text-lg font-semibold">Aún no hay cotizaciones.</h2>
+          <p className="mt-2 max-w-md text-sm text-muted-foreground">Atiende al cliente, elige el departamento y el plan de pagos, y emite la cotización desde un solo lugar.</p>
+          <Button asChild className="mt-6"><Link to="/venta"><Plus />Nueva cotización</Link></Button>
+        </div>
+      ) : visibles.length === 0 ? (
+        <p className="rounded-xl border border-border bg-white p-6 text-center text-sm text-slate-600">No hay cotizaciones con ese filtro.</p>
+      ) : movil ? (
+        <ul className="grid grid-cols-[minmax(0,1fr)] gap-2" aria-label="Cotizaciones">
+          {visibles.map((c) => (
+            <li key={c.id} className="grid gap-2 rounded-2xl border border-border bg-white p-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[15px] font-semibold">{c.numero} · Dpto. {c.unidad.dpt}</p>
+                  <p className="truncate text-xs text-slate-600">{c.clienteId ? <Link className="hover:underline" to={`/clientes?cliente=${c.clienteId}`}>{c.cliente.nombre}</Link> : c.cliente.nombre} · {fmtUsd(c.plan.precioFinal)}</p>
+                </div>
+                {estado(c)}
+              </div>
+              <p className="text-xs text-slate-600">Vence {fmtFechaCorta(c.validaHasta)}</p>
+              {acciones(c)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="dashboard-card overflow-x-auto">
+          <table className="w-full text-[13px]">
+            <thead className="border-b border-border bg-[#fafbfc] text-xs text-slate-600">
+              <tr><th className="px-4 py-2.5 text-left font-semibold">Cotización</th><th className="px-2 py-2.5 text-left font-semibold">Cliente</th><th className="px-2 py-2.5 text-right font-semibold">Precio final</th><th className="px-2 py-2.5 text-left font-semibold">Vigencia</th><th className="px-2 py-2.5 text-left font-semibold">Estado</th><th className="px-4 py-2.5"><span className="sr-only">Acciones</span></th></tr>
+            </thead>
+            <tbody>
+              {visibles.map((c) => (
+                <tr key={c.id} className="border-t border-border first:border-t-0">
+                  <td className="px-4 py-2.5"><b className="font-semibold">{c.numero}</b><span className="block text-xs text-slate-600">Dpto. {c.unidad.dpt} · {c.unidad.tipologia}</span></td>
+                  <td className="px-2 py-2.5">{c.clienteId ? <Link className="hover:underline" to={`/clientes?cliente=${c.clienteId}`}>{c.cliente.nombre}</Link> : c.cliente.nombre}</td>
+                  <td className="px-2 py-2.5 text-right tabular-nums">{fmtUsd(c.plan.precioFinal)}</td>
+                  <td className="px-2 py-2.5 whitespace-nowrap">{fmtFechaCorta(c.validaHasta)}</td>
+                  <td className="px-2 py-2.5">{estado(c)}</td>
+                  <td className="px-4 py-2.5">{acciones(c)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   )
-}
-
-function Campo({ id, label, value, onChange, type = 'text', inputMode, disabled }: { id: string; label: string; value: string; onChange: (v: string) => void; type?: string; inputMode?: 'numeric' | 'decimal'; disabled?: boolean }) {
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id} className="text-xs">{label}</Label>
-      <Input id={id} type={type} inputMode={inputMode} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} className="h-9" />
-    </div>
-  )
-}
-
-function Fila({ t, v, fuerte }: { t: string; v: string; fuerte?: boolean }) {
-  return <div className="flex justify-between gap-2"><dt className="text-muted-foreground">{t}</dt><dd className={`tabular-nums ${fuerte ? 'text-base font-semibold text-primary' : 'font-medium'}`}>{v}</dd></div>
 }

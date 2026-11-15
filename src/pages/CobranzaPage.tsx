@@ -29,6 +29,7 @@ import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2 } from '@/features/inventario/pricing'
 import { cn } from '@/lib/utils'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 const ESTADO_PAGO: Record<string, { label: string; tono: string }> = {
   registrado: { label: 'Por verificar', tono: 'bg-amber-50 text-amber-800 ring-amber-200' },
@@ -98,7 +99,7 @@ function Cobranza({ datos }: { datos: Datos }) {
   if (!d || !tablero || !indicadores) return error ? <FieldError>{error}</FieldError> : <p className="p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 inline size-4 animate-spin" />Cargando cobranza…</p>
 
   const elegido = tablero.contratos.find((r) => r.contrato.id === seleccion) ?? null
-  const departamento = (unidad: string) => d.departamentos.get(unidad) ?? unidad
+  const departamento = (unidad: string) => d.departamentos.get(unidad) ?? numeroComercial(unidad)
   const firmados = tablero.contratos.filter((r) => r.contrato.estado === 'firmado')
   const entradas = firmados.flatMap((r) => r.cuotas.filter((q) => q.esEntrada))
   const vencidas = entradas.filter((q) => q.situacion === 'vencida').length
@@ -301,7 +302,7 @@ function ReservasCobranza({ filas, d, datos, ejecutar }: { filas: FilaReserva[];
               {lista.map((f) => (
                 <tr key={f.reserva.id} className="border-t border-border align-top">
                   <td className="px-4 py-2 font-medium">{f.reserva.clienteNombre}</td>
-                  <td className="px-2 py-2">{d.departamentos.get(f.reserva.unidad) ?? f.reserva.unidad}</td>
+                  <td className="px-2 py-2">{d.departamentos.get(f.reserva.unidad) ?? numeroComercial(f.reserva.unidad)}</td>
                   <td className="px-2 py-2">{f.reserva.codigo}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.acordado)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.pagado)}{f.estado === 'por_verificar' && <div className="text-xs text-muted-foreground">reportado, sin confirmar</div>}</td>

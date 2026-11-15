@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import { HashRouter, Route, Routes } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import '@/index.css'
 import { ConexionProvider } from '@/app/auth'
 import { SessionProvider } from '@/app/session'
@@ -17,7 +17,6 @@ import CotizacionesPage from '@/pages/CotizacionesPage'
 import DashboardPage from '@/pages/DashboardPage'
 import EquipoPage from '@/pages/EquipoPage'
 import FinanciamientoPage from '@/pages/FinanciamientoPage'
-import GestionComercialPage from '@/pages/GestionComercialPage'
 import InventarioPage from '@/pages/InventarioPage'
 import ObraPage from '@/pages/ObraPage'
 import PlanPage from '@/pages/PlanPage'
@@ -58,7 +57,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="venta" element={<VentaPage />} />
               <Route path="cotizaciones" element={<CotizacionesPage />} />
               <Route path="clientes" element={<ClientesPage />} />
-              <Route path="comercial" element={<GestionComercialPage />} />
+              <Route path="comercial" element={<Navigate to="/clientes?vista=embudo" replace />} />
               <Route path="reservas" element={<ReservasPage />} />
               <Route path="ventas" element={<VentasPage />} />
               <Route path="cobranzas" element={<CobranzaPage />} />

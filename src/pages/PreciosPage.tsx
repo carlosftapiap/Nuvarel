@@ -17,6 +17,7 @@ import type { Edificio, Piso, PriceProposal, Tipologia } from '@/features/invent
 import { comparacionPorPiso, conteoPosiciones, posicion, POSICION_LABEL, rangoParaPiso, type Posicion, type RangoFratelli } from '@/features/precios/competencia'
 import { useFratelli } from '@/features/precios/useFratelli'
 import { cn } from '@/lib/utils'
+import { nombreEdificio } from '@/features/inventario/nomenclatura'
 
 const POS_TONE: Record<Posicion, string> = {
   bajo: 'bg-sky-50 text-sky-700 ring-sky-200',
@@ -94,7 +95,7 @@ function Simulacion({ rangos }: { rangos: Record<string, RangoFratelli> | null }
       <section className="dashboard-card p-5 grid content-start gap-4" aria-label="Parámetros de la simulación">
         <div className="grid gap-2">
           <span className="text-xs font-medium">Alcance</span>
-          <Sel id="sim-ed" label="Edificio" placeholder="Elige el edificio" value={edificio} onChange={setEdificio} items={[['todos', 'Ambos edificios'], ['1', 'Edificio 1'], ['2', 'Edificio 2']]} />
+          <Sel id="sim-ed" label="Edificio" placeholder="Elige el edificio" value={edificio} onChange={setEdificio} items={[['todos', 'Ambos edificios'], ['1', 'Edificio A'], ['2', 'Edificio B']]} />
           <Sel id="sim-piso" label="Piso" value={piso} onChange={setPiso} items={[['todos', 'Todos los pisos'], ['PB', 'Planta baja'], ['1', 'Piso 1'], ['2', 'Piso 2'], ['3', 'Piso 3'], ['4', 'Piso 4'], ['5', 'Piso 5']]} />
           <Sel id="sim-tip" label="Tipología" value={tipologia} onChange={setTipologia} items={[['todos', 'Todas'], ['1 hab', '1 hab'], ['2 hab', '2 hab'], ['2 hab + estudio', '2 hab + estudio']]} />
         </div>
@@ -117,7 +118,7 @@ function Simulacion({ rangos }: { rangos: Record<string, RangoFratelli> | null }
           <div className="grid gap-2">
             <ReglaPrecios />
             <Label htmlFor="sim-motivo" className="text-xs">Motivo del cambio</Label>
-            <Textarea id="sim-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Alinear piso 1 del Edificio 2 con FRATELLI" />
+            <Textarea id="sim-motivo" rows={2} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. Alinear piso 1 del Edificio B con FRATELLI" />
             <FieldError>{error}</FieldError>
             {ok && <p role="status" className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-200">{ok}</p>}
             <Button onClick={proponer} disabled={!preview.data?.cambios.length || motivo.trim().length < 5}>{can('precios.aprobar') ? 'Aplicar cambio' : 'Enviar a aprobación'}</Button>
@@ -239,7 +240,7 @@ function Competencia({ fratelli }: { fratelli: ReturnType<typeof useFratelli> })
         <div className="mt-4 grid gap-5 lg:grid-cols-2">
           {([1, 2] as const).map((ed) => (
             <div key={ed} className="grid gap-2">
-              <h3 className="text-xs font-semibold">Edificio {ed}</h3>
+              <h3 className="text-xs font-semibold">{nombreEdificio(ed)}</h3>
               {filas.filter((f) => f.edificio === ed).map((f) => (
                 <div key={f.piso} className="grid grid-cols-[72px_1fr_auto] items-center gap-3 text-xs">
                   <span className="text-muted-foreground">{f.piso === 'PB' ? 'Planta baja' : `Piso ${f.piso}`}</span>

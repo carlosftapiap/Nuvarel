@@ -156,10 +156,10 @@ describe('pantalla del dashboard', () => {
   it('el filtro por edificio recalcula las tarjetas y deja el edificio en la dirección', async () => {
     abrir()
     await screen.findByRole('link', { name: /^Departamentos: 72$/ })
-    await userEvent.click(screen.getByRole('button', { name: 'Edificio 2' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Edificio B' }))
     const ed2 = createInitialState().units.filter((u) => u.edificio === 2).length
     expect(await screen.findByRole('link', { name: new RegExp(`^Departamentos: ${ed2}$`) })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edificio 2' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Edificio B' })).toHaveAttribute('aria-pressed', 'true')
     const grupo = screen.getByRole('group', { name: 'Filtrar por edificio' })
     expect(within(grupo).getAllByRole('button')).toHaveLength(3)
   })
@@ -192,6 +192,28 @@ describe('pantalla del dashboard', () => {
     expect(within(visor).getByRole('img')).toHaveAttribute('src', '/media/sala.webp')
     await user.click(within(visor).getByRole('button', { name: 'Siguiente' }))
     expect(await screen.findByRole('dialog', { name: 'Dormitorio' })).toBeInTheDocument()
+  })
+
+  it('el mapa por edificio del inventario va en el panel: 72 departamentos, y abre la ficha al tocar uno', async () => {
+    const user = userEvent.setup()
+    abrir()
+    const mapa = await screen.findByRole('region', { name: 'Mapa por edificio' })
+    expect(within(mapa).getAllByRole('button', { name: /, (Disponible|Reservado|Vendido),/ })).toHaveLength(72)
+    expect(screen.getByRole('link', { name: 'Ver mapa completo' })).toHaveAttribute('href', '/inventario?vista=mapa')
+    const vendida = inicial().units.find((u) => u.estado === 'vendido')!
+    await user.click(within(mapa).getByRole('button', { name: new RegExp(`^${vendida.dpt},`) }))
+    const ficha = await screen.findByRole('dialog', { name: new RegExp(`Departamento ${vendida.dpt}`) })
+    expect(within(ficha).getByRole('link', { name: 'Ver ventas y contratos' })).toHaveAttribute('href', '/ventas')
+  })
+
+  it('la búsqueda del mapa localiza un departamento también por su número anterior y Enter abre su ficha', async () => {
+    const user = userEvent.setup()
+    abrir()
+    const mapa = await screen.findByRole('region', { name: 'Mapa por edificio' })
+    await user.type(within(mapa).getByRole('searchbox', { name: 'Buscar departamento' }), '1503')
+    expect(within(mapa).getByText('Un departamento: Enter abre su ficha')).toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('dialog', { name: /Departamento A503/ })).toBeInTheDocument()
   })
 
   it('sin conexión a datos comerciales no inventa cifras: muestra guiones', async () => {

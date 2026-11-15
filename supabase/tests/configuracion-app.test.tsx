@@ -192,6 +192,6 @@ describe('Constructor', () => {
   it('el vendedor sigue viendo el inventario comercial', async () => {
     await abrir(vera, <InventarioPage />)
     expect(await screen.findByRole('heading', { name: 'Inventario inmobiliario' })).toBeInTheDocument()
-    await screen.findByRole('row', { name: /E1-PB-A1/ })
+    await screen.findByRole('row', { name: /A001/ })
   })
 })

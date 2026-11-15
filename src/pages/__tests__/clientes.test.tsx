@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from '@/app/session'
 import { crearCliente, estadoInicialClientes } from '@/features/clientes/service'
-import { ClientesProvider, useClientes } from '@/features/clientes/store'
+import { ClientesProvider } from '@/features/clientes/store'
 import { ReservasProvider } from '@/features/reservas/store'
 import type { ClientesState } from '@/features/clientes/model'
 import { InventoryProvider } from '@/features/inventario/store'
@@ -22,6 +22,12 @@ beforeEach(() => {
   URL.revokeObjectURL ??= vi.fn()
 })
 
+/** Muestra a dónde llevó la navegación (p. ej. el recorrido de Atender cliente). */
+function Ubicacion() {
+  const l = useLocation()
+  return <p>{l.pathname + l.search}</p>
+}
+
 function renderApp(url: string, clientes?: ClientesState, extra?: React.ReactNode) {
   return render(
     <SessionProvider initialRol="asesor">
@@ -32,6 +38,7 @@ function renderApp(url: string, clientes?: ClientesState, extra?: React.ReactNod
             <Routes>
               <Route path="/clientes" element={<ClientesPage />} />
               <Route path="/cotizaciones" element={<CotizacionesPage />} />
+              <Route path="/venta" element={<Ubicacion />} />
             </Routes>
             {extra}
           </MemoryRouter>
@@ -51,7 +58,7 @@ describe('Clientes', () => {
   it('registra un cliente, aparece en Nuevo y una llamada lo pasa a Contactado', async () => {
     const user = userEvent.setup()
     renderApp('/clientes')
-    await user.click(screen.getByRole('button', { name: 'Pipeline' }))
+    await user.click(screen.getByRole('button', { name: 'Embudo' }))
     await user.click(screen.getAllByRole('button', { name: /Nuevo cliente/ })[0])
     const dlg = await screen.findByRole('dialog', { name: 'Nuevo cliente' })
     await user.type(within(dlg).getByLabelText('Primer nombre *'), 'Lucía')
@@ -63,6 +70,7 @@ describe('Clientes', () => {
     // Se abre la ficha del cliente recién creado
     const ficha = await screen.findByRole('dialog', { name: /Lucía Andrade/ })
     expect(within(ficha).getByText('Nuevo', { selector: 'span' })).toBeInTheDocument()
+    await user.click(within(ficha).getByRole('tab', { name: 'Actividad' }))
     await user.type(within(ficha).getByPlaceholderText(/Llamada: confirma interés/), 'Primera llamada: busca 2 habitaciones')
     await user.click(within(ficha).getByRole('button', { name: 'Registrar' }))
     expect(within(ficha).getByText(/Nuevo → Contactado/)).toBeInTheDocument()
@@ -84,18 +92,14 @@ describe('Clientes', () => {
     expect(await screen.findByText(/Pedro Ruiz → Perdido/)).toBeInTheDocument()
   })
 
-  it('la cotización desde la ficha queda vinculada y mueve al cliente a Cotización', async () => {
-    const user = userEvent.setup()
+  it('cotizar desde la ficha o desde un enlace abre el recorrido único de Atender cliente', async () => {
     const actor = { id: 'demo-asesor', nombre: 'Vendedor (demo)', rol: 'asesor' as const }
     const { state, cliente } = crearCliente(estadoInicialClientes(), { nombre: 'Andrea Mora', telefono: '0995556677', email: 'andrea@correo.com', origen: 'instagram', origenDetalle: '', unidadesInteres: ['E1-PB-A2'], presupuesto: 175000, proposito: 'vivir', formaPago: 'biess', asesorId: actor.id, asesor: actor.nombre }, actor, createInitialState())
-    function Etapa() { const { state: s } = useClientes(); return <output aria-label="etapa">{s.clientes[0].etapa}</output> }
-    renderApp(`/cotizaciones?cliente=${cliente.id}&unidad=E1-PB-A2&fecha=2026-10-28`, state, <Etapa />)
-    expect(screen.getByLabelText('Nombre completo *')).toHaveValue('Andrea Mora')
-    await user.type(screen.getByLabelText('Nombre *'), 'Asesor Nuvarel')
-    await user.type(screen.getAllByLabelText('Correo')[1], 'asesor@nuvarel.com')
-    await user.click(screen.getByRole('button', { name: '15 días' }))
-    await user.click(screen.getByRole('button', { name: /Generar PDF/ }))
-    expect(await screen.findByText(/COT-2026-0001 generada para Andrea Mora/)).toBeInTheDocument()
-    expect(screen.getByLabelText('etapa')).toHaveTextContent('cotizacion')
+    const r = renderApp(`/clientes?cliente=${cliente.id}`, state)
+    const ficha = await screen.findByRole('dialog', { name: /Andrea Mora/ })
+    expect(within(ficha).getByRole('link', { name: /Crear cotización/ })).toHaveAttribute('href', `/venta?cliente=${cliente.id}&unidad=E1-PB-A2`)
+    r.unmount()
+    renderApp(`/cotizaciones?cliente=${cliente.id}&unidad=E1-PB-A2`, state)
+    expect(screen.getByText(`/venta?cliente=${cliente.id}&unidad=E1-PB-A2`)).toBeInTheDocument()
   })
 })

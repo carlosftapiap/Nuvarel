@@ -40,7 +40,8 @@ function InventarioComercial() {
     const edificio = params.get('edificio')
     return { ...FILTROS_VACIOS, estado: estado && estado in ESTADOS_EFECTIVOS ? (estado as EstadoEfectivo) : 'todos', edificio: edificio === '1' || edificio === '2' ? edificio : 'todos' }
   })
-  const [pestana, setPestana] = useState('tabla')
+  // Desde el Dashboard, «Ver mapa completo» abre la pestaña del mapa.
+  const [pestana, setPestana] = useState(() => (params.get('vista') === 'mapa' ? 'mapa' : 'tabla'))
   const [seleccion, setSeleccion] = useState<RowSelectionState>({})
   const [ajuste, setAjuste] = useState<{ open: boolean; codigos: string[] }>({ open: false, codigos: [] })
   const [importar, setImportar] = useState(false)
@@ -75,7 +76,7 @@ function InventarioComercial() {
       <PageHeader
         eyebrow="Principal · Inventario"
         title="Inventario inmobiliario"
-        subtitle={`${r.unidades} departamentos · Edificio 1 (${r.porEdificio[1]}) y Edificio 2 (${r.porEdificio[2]}) · Lista base 28/10/2026`}
+        subtitle={`${r.unidades} departamentos · Edificio A (${r.porEdificio[1]}) y Edificio B (${r.porEdificio[2]}) · Lista base 28/10/2026`}
         actions={
           <>
             {can('inventario.exportar') && <Button variant="outline" size="sm" onClick={() => descargarLibro(state)}><Download />Exportar Excel</Button>}

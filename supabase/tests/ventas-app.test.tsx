@@ -100,7 +100,7 @@ describe('Ventas y contratos conectado a la base de datos', () => {
     const f = await screen.findByRole('dialog', { name: /CON-/ })
     expect(within(f).getAllByText('Andrea Mora').length).toBeGreaterThan(0)
     expect(within(f).getByText('1712345675')).toBeInTheDocument()
-    expect(within(f).getByText(/Edificio 1/)).toBeInTheDocument()
+    expect(within(f).getByText(/Edificio A/)).toBeInTheDocument()
     for (const t of ['Asesor principal', 'Responsable de la negociación', 'Corredor de origen', 'Atribución de captación']) {
       const fila = within(f).getByText(t).parentElement!
       expect(fila).toHaveTextContent('Carlos Corredor')

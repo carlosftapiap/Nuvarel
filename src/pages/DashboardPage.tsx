@@ -26,6 +26,7 @@ import { siguientePaso } from '@/features/reservas/siguiente'
 import { useReservasOpcional } from '@/features/reservas/store'
 import { FieldError } from '@/features/inventario/components/shared'
 import { cn } from '@/lib/utils'
+import { nombreEdificio, numeroComercial } from '@/features/inventario/nomenclatura'
 
 /**
  * Inicio de cada perfil. Quien trabaja su propia cartera (Vendedor, Corredor) ve su día: qué hacer ahora, en orden.
@@ -40,7 +41,7 @@ export default function DashboardPage() {
 const alcanceDe = (a: Actor) => a.alcance?.tipo ?? PLANTILLAS_ROL.find((p) => p.id === a.rol)?.alcance ?? 'empresa'
 
 const FILTROS: { valor: EdificioFiltro; etiqueta: string; param: string }[] = [
-  { valor: 'todos', etiqueta: 'Todos', param: 'todos' }, { valor: 1, etiqueta: 'Edificio 1', param: '1' }, { valor: 2, etiqueta: 'Edificio 2', param: '2' },
+  { valor: 'todos', etiqueta: 'Todos', param: 'todos' }, { valor: 1, etiqueta: 'Edificio A', param: '1' }, { valor: 2, etiqueta: 'Edificio B', param: '2' },
 ]
 
 const compacto = (v: number | null) => {
@@ -140,8 +141,8 @@ function PorEdificio({ unidades, filtro }: { unidades: Unit[]; filtro: EdificioF
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
       {filas.map((f) => (
         <div key={f.e}>
-          <div className="mb-1.5 flex items-baseline justify-between text-xs"><Link to={`/inventario?edificio=${f.e}`} className="font-semibold hover:text-primary">Edificio {f.e}</Link><span className="tabular-nums text-slate-600">{f.total} unidades</span></div>
-          <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`Edificio ${f.e}: ${f.por.map((x) => `${x.n} ${ESTADOS_EFECTIVOS[x.s].label.toLowerCase()}`).join(', ')}`}>
+          <div className="mb-1.5 flex items-baseline justify-between text-xs"><Link to={`/inventario?edificio=${f.e}`} className="font-semibold hover:text-primary">{nombreEdificio(f.e)}</Link><span className="tabular-nums text-slate-600">{f.total} unidades</span></div>
+          <div className="flex h-3.5 w-full overflow-hidden rounded-full bg-slate-100" role="img" aria-label={`${nombreEdificio(f.e)}: ${f.por.map((x) => `${x.n} ${ESTADOS_EFECTIVOS[x.s].label.toLowerCase()}`).join(', ')}`}>
             {f.por.map((x) => <span key={x.s} title={`${ESTADOS_EFECTIVOS[x.s].label}: ${x.n}`} style={{ width: `${(x.n / f.total) * 100}%`, background: ESTADOS_EFECTIVOS[x.s].color }} />)}
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-600">{f.por.map((x) => <span key={x.s}><i className="mr-1 inline-block size-1.5 rounded-full" style={{ background: ESTADOS_EFECTIVOS[x.s].color }} />{x.n} {CORTO[x.s]}</span>)}</p>
@@ -264,14 +265,14 @@ function Panorama() {
 
   const enTramite = unidades.filter((u) => u.solicitud && u.estado === 'disponible')
   const kpisInventario: Kpi[] = [
-    { clave: 'total', label: 'Departamentos', valor: String(inv.unidades), hint: filtro === 'todos' ? `Edificio 1: ${state.units.filter((u) => u.edificio === 1).length} · Edificio 2: ${state.units.filter((u) => u.edificio === 2).length}` : `Edificio ${filtro}`, icon: Building2, color: '#4f46e5', soft: '#eef2ff', to: `/inventario${q}` },
+    { clave: 'total', label: 'Departamentos', valor: String(inv.unidades), hint: filtro === 'todos' ? `Edificio A: ${state.units.filter((u) => u.edificio === 1).length} · Edificio B: ${state.units.filter((u) => u.edificio === 2).length}` : nombreEdificio(filtro), icon: Building2, color: '#4f46e5', soft: '#eef2ff', to: `/inventario${q}` },
     { clave: 'valor', label: 'Valor total de lista', valor: compacto(inv.total), hint: referenciales > 0 ? <span className="font-medium text-amber-700">Referencial · {referenciales} de {inv.unidades} sin aprobar</span> : 'Precios aprobados', icon: CircleDollarSign, color: '#0e9f6e', soft: '#e7f8f2', to: `/inventario${q}` },
     { clave: 'disponibles', label: 'Disponibles', valor: String(inv.porEstado.disponible), hint: enTramite.length ? `${pl(enTramite.length, 'con solicitud', 'con solicitud')} de reserva en trámite` : 'Listas para cotizar y reservar', icon: Building2, color: '#0e9f6e', soft: '#e3f7f2', to: `/inventario?estado=disponible${q ? `&edificio=${filtro}` : ''}` },
     { clave: 'reservadas', label: 'Reservadas', valor: String(inv.porEstado.reservado), hint: 'Con reserva vigente', icon: Receipt, color: '#8b5cf6', soft: '#f2ecff', to: `/inventario?estado=reservado${q ? `&edificio=${filtro}` : ''}` },
     { clave: 'vendidas', label: 'Vendidas', valor: String(inv.porEstado.vendido), hint: 'Venta formalizada', icon: FileSignature, color: '#4f46e5', soft: '#eef2ff', to: `/inventario?estado=vendido${q ? `&edificio=${filtro}` : ''}` },
   ]
   const kpisNegocio: Kpi[] = [
-    { clave: 'clientes', label: 'Clientes registrados', valor: cuenta(panel?.clientes ?? null), hint: panel && panel.clientes === null ? 'Sin acceso' : filtro === 'todos' ? 'En el proyecto' : `Con interés en el Edificio ${filtro}`, icon: Users, color: '#4f46e5', soft: '#eef2ff', to: '/clientes' },
+    { clave: 'clientes', label: 'Clientes registrados', valor: cuenta(panel?.clientes ?? null), hint: panel && panel.clientes === null ? 'Sin acceso' : filtro === 'todos' ? 'En el proyecto' : `Con interés en el ${nombreEdificio(filtro)}`, icon: Users, color: '#4f46e5', soft: '#eef2ff', to: '/clientes' },
     { clave: 'reservas', label: 'Reservas activas', valor: cuenta(panel?.reservasActivas ?? null), hint: panel && panel.reservasActivas === null ? 'Sin acceso' : 'Sin contrato aún', icon: Receipt, color: '#8b5cf6', soft: '#f2ecff', to: '/reservas' },
     { clave: 'contratos', label: 'Contratos firmados', valor: cuenta(panel?.contratosFirmados ?? null), hint: panel && panel.contratosFirmados === null ? 'Sin acceso' : 'Formalizados en Ventas', icon: FileSignature, color: '#0e9f6e', soft: '#e7f8f2', to: '/ventas' },
     { clave: 'ventas', label: 'Ventas firmadas', valor: compacto(panel?.ventasFirmadas ?? null), hint: 'Precio de contratos firmados', icon: Banknote, color: '#4f46e5', soft: '#eef2ff', to: '/ventas' },
@@ -293,11 +294,13 @@ function Panorama() {
   if (clientesCtx) {
     const vencidas = clientesVisibles(clientesCtx.state.clientes, actor).filter((c) => c.etapa !== 'perdido' && urgencia(c, hoy) === 'vencida').length
     if (vencidas) alertas.push({ clave: 'vencidas', titulo: `${pl(vencidas, 'gestión comercial vencida', 'gestiones comerciales vencidas')}`, detalle: 'Clientes con la próxima acción atrasada.', to: '/clientes?filtro=vencidas', tono: 'rojo' })
+    const sinGestion = clientesVisibles(clientesCtx.state.clientes, actor).filter((c) => c.etapa !== 'perdido' && urgencia(c, hoy) === 'sin_actividad').length
+    if (sinGestion) alertas.push({ clave: 'sin_gestion', titulo: pl(sinGestion, 'cliente sin próxima gestión', 'clientes sin próxima gestión'), detalle: 'Sin siguiente paso programado: el seguimiento se enfría.', to: '/clientes?filtro=sin', tono: 'ambar' })
   }
   if (referenciales > 0 || propuestas > 0) alertas.push({ clave: 'precios', titulo: 'Precios pendientes de aprobación', detalle: [referenciales ? `${referenciales} unidades con precio referencial` : '', propuestas ? `${propuestas} propuestas por resolver` : ''].filter(Boolean).join(' · '), to: propuestas ? '/precios' : '/inventario', tono: 'ambar' })
   if (panel?.reservasPorVencer?.length) {
     const p = panel.reservasPorVencer[0]
-    alertas.push({ clave: 'reservas', titulo: `${pl(panel.reservasPorVencer.length, 'reserva', 'reservas')} por vencer`, detalle: `${p.unidad}: ${p.dias < 0 ? `venció hace ${-p.dias} d` : p.dias === 0 ? 'vence hoy' : `vence en ${p.dias} d`}`, to: '/reservas', tono: 'rojo' })
+    alertas.push({ clave: 'reservas', titulo: `${pl(panel.reservasPorVencer.length, 'reserva', 'reservas')} por vencer`, detalle: `${numeroComercial(p.unidad)}: ${p.dias < 0 ? `venció hace ${-p.dias} d` : p.dias === 0 ? 'vence hoy' : `vence en ${p.dias} d`}`, to: '/reservas', tono: 'rojo' })
   }
   if (panel?.cuotasVencidas && panel.cuotasVencidas.cuotas > 0) alertas.push({ clave: 'cuotas', titulo: `${pl(panel.cuotasVencidas.cuotas, 'cuota vencida', 'cuotas vencidas')}`, detalle: `${fmtUsd(panel.cuotasVencidas.monto)} en ${pl(panel.cuotasVencidas.contratos, 'contrato', 'contratos')}`, to: '/cobranzas', tono: 'rojo' })
   if (panel?.contratosPendientesFirma) alertas.push({ clave: 'firma', titulo: `${pl(panel.contratosPendientesFirma, 'contrato pendiente', 'contratos pendientes')} de firma`, detalle: 'Preparados, sin formalizar.', to: '/ventas', tono: 'azul' })
@@ -315,7 +318,7 @@ function Panorama() {
   const filasEdificio = ([1, 2] as const).filter((e) => filtro === 'todos' || filtro === e).map((e) => {
     const propias = unidades.filter((u) => u.edificio === e)
     return {
-      key: `e${e}`, label: `Edificio ${e}`, value: propias.reduce((t, u) => t + calcularPrecio(u, state.params).precioVenta, 0),
+      key: `e${e}`, label: nombreEdificio(e), value: propias.reduce((t, u) => t + calcularPrecio(u, state.params).precioVenta, 0),
       color: e === 1 ? '#4f46e5' : '#0e9f6e', to: `/inventario?edificio=${e}`, unidades: propias.length, m2: propias.reduce((t, u) => t + u.areaM2, 0),
     }
   })
@@ -360,7 +363,7 @@ function Panorama() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Seccion titulo="Embudo comercial" sub="De clientes a ventas firmadas" to="/comercial">{panel ? <Embudo etapas={panel.embudo} /> : <p className="text-xs text-slate-600">Cargando…</p>}</Seccion>
+        <Seccion titulo="Embudo comercial" sub="De clientes a ventas firmadas" to="/clientes?vista=embudo">{panel ? <Embudo etapas={panel.embudo} /> : <p className="text-xs text-slate-600">Cargando…</p>}</Seccion>
         <Seccion titulo="Inventario por estado" sub="Unidades por estado comercial" to="/inventario"><Dona filas={filasDona} total={inv.unidades} /></Seccion>
       </div>
 
@@ -380,7 +383,7 @@ function Panorama() {
               <p className="grid grid-cols-[minmax(0,1fr)] min-h-28 place-content-center text-center text-xs text-slate-600">{panel?.reservasActivas === null ? 'Tu perfil no consulta reservas.' : panel ? 'No hay reservas abiertas.' : 'Cargando…'}</p>
             )}
           </Seccion>
-          <Seccion titulo="Edificio 1 vs. Edificio 2" sub="Reparto de estados en cada edificio"><PorEdificio unidades={unidades} filtro={filtro} /></Seccion>
+          <Seccion titulo="Edificio A vs. Edificio B" sub="Reparto de estados en cada edificio"><PorEdificio unidades={unidades} filtro={filtro} /></Seccion>
           <Seccion titulo="Cartera de contratos firmados" sub="Cuánto se ha cobrado y cuánto falta" to="/cobranzas">
             {panel?.cartera && panel.cartera.pactado > 0 ? <Cartera c={panel.cartera} /> : (
               <p className="grid grid-cols-[minmax(0,1fr)] min-h-28 place-content-center text-center text-xs text-slate-600">{panel?.cartera ? 'Aún no hay contratos firmados con cuotas de entrada.' : panel === null ? 'Cargando…' : 'Tu perfil no consulta cobranzas.'}</p>
@@ -443,9 +446,15 @@ function MiDia() {
   const activos = mios.filter((c) => c.etapa !== 'perdido')
   const enCurso = reservasCtx ? reservasVisibles(reservasCtx.state.reservas, actor).filter((r) => r.estado === 'solicitada' || r.estado === 'pago_verificado').length : null
   const maxEtapa = Math.max(1, ...ETAPAS_EMBUDO.map((e) => activos.filter((c) => c.etapa === e).length))
+  const partes = pendientes ? [
+    pendientes.reservas ? pl(pendientes.reservas, 'reserva por atender', 'reservas por atender') : '',
+    pendientes.vencidas ? pl(pendientes.vencidas, 'gestión vencida', 'gestiones vencidas') : '',
+    pendientes.deHoy ? pl(pendientes.deHoy, 'gestión para hoy', 'gestiones para hoy') : '',
+    pendientes.sinGestion ? pl(pendientes.sinGestion, 'cliente sin próxima gestión', 'clientes sin próxima gestión') : '',
+  ].filter(Boolean) : []
   const resumen = pendientes === null ? 'Tu agenda comercial del día.'
-    : pendientes.total === 0 ? 'Todo al día: no hay reservas ni gestiones pendientes.'
-      : `${pl(pendientes.total, 'cosa requiere', 'cosas requieren')} tu atención, en orden de urgencia.`
+    : partes.length === 0 ? 'Todo al día: sin reservas ni gestiones pendientes, y cada cliente tiene su próxima gestión.'
+      : `Tienes ${partes.length > 1 ? `${partes.slice(0, -1).join(', ')} y ${partes[partes.length - 1]}` : partes[0]}.`
   const kpis: { label: string; valor: string; detalle: string; to: string; icon: LucideIcon }[] = [
     { label: 'Mis clientes activos', valor: String(activos.length), detalle: `${activos.filter((c) => urgencia(c, hoy) === 'sin_actividad').length} sin próxima gestión`, to: '/clientes', icon: Users },
     { label: 'Gestiones de hoy', valor: String(activos.filter((c) => urgencia(c, hoy) === 'hoy').length), detalle: `${activos.filter((c) => urgencia(c, hoy) === 'vencida').length} vencidas`, to: '/clientes?filtro=hoy', icon: CalendarClock },
@@ -473,7 +482,7 @@ function MiDia() {
             ))}
           </div>
           {activos.length > 0 && (
-            <Seccion titulo="Mi pipeline" sub="Clientes activos por etapa" to="/comercial">
+            <Seccion titulo="Mi embudo" sub="Clientes activos por etapa" to="/clientes?vista=embudo">
               <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
                 {ETAPAS_EMBUDO.map((e) => {
                   const n = activos.filter((c) => c.etapa === e).length

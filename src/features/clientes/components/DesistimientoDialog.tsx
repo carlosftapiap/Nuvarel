@@ -15,6 +15,7 @@ import { ETAPAS_OPORTUNIDAD } from '../model'
 import ReglasAnulacion from './ReglasAnulacion'
 import { clientesVisibles } from '../service'
 import { useClientes } from '../store'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 const SIN_OPERACION = 'sin_operacion'
 
@@ -41,7 +42,7 @@ export default function DesistimientoDialog({ clienteId, oportunidadId, onClose,
   // Con una sola negociación se elige sola; sin ninguna, el desistimiento es del cliente.
   const elegida = operacion || (abiertas.length === 1 ? abiertas[0].id : abiertas.length === 0 && cliente ? SIN_OPERACION : '')
   const oportunidad = elegida && elegida !== SIN_OPERACION ? elegida : null
-  const dpt = (codigo: string | null | undefined) => inv.units.find((u) => u.codigo === codigo)?.dpt ?? codigo ?? ''
+  const dpt = (codigo: string | null | undefined) => inv.units.find((u) => u.codigo === codigo)?.dpt ?? numeroComercial(codigo ?? '')
 
   useEffect(() => {
     if (!datos || !cliente || !elegida) { setVista(null); return }

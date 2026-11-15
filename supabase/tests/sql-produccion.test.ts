@@ -22,6 +22,7 @@ export const SQL_PRODUCCION: [string, string, string][] = [
   ['0011', 'supervisor_vende', '20261121000000_supervisor_vende.sql'],
   ['0012', 'comisiones_vendedor', '20261122000000_comisiones_vendedor.sql'],
   ['0013', 'captacion_leads', '20261123000000_captacion_leads.sql'],
+  ['0015', 'nomenclatura_comercial', '20261124000000_nomenclatura_comercial.sql'],
 ]
 
 // Script de una sola vez (no es migración): va numerado y en el control, pero no es copia de ninguna migración.

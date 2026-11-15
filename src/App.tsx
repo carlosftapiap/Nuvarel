@@ -19,7 +19,6 @@ const FinanciamientoPage = lazy(() => import('./pages/FinanciamientoPage'))
 const CotizacionesPage = lazy(() => import('./pages/CotizacionesPage'))
 const VentaPage = lazy(() => import('./pages/VentaPage'))
 const ClientesPage = lazy(() => import('./pages/ClientesPage'))
-const GestionComercialPage = lazy(() => import('./pages/GestionComercialPage'))
 const ReservasPage = lazy(() => import('./pages/ReservasPage'))
 const ConfiguracionPage = lazy(() => import('./pages/ConfiguracionPage'))
 const PlanPage = lazy(() => import('./pages/PlanPage'))
@@ -74,7 +73,8 @@ function Modulos() {
           <Route path="venta" element={<Permitida to="/venta"><VentaPage /></Permitida>} />
           <Route path="cotizaciones" element={<Permitida to="/cotizaciones"><CotizacionesPage /></Permitida>} />
           <Route path="clientes" element={<Permitida to="/clientes"><ClientesPage /></Permitida>} />
-          <Route path="comercial" element={<Permitida to="/comercial"><GestionComercialPage /></Permitida>} />
+          {/* Pipeline vive ahora en Clientes, vista Embudo: los enlaces antiguos siguen funcionando. */}
+          <Route path="comercial" element={<Navigate to="/clientes?vista=embudo" replace />} />
           <Route path="reservas" element={<Permitida to="/reservas"><ReservasPage /></Permitida>} />
           <Route path="configuracion" element={<Permitida to="/configuracion"><ConfiguracionPage /></Permitida>} />
           <Route path="plan" element={<Permitida to="/plan"><PlanPage /></Permitida>} />

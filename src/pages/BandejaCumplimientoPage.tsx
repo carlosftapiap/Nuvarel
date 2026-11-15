@@ -16,6 +16,7 @@ import { ESTADO_DOCUMENTO, ESTADO_REVISION } from '@/features/cumplimiento/exped
 import { fmtFechaCorta } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { cn } from '@/lib/utils'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 /** Pantalla de inicio del Oficial de Cumplimiento. Decide en el expediente del cliente o del contrato, con las reglas de siempre. */
 export default function BandejaCumplimientoPage() {
@@ -105,7 +106,7 @@ function Panel({ datos }: { datos: Datos }) {
                         <tr key={c.id} className="border-t border-border align-top">
                           <td className="px-4 py-2 font-medium">{c.codigo}</td>
                           <td className="px-2 py-2">{c.cliente}</td>
-                          <td className="px-2 py-2">{c.unidad}</td>
+                          <td className="px-2 py-2">{numeroComercial(c.unidad)}</td>
                           <td className="px-2 py-2 tabular-nums">{fecha(c.enviadoEn)}</td>
                           <td className="px-2 py-2"><Pastilla texto={ESTADO_REVISION[c.estado].label} tono={ESTADO_REVISION[c.estado].tono} /></td>
                           <td className="px-2 py-2 text-muted-foreground">{c.observaciones ?? '—'}</td>

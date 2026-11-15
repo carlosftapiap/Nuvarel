@@ -1,9 +1,12 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, ChevronRight, CloudOff, Loader2, Lock, Plus, Users } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronRight, CloudOff, Loader2, Lock, Plus, Users } from 'lucide-react'
 import Aviso from '@/components/Aviso'
+import { Avatar } from '@/components/Estado'
 import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import ColaDelDia from '@/features/dashboard/Cola'
 import { reservasVisibles } from '@/features/reservas/service'
 import { siguientePaso } from '@/features/reservas/siguiente'
@@ -15,14 +18,16 @@ import { ETAPAS, ETAPAS_OPORTUNIDAD, TIPOS_ACTIVIDAD, type Etapa, type TipoActiv
 import type { Datos } from '@/features/conexion/datos'
 import { useRefresco } from '@/features/conexion/refresco'
 import {
-  cargarEquipo, cotizacionesDe, indicadores, nombreCliente, oportunidadesPorEtapa, RESERVA_APROBADA, RESERVA_RECHAZADA, reservasDe, totales,
-  type DatosEquipo, type Indicadores, type Periodo,
+  cargarEquipo, cotizacionesDe, gruposPorSupervisor, indicadores, nombreCliente, oportunidadesPorEtapa, RESERVA_APROBADA, RESERVA_RECHAZADA, reservasDe, totales,
+  type DatosEquipo, type GrupoSupervisor, type Indicadores, type Periodo, type Vendedor,
 } from '@/features/equipo/resumen'
 import { fechaGuayaquil, fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import PanelLeads from '@/features/leads/PanelLeads'
 import { fmtUsd } from '@/features/inventario/pricing'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 /** Dashboard de equipo y detalle por vendedor. Solo con Supabase: el alcance de equipo lo aplica la base. */
 export default function EquipoPage({ vista }: { vista: 'dashboard' | 'detalle' }) {
@@ -79,7 +84,7 @@ function Panel({ datos, vista }: { datos: Datos; vista: 'dashboard' | 'detalle' 
     </div>
   )
 
-  if (vista === 'detalle') return <Detalle d={d} periodo={periodo} selector={selector} vacio={sinEquipo} />
+  if (vista === 'detalle') return <Detalle d={d} periodo={periodo} selector={selector} />
 
   // Mis ventas y Mi equipo van por separado; el total del equipo suma las ventas propias una sola vez.
   const propias = indicadores(d, d.yo, periodo)
@@ -199,23 +204,176 @@ function Actividades({ d, ids, periodo }: { d: DatosEquipo; ids: string[]; perio
   )
 }
 
-function Detalle({ d, periodo, selector, vacio }: { d: DatosEquipo; periodo: Periodo; selector: React.ReactNode; vacio: React.ReactNode }) {
+// La acción tiene el mismo ancho en cada fila y en el resumen del equipo, así las cifras quedan en la misma columna.
+const BOTON_VER = 'justify-self-start sm:w-24 sm:justify-self-end'
+const METRICAS: { t: string; k: keyof Indicadores }[] = [
+  { t: 'Clientes', k: 'clientes' }, { t: 'Cotizaciones', k: 'cotizaciones' }, { t: 'Reservas', k: 'reservasSolicitadas' },
+  { t: 'Ventas', k: 'ventas' }, { t: 'Vencidas', k: 'seguimientosVencidos' },
+]
+
+/** Los cinco números que se comparan entre personas: en columnas en escritorio y en pares en celular. */
+function Metricas({ i, etiqueta, className }: { i: Indicadores; etiqueta: string; className?: string }) {
+  return (
+    <dl role="group" aria-label={etiqueta} className={cn('grid grid-cols-3 gap-x-3 gap-y-1 sm:grid-cols-5 sm:gap-x-2', className)}>
+      {METRICAS.map(({ t, k }) => (
+        <div key={k} className="flex items-baseline justify-between gap-1.5 sm:block sm:text-center">
+          <dt className="text-xs text-slate-600">{t}</dt>
+          <dd className={cn('text-sm font-semibold tabular-nums', k === 'seguimientosVencidos' && i[k] > 0 && 'text-rose-700')}>{i[k]}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+/** Un vendedor en una fila (escritorio) o en una tarjeta (celular), con su gestión a un clic. */
+function FilaVendedor({ v, i, onVer }: { v: Vendedor; i: Indicadores; onVer: (id: string) => void }) {
+  return (
+    <li className="grid grid-cols-[minmax(0,1fr)] gap-3 rounded-xl border border-border bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,28rem)_auto] sm:items-center sm:px-4">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Avatar nombre={v.nombre} className="size-8" />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold">{v.nombre}</div>
+          <div className="text-xs text-slate-600">{ROL_VENTA[v.rol] ?? 'Vendedor'}</div>
+        </div>
+      </div>
+      <Metricas i={i} etiqueta={`Indicadores de ${v.nombre}`} />
+      <Button size="sm" variant="outline" className={BOTON_VER} aria-label={`Ver gestión de ${v.nombre}`} onClick={() => onVer(v.id)}>Ver gestión</Button>
+    </li>
+  )
+}
+
+/** Ventas propias de una persona, separadas de su equipo: así una venta nunca se cuenta dos veces. */
+function VentasPropias({ persona, i, titulo, onVer }: { persona: Vendedor; i: Indicadores; titulo: string; onVer: (id: string) => void }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-3 rounded-xl border border-dashed border-[#c9cfda] bg-[#fafbfc] p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,28rem)_auto] sm:items-center sm:px-4">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold">{titulo}</div>
+        <div className="text-xs text-slate-600">Se muestra aparte: no se suma a los vendedores del equipo</div>
+      </div>
+      <Metricas i={i} etiqueta={titulo} />
+      <Button size="sm" variant="outline" className={BOTON_VER} aria-label={`Ver gestión de ${persona.nombre}`} onClick={() => onVer(persona.id)}>Ver gestión</Button>
+    </div>
+  )
+}
+
+/** Un equipo: sus indicadores consolidados (solo vendedores) arriba y, debajo, cada vendedor. */
+function EquipoView({ nombre, vendedores, d, periodo, onVer }: { nombre: string; vendedores: Vendedor[]; d: DatosEquipo; periodo: Periodo; onVer: (id: string) => void }) {
+  const consolidado = totales(vendedores.map((v) => indicadores(d, v.id, periodo)))
+  return (
+    <section aria-label={nombre} className="grid gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-sm font-semibold">{nombre}</h3>
+        <span className="text-xs text-slate-600">{vendedores.length === 1 ? '1 vendedor' : `${vendedores.length} vendedores`}</span>
+      </div>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 rounded-xl bg-[#f6f7fb] px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,28rem)_auto] sm:items-center sm:px-4">
+        <div className="text-xs font-semibold text-slate-600">Indicadores del equipo</div>
+        <Metricas i={consolidado} etiqueta={`Indicadores de ${nombre}`} />
+        <span aria-hidden="true" className="hidden sm:block sm:w-24" />
+      </div>
+      {vendedores.length === 0
+        ? <p className="px-1 text-xs text-slate-600">Sin vendedores: se asignan desde cada usuario.</p>
+        : <ul className="grid gap-2">{vendedores.map((v) => <FilaVendedor key={v.id} v={v} i={indicadores(d, v.id, periodo)} onVer={onVer} />)}</ul>}
+    </section>
+  )
+}
+
+const SIN_SUPERVISOR = 'sin-supervisor'
+const claveGrupo = (g: GrupoSupervisor) => g.supervisorId ?? SIN_SUPERVISOR
+const nombreGrupo = (g: GrupoSupervisor) => g.supervisor?.nombre ?? (g.supervisorId ? 'Supervisor no visible para tu perfil' : 'Sin supervisor asignado')
+
+/** Un supervisor: sus equipos, sus ventas propias y los vendedores sin equipo a su cargo. Se pliega en celular. */
+function GrupoView({ g, d, periodo, abierto, onAlternar, onVer }: { g: GrupoSupervisor; d: DatosEquipo; periodo: Periodo; abierto: boolean; onAlternar: () => void; onVer: (id: string) => void }) {
+  const nombre = nombreGrupo(g)
+  const esYo = g.supervisorId === d.yo
+  const numEquipos = g.equipos.length
+  return (
+    <section aria-label={`Supervisor ${nombre}`} className="overflow-hidden rounded-2xl border border-border bg-white">
+      <h2>
+        <button type="button" aria-expanded={abierto} onClick={onAlternar} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+          <Avatar nombre={g.supervisor?.nombre ?? '?'} className="size-9" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-semibold">{nombre}{esYo && ' (tú)'}</span>
+            <span className="block text-xs text-slate-600">{numEquipos === 1 ? '1 equipo' : `${numEquipos} equipos`}{g.sinEquipo.length > 0 && ` · ${g.sinEquipo.length} sin equipo`}</span>
+          </span>
+          <ChevronDown className={cn('size-4 shrink-0 text-slate-500 transition-transform', abierto && 'rotate-180')} aria-hidden="true" />
+        </button>
+      </h2>
+      {abierto && (
+        <div className="grid gap-4 border-t border-border p-4">
+          {g.supervisor && <VentasPropias persona={g.supervisor} i={indicadores(d, g.supervisor.id, periodo)} titulo={esYo ? 'Tus ventas propias' : `Ventas propias de ${g.supervisor.nombre}`} onVer={onVer} />}
+          {g.equipos.map(({ equipo, vendedores }) => <EquipoView key={equipo.id} nombre={equipo.nombre} vendedores={vendedores} d={d} periodo={periodo} onVer={onVer} />)}
+          {g.sinEquipo.length > 0 && (
+            <section className="grid gap-2">
+              <h3 className="text-sm font-semibold">{g.supervisor ? `Sin equipo a cargo de ${g.supervisor.nombre}` : 'Sin equipo asignado'}</h3>
+              <ul className="grid gap-2">{g.sinEquipo.map((v) => <FilaVendedor key={v.id} v={v} i={indicadores(d, v.id, periodo)} onVer={onVer} />)}</ul>
+            </section>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** Mi equipo: equipos agrupados por supervisor, con las asignaciones reales. La gestión de cada vendedor se abre en un panel, sin cambiar de pantalla. */
+function Detalle({ d, periodo, selector }: { d: DatosEquipo; periodo: Periodo; selector: ReactNode }) {
   const [params, setParams] = useSearchParams()
-  // Mis ventas primero; después, cada vendedor del equipo.
-  const personas = [{ ...d.propio, nombre: 'Mis ventas' }, ...d.vendedores]
-  const id = params.get('vendedor') ?? d.vendedores[0]?.id ?? d.yo
-  const v = personas.find((x) => x.id === id) ?? null
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({})
+  const movil = useIsMobile()
+  const grupos = useMemo(() => gruposPorSupervisor(d), [d])
+  const fichas = useMemo(() => [d.propio, ...d.vendedores].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')), [d])
+  const pedido = params.get('supervisor') ?? 'todos'
+  const supervisorFiltro = grupos.some((g) => claveGrupo(g) === pedido) ? pedido : 'todos'
+  const fichaId = params.get('vendedor')
+  const ficha = fichas.find((p) => p.id === fichaId)
+  const visibles = supervisorFiltro === 'todos' ? grupos : grupos.filter((g) => claveGrupo(g) === supervisorFiltro)
+  const yoSupervisa = grupos.some((g) => g.supervisorId === d.yo)
+  const verFicha = (id: string) => setParams((p) => { p.set('vendedor', id); return p }, { replace: true })
+  const cerrarFicha = () => setParams((p) => { p.delete('vendedor'); return p }, { replace: true })
+  const elegirSupervisor = (clave: string) => setParams((p) => { if (clave === 'todos') p.delete('supervisor'); else p.set('supervisor', clave); return p }, { replace: true })
+
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
-      <PageHeader eyebrow="Equipo comercial" title="Mi equipo" subtitle="Elige tus ventas o las de un vendedor para revisar su gestión: clientes, cotizaciones, reservas, ventas y seguimiento." actions={selector} />
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Vendedor">
-        {personas.map((x) => (
-          <button key={x.id} type="button" aria-pressed={x.id === id} onClick={() => setParams({ vendedor: x.id }, { replace: true })}
-            className={cn('rounded-full border px-3 py-1 text-xs', x.id === id ? 'border-primary bg-secondary font-medium' : 'border-border hover:bg-muted')}>{x.nombre}</button>
-        ))}
+      <PageHeader eyebrow="Equipo comercial" title="Mi equipo" subtitle="Equipos agrupados por supervisor, con los indicadores de cada vendedor. Elige uno para revisar su gestión." />
+      <div className="flex flex-wrap items-center gap-2">
+        {selector}
+        {grupos.length > 1 && (
+          <Select value={supervisorFiltro} onValueChange={elegirSupervisor}>
+            <SelectTrigger className="h-9 min-w-44 bg-white text-[13px] max-md:w-full" aria-label="Filtrar por supervisor"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Supervisor: todos</SelectItem>
+              {grupos.map((g) => <SelectItem key={claveGrupo(g)} value={claveGrupo(g)}>{nombreGrupo(g)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+        {fichas.length > 1 && (
+          <Select value="" onValueChange={verFicha}>
+            <SelectTrigger className="h-9 min-w-44 bg-white text-[13px] max-md:w-full" aria-label="Abrir la gestión de un vendedor"><SelectValue placeholder="Vendedor: elegir" /></SelectTrigger>
+            <SelectContent>{fichas.map((p) => <SelectItem key={p.id} value={p.id}>{p.id === d.yo ? `${p.nombre} (tú)` : p.nombre}</SelectItem>)}</SelectContent>
+          </Select>
+        )}
       </div>
-      {v ? <FichaVendedor d={d} id={v.id} periodo={periodo} /> : <p className="text-sm text-muted-foreground">Ese vendedor no pertenece a tu equipo.</p>}
-      {id === d.yo && vacio}
+      {d.vendedores.length === 0 && (
+        <p className="rounded-2xl border border-dashed border-[#c9cfda] bg-white px-5 py-4 text-sm text-slate-600">Todavía no tienes vendedores asignados. El administrador asigna cada vendedor a un equipo desde Usuarios, y el equipo a su supervisor desde Configuración → Equipos.</p>
+      )}
+      {!yoSupervisa && <VentasPropias persona={d.propio} i={indicadores(d, d.yo, periodo)} titulo="Tus ventas propias" onVer={verFicha} />}
+      <div className="grid gap-3">
+        {visibles.map((g, k) => {
+          const clave = claveGrupo(g)
+          const abierto = abiertos[clave] ?? (!movil || k === 0)
+          return <GrupoView key={clave} g={g} d={d} periodo={periodo} abierto={abierto} onAlternar={() => setAbiertos((a) => ({ ...a, [clave]: !abierto }))} onVer={verFicha} />
+        })}
+      </div>
+      <Sheet open={!!fichaId} onOpenChange={(o) => { if (!o) cerrarFicha() }}>
+        <SheetContent className="w-full gap-0 overflow-y-auto p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
+          <SheetHeader className="sticky top-0 z-10 border-b border-border bg-popover/95 px-5 py-4 backdrop-blur">
+            <SheetTitle className="text-xl">{ficha?.nombre ?? 'Gestión del vendedor'}</SheetTitle>
+            <SheetDescription>{ficha ? `${ficha.id === d.yo ? 'Tus ventas propias' : ROL_VENTA[ficha.rol] ?? 'Vendedor'} · ${ficha.equipo ?? 'Sin equipo'}` : 'Solo ves a los vendedores de tus equipos.'}</SheetDescription>
+          </SheetHeader>
+          <div className="grid gap-5 px-5 py-5">
+            {ficha ? <FichaVendedor d={d} id={ficha.id} periodo={periodo} /> : <p className="text-sm text-muted-foreground">Ese vendedor no pertenece a tu equipo.</p>}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
@@ -244,7 +402,7 @@ function FichaVendedor({ d, id, periodo }: { d: DatosEquipo; id: string; periodo
   return (
     <>
       <Kpis i={indicadores(d, id, periodo)} />
-      <div className="dashboard-card">
+      <div className="dashboard-card !p-4">
         <div className="mb-2 text-xs font-semibold">Oportunidades por etapa</div>
         {etapas.length === 0 ? <p className="text-xs text-muted-foreground">Sin oportunidades.</p> : (
           <div className="flex flex-wrap gap-1.5 text-xs">{etapas.map(([e, n]) => <span key={e} className="rounded-full border border-border px-2 py-0.5">{ETAPAS_OPORTUNIDAD[e] ?? e}: <b>{n}</b></span>)}</div>
@@ -258,12 +416,12 @@ function FichaVendedor({ d, id, periodo }: { d: DatosEquipo; id: string; periodo
           fecha(c.created_at),
         ])} />
       <Tabla titulo="Cotizaciones" cols={['Número', 'Cliente', 'Unidad', 'Precio final', 'Fecha']} vacio="Sin cotizaciones."
-        filas={cotizacionesDe(d, id).map((q) => [String(q.numero), nombreCliente(d, q.client_id), String(q.codigo ?? '—'), fmtUsd(Number(q.precio_final ?? 0)), fecha(q.fecha)])} />
+        filas={cotizacionesDe(d, id).map((q) => [String(q.numero), nombreCliente(d, q.client_id), numeroComercial(String(q.codigo ?? '—')), fmtUsd(Number(q.precio_final ?? 0)), fecha(q.fecha)])} />
       <Tabla titulo="Reservas" cols={['Reserva', 'Cliente', 'Unidad', 'Estado', 'Solicitada']} vacio="Sin reservas."
-        filas={reservasDe(d, id).map((r) => [String(r.codigo), nombreCliente(d, r.client_id), String(r.codigo_unidad),
+        filas={reservasDe(d, id).map((r) => [String(r.codigo), nombreCliente(d, r.client_id), numeroComercial(String(r.codigo_unidad)),
           <span key="e" className={cn(RESERVA_APROBADA.includes(String(r.estado)) && 'text-emerald-700', RESERVA_RECHAZADA.includes(String(r.estado)) && 'text-rose-700')}>{ESTADO_RESERVA[String(r.estado)] ?? String(r.estado)}</span>, fecha(r.created_at)])} />
       <Tabla titulo="Ventas" cols={['Contrato', 'Cliente', 'Unidad', 'Precio', 'Estado']} vacio="Sin contratos."
-        filas={d.contratos.filter((k) => k.asesor_id === id).map((k) => [String(k.codigo), nombreCliente(d, k.client_id), String(k.codigo_unidad), fmtUsd(Number(k.precio ?? 0)), String(k.estado) === 'firmado' ? 'Firmado' : String(k.estado) === 'anulado' ? 'Anulado' : 'En preparación'])} />
+        filas={d.contratos.filter((k) => k.asesor_id === id).map((k) => [String(k.codigo), nombreCliente(d, k.client_id), numeroComercial(String(k.codigo_unidad)), fmtUsd(Number(k.precio ?? 0)), String(k.estado) === 'firmado' ? 'Firmado' : String(k.estado) === 'anulado' ? 'Anulado' : 'En preparación'])} />
       <Actividades d={d} ids={[id]} periodo={periodo} />
     </>
   )

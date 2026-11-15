@@ -103,6 +103,7 @@ describe('Clientes conectado a la base de datos (Postgres real con RLS)', () => 
     const { rows } = await fila(db, 'Lucía Andrade')
     const s = await abrirComo(cora, db, `/clientes?cliente=${rows[0].id}`)
     const ficha = await screen.findByRole('dialog', { name: /Lucía Andrade/ })
+    await user.click(within(ficha).getByRole('tab', { name: 'Actividad' }))
     await user.type(within(ficha).getByPlaceholderText(/Llamada: confirma interés/), 'Busca 2 habitaciones')
     await user.click(within(ficha).getByRole('button', { name: 'Registrar' }))
     expect(await within(ficha).findByText(/Nuevo → Contactado/)).toBeInTheDocument()
@@ -112,6 +113,7 @@ describe('Clientes conectado a la base de datos (Postgres real con RLS)', () => 
     s.unmount()
     await abrirComo(cora, db, `/clientes?cliente=${rows[0].id}`)
     const otra = await screen.findByRole('dialog', { name: /Lucía Andrade/ })
+    await userEvent.click(within(otra).getByRole('tab', { name: 'Actividad' }))
     expect(within(otra).getByText(/Busca 2 habitaciones/)).toBeInTheDocument()
   })
 
@@ -186,6 +188,7 @@ describe('Clientes conectado a la base de datos (Postgres real con RLS)', () => 
     const c = await db.query<{ id: string }>(`insert into public.clients (nombre, documento, telefono, origen, asesor_id, created_by, atribucion_usuario_id, etapa, unidades_interes) values ('Con interés', '1710500016', '0995550001', 'whatsapp', $1, $1, $1, 'calificado', '{E1-PB-A2}') returning id`, [cora])
     await abrirComo(cora, db, `/clientes?cliente=${c.rows[0].id}`)
     const ficha = await screen.findByRole('dialog', { name: /Con interés/ })
+    await user.click(within(ficha).getByRole('tab', { name: 'Operaciones' }))
     await user.click(within(ficha).getByLabelText('Unidad o tipología de la negociación'))
     await user.click((await screen.findAllByRole('option')).find((o) => /^Tipología/.test(o.textContent ?? '') === false)!)
     await user.click(within(ficha).getByRole('button', { name: 'Abrir negociación' }))

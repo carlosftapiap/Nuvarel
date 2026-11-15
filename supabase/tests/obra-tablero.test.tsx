@@ -48,7 +48,7 @@ beforeAll(async () => {
   vendedor = await crearUsuario(db, 'Vera Vendedora', 'asesor')
   F = Object.fromEntries((await dueno<{ id: string; codigo: string }>(`select id, codigo from public.obra_frentes`)).map((f) => [f.codigo, f.id]))
   // Etapas de partida del edificio 1 (la plantilla), sin fechas ni ponderaciones.
-  await rpc(constructor, `select public.obra_plantilla_cargar($1::uuid, 'Etapas de partida del Edificio 1')`, [F.edificio1])
+  await rpc(constructor, `select public.obra_plantilla_cargar($1::uuid, 'Etapas de partida del Edificio A')`, [F.edificio1])
 }, 120_000)
 
 describe('Avance de obra', () => {
@@ -58,7 +58,7 @@ describe('Avance de obra', () => {
     await abrirComo(constructor)
     const grupo = await screen.findByRole('group', { name: 'Frentes de obra' })
     expect(within(grupo).getAllByRole('button', { name: /^Actualizar avance de / })).toHaveLength(4)
-    expect(avance('Edificio 1')).toHaveAccessibleName('Edificio 1: 0 por ciento')
+    expect(avance('Edificio A')).toHaveAccessibleName('Edificio A: 0 por ciento')
     expect(within(grupo).getAllByText('Avance actual')).toHaveLength(4)
     expect(within(grupo).getAllByText('Sin iniciar')).toHaveLength(4)
     for (const t of ['Por validar', 'Validar etapa', 'Devolver', 'Validada', 'Aprobaciones']) expect(screen.queryByText(t)).toBeNull()
@@ -69,8 +69,8 @@ describe('Avance de obra', () => {
   it('frente → actividad → guardar: el porcentaje cambia de inmediato, sin aprobación', async () => {
     const user = userEvent.setup()
     await abrirComo(constructor)
-    await user.click(await screen.findByRole('button', { name: 'Actualizar avance de Edificio 1' }))
-    const dlg = await screen.findByRole('dialog', { name: /Actualizar avance · Edificio 1/ })
+    await user.click(await screen.findByRole('button', { name: 'Actualizar avance de Edificio A' }))
+    const dlg = await screen.findByRole('dialog', { name: /Actualizar avance · Edificio A/ })
     const guardar = within(dlg).getByRole('button', { name: 'Guardar avance' })
     expect(guardar).toBeDisabled()
     const { id, nombre } = (await dueno<{ id: string; nombre: string }>(`select a.id, a.nombre from public.obra_actividades a where a.frente_id = $1 and not exists (select 1 from public.obra_actividades h where h.parent_id = a.id) order by a.codigo limit 1`, [F.edificio1]))[0]
@@ -84,14 +84,14 @@ describe('Avance de obra', () => {
     expect((await dueno<{ n: number }>(`select count(*)::int n from public.obra_avances where estado = 'pendiente'`))[0].n).toBe(0)
     const fila = screen.getAllByText(nombre).find((x) => x.closest('li'))!.closest('li')!
     expect(within(fila).getByText('Completada')).toBeInTheDocument()
-    expect(Number(/(\d+) por ciento/.exec(avance('Edificio 1').getAttribute('aria-label')!)![1])).toBeGreaterThan(0)
-    expect(within(within(screen.getByRole('group', { name: 'Frentes de obra' })).getByRole('region', { name: 'Edificio 1' })).getByText('En ejecución')).toBeInTheDocument()
+    expect(Number(/(\d+) por ciento/.exec(avance('Edificio A').getAttribute('aria-label')!)![1])).toBeGreaterThan(0)
+    expect(within(within(screen.getByRole('group', { name: 'Frentes de obra' })).getByRole('region', { name: 'Edificio A' })).getByText('En ejecución')).toBeInTheDocument()
   }, 60_000)
 
   it('el responsable es obligatorio y el historial conserva quién y el valor anterior', async () => {
     const user = userEvent.setup()
     await abrirComo(constructor)
-    await user.click(await screen.findByRole('button', { name: 'Actualizar avance de Edificio 1' }))
+    await user.click(await screen.findByRole('button', { name: 'Actualizar avance de Edificio A' }))
     const dlg = await screen.findByRole('dialog', { name: /Actualizar avance/ })
     const { id } = (await dueno<{ id: string }>(`select a.id from public.obra_actividades a where a.frente_id = $1 and not exists (select 1 from public.obra_actividades h where h.parent_id = a.id) order by a.codigo limit 1`, [F.edificio1]))[0]
     await user.selectOptions(within(dlg).getByLabelText('Actividad *'), id)

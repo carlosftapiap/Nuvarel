@@ -1,8 +1,15 @@
 # Inventario de funcionalidades — AMURA
 
-Última actualización: 2026-11-13 (captación de leads)
+Última actualización: 2026-11-15 (estado del trabajo guardado en Git)
 
 Documento de solo lectura. Cuando se agregue, cambie o quite una funcionalidad, actualizar este archivo.
+
+## Cambios del repositorio pendientes de publicación
+
+- **Clientes y pipeline:** seguimiento por etapas integrado en Clientes; la ruta anterior `/comercial` redirige a Clientes. Ficha del cliente y listado de cotizaciones reorganizados para continuar la operación.
+- **Dashboard y equipo:** mapa de unidades con búsqueda y navegación, y detalle comercial de vendedores en los paneles del equipo.
+- **Nomenclatura comercial en preparación:** pantallas y salidas utilizan Edificio A/B y códigos A001–A505/B001–B507. Se conservan las claves técnicas `E1-…`/`E2-…` y los identificadores numéricos de edificio. SQL 0015 está PENDIENTE; guardar estos archivos en Git no autoriza su ejecución ni la publicación de la aplicación.
+- **Revisión documental pendiente:** antes de aprobar la nomenclatura hay que resolver la reconstrucción de cotizaciones, recibos sin PDF guardado y constancias con datos actuales. La existencia de pruebas de nomenclatura no acredita que los documentos históricos mantengan su contenido original. La auditoría y la decisión de implementación siguen abiertas.
 
 ## General
 

@@ -15,6 +15,7 @@ import { ESTADO_DESISTIMIENTO, faltaPara, MOTIVOS_DESISTIMIENTO } from '../desis
 import DesistimientoDialog from './DesistimientoDialog'
 import { abrirOportunidad, cerrarOportunidad, revocarAcceso, transferirOportunidad, vincularUnidad } from '../remoto'
 import { useClientes } from '../store'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 type Pedido = { tipo: 'transferir' | 'cerrar'; o: Oportunidad } | { tipo: 'revocar'; usuarioId: string; nombre: string }
 
@@ -33,7 +34,7 @@ export default function NegociacionesCliente({ c, onMessage }: { c: Cliente; onM
 
   const propias = oportunidades.filter((o) => o.clienteId === c.id)
   const nombre = (id: string) => (id === c.asesorId ? c.asesor : asignables.find((p) => p.id === id)?.nombre ?? 'Otro usuario')
-  const dptDe = (codigo: string) => inv.units.find((u) => u.codigo === codigo)?.dpt ?? codigo
+  const dptDe = (codigo: string) => inv.units.find((u) => u.codigo === codigo)?.dpt ?? numeroComercial(codigo)
   const abiertas = propias.filter((o) => o.etapa !== 'perdida')
   const unidadesLibres = c.unidadesInteres.filter((u) => !abiertas.some((o) => o.codigoUnidad === u))
   const tipologias = [...new Set(inv.units.map((u) => u.tipologia))].filter((t) => !abiertas.some((o) => !o.codigoUnidad && o.tipologia === t))

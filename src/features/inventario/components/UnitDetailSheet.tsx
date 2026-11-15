@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, FileImage, ImageOff, Lock, X } from 'lucide-react'
+import { ArrowRight, CalendarCheck, CheckCircle2, ChevronLeft, ChevronRight, FileImage, FileSignature, FileText, ImageOff, Landmark, Lock, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useSession } from '@/app/session'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
@@ -19,6 +19,7 @@ import type { EstadoComercial, Unit } from '../types'
 import { TIPO, TrazaTexto } from './HistoryPanel'
 import LocationSchema from './LocationSchema'
 import { Dato, ETIQUETA_PRECIO, EstadoBadge, FieldError, NIVEL, pisoLabel, ReglaPrecios } from './shared'
+import { nombreEdificio, numeroAnterior } from '../nomenclatura'
 
 export default function UnitDetailSheet({
   codigo, onClose, onNavigate, onMessage, mensaje,
@@ -46,10 +47,10 @@ export default function UnitDetailSheet({
 
   return (
     <Sheet open={!!codigo} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent showCloseButton={false} className="w-full gap-0 overflow-y-auto p-0 data-[side=right]:sm:max-w-xl">
+      <SheetContent showCloseButton={false} className="w-full gap-0 overflow-y-auto p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
         <SheetHeader className="sticky top-0 z-10 border-b border-border bg-popover/95 px-5 py-4 backdrop-blur">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Edificio {u.edificio} · {pisoLabel(u.piso)}</span>
+            <span>{nombreEdificio(u.edificio)} · {pisoLabel(u.piso)}</span>
             <span className="ml-auto flex gap-1">
               <Button variant="ghost" size="icon-xs" aria-label="Unidad anterior" disabled={idx <= 0} onClick={() => onNavigate(state.units[idx - 1].codigo)}><ChevronLeft /></Button>
               <Button variant="ghost" size="icon-xs" aria-label="Unidad siguiente" disabled={idx >= state.units.length - 1} onClick={() => onNavigate(state.units[idx + 1].codigo)}><ChevronRight /></Button>
@@ -59,11 +60,19 @@ export default function UnitDetailSheet({
           <SheetTitle className="flex flex-wrap items-center gap-2 text-xl">
             Departamento {u.dpt} <EstadoBadge estado={estadoEfectivo(u)} />
           </SheetTitle>
-          <SheetDescription>{u.codigo} · {u.tipologia} · {u.ubicacion}</SheetDescription>
+          <SheetDescription>{u.tipologia} · {u.ubicacion}{numeroAnterior(u.codigo) && <span className="ml-1.5 text-xs">· Código anterior: {numeroAnterior(u.codigo)}</span>}</SheetDescription>
         </SheetHeader>
 
         <div className="grid gap-5 px-5 py-5">
           {mensaje && <p role="status" className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"><CheckCircle2 className="size-4 shrink-0" />{mensaje}</p>}
+
+          {/* Gestión comercial: la pantalla que sigue para este departamento, según su estado y el perfil. */}
+          <div role="group" aria-label="Gestión comercial" className="flex flex-wrap gap-2 empty:hidden">
+            {u.estado === 'disponible' && can('cotizaciones.crear') && <Button size="sm" asChild><Link to={`/venta?unidad=${encodeURIComponent(u.codigo)}`}><FileText />Atender cliente</Link></Button>}
+            {u.estado === 'disponible' && can('financiamiento.simular') && <Button size="sm" variant="outline" asChild><Link to={`/financiamiento?unidad=${encodeURIComponent(u.codigo)}`}><Landmark />Simular financiamiento</Link></Button>}
+            {u.estado === 'reservado' && can('reservas.ver') && <Button size="sm" variant="outline" asChild><Link to="/reservas"><CalendarCheck />Ver reservas</Link></Button>}
+            {u.estado === 'vendido' && can('ventas.ver') && <Button size="sm" variant="outline" asChild><Link to="/ventas"><FileSignature />Ver ventas y contratos</Link></Button>}
+          </div>
 
           {/* 1. Disponibilidad */}
           <EstadoComercialSeccion key={`estado-${u.codigo}`} u={u} onMessage={onMessage} />

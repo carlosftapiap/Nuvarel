@@ -13,7 +13,6 @@ import {
   LayoutDashboard,
   Settings,
   ShieldCheck,
-  SquareKanban,
   Users,
   Wallet,
   UsersRound,
@@ -57,7 +56,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/venta', label: 'Atender cliente', icon: ShoppingBag, permisos: ['cotizaciones.crear'] },
       { to: '/clientes', label: 'Clientes', icon: Users, permisos: ['clientes.ver'] },
-      { to: '/comercial', label: 'Pipeline', icon: SquareKanban, permisos: ['clientes.ver'] },
       { to: '/cotizaciones', label: 'Cotizaciones', icon: Calculator, permisos: ['cotizaciones.crear', 'cotizaciones.ver'] },
       { to: '/reservas', label: 'Reservas', icon: CalendarCheck, permisos: ['reservas.ver'] },
       { to: '/ventas', label: 'Ventas y contratos', icon: FileSignature, permisos: ['ventas.ver'] },
@@ -100,7 +98,7 @@ export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items)
  * Un rol sin entrada aquí ve lo que sus permisos le dejan abrir. El primero de la lista es su pantalla de inicio.
  * Ocultar un módulo del menú no quita permisos: las pantallas que lo necesitan siguen leyendo esos datos.
  */
-const MENU_COMERCIAL = ['/', '/venta', '/clientes', '/comercial', '/cotizaciones', '/reservas', '/inventario', '/financiamiento', '/comisiones']
+const MENU_COMERCIAL = ['/', '/venta', '/clientes', '/cotizaciones', '/reservas', '/inventario', '/financiamiento', '/comisiones']
 
 export const MENU_POR_ROL: Partial<Record<string, string[]>> = {
   // Vendedor y Corredor: herramientas comerciales y sus propias comisiones. Contratos y cobranzas se abren solo desde su operación.
@@ -108,8 +106,8 @@ export const MENU_POR_ROL: Partial<Record<string, string[]>> = {
   corredor: MENU_COMERCIAL,
   // Supervisor: dirige a su equipo y también vende, con las mismas herramientas del vendedor. Entra a su Dashboard de equipo.
   // Sin módulos financieros, de construcción ni de configuración.
-  supervisor: ['/equipo', '/mi-equipo', '/venta', '/clientes', '/comercial', '/cotizaciones', '/reservas', '/inventario', '/financiamiento', '/ventas', '/comisiones'],
-  gerencia: ['/', '/equipo', '/mi-equipo', '/venta', '/financiamiento', '/comercial', '/clientes', '/reservas', '/ventas', '/cotizaciones', '/precios', '/inventario', '/corredores', '/cobranzas', '/comisiones', '/obra', '/plan', '/configuracion'],
+  supervisor: ['/equipo', '/mi-equipo', '/venta', '/clientes', '/cotizaciones', '/reservas', '/inventario', '/financiamiento', '/ventas', '/comisiones'],
+  gerencia: ['/', '/equipo', '/mi-equipo', '/venta', '/financiamiento', '/clientes', '/reservas', '/ventas', '/cotizaciones', '/precios', '/inventario', '/corredores', '/cobranzas', '/comisiones', '/obra', '/plan', '/configuracion'],
   // Finanzas entra a su Dashboard financiero; Pagos por verificar está a un clic.
   finanzas: ['/finanzas', '/pagos-por-verificar', '/cobranzas', '/ventas', '/comisiones'],
   legal: ['/ventas', '/clientes', '/reservas'],
@@ -149,14 +147,14 @@ export const inicioDelRol = (rol: string) => menuDe(rol)?.[0] ?? null
 const TRABAJO_POR_ROL: Partial<Record<string, string[]>> = {
   asesor: ['/', '/clientes', '/venta', '/reservas', '/cotizaciones'],
   corredor: ['/', '/clientes', '/venta', '/reservas', '/cotizaciones'],
-  supervisor: ['/equipo', '/clientes', '/venta', '/reservas', '/comercial'],
+  supervisor: ['/equipo', '/clientes', '/venta', '/reservas', '/cotizaciones'],
   finanzas: ['/finanzas', '/pagos-por-verificar', '/cobranzas', '/ventas'],
   legal: ['/ventas', '/clientes', '/reservas'],
   oficial_cumplimiento: ['/cumplimiento', '/clientes', '/ventas'],
   constructor: ['/obra', '/inventario'],
   jarval: ['/', '/inventario', '/reservas', '/ventas'],
 }
-const TRABAJO_GENERAL = ['/', '/clientes', '/reservas', '/comercial', '/ventas']
+const TRABAJO_GENERAL = ['/', '/clientes', '/reservas', '/ventas', '/cotizaciones']
 
 /** Módulos de trabajo del perfil, en su orden. Si ninguno está en su menú, los primeros que sí ve. */
 export function trabajoDe(rol: string, can: (p: Permiso) => boolean): NavItem[] {
@@ -175,7 +173,7 @@ export function menuLateral(rol: string, can: (p: Permiso) => boolean): GrupoMen
 }
 
 const CORTO: Record<string, string> = {
-  '/venta': 'Atender', '/cotizaciones': 'Cotizar', '/comercial': 'Pipeline', '/equipo': 'Equipo', '/mi-equipo': 'Equipo', '/ventas': 'Ventas',
+  '/venta': 'Atender', '/cotizaciones': 'Cotizar', '/equipo': 'Equipo', '/mi-equipo': 'Equipo', '/ventas': 'Ventas',
   '/finanzas': 'Finanzas', '/pagos-por-verificar': 'Pagos', '/cumplimiento': 'Bandeja', '/obra': 'Obra', '/configuracion': 'Ajustes',
 }
 

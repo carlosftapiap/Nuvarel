@@ -5,6 +5,7 @@ import type {
   Actor, Edificio, EstadoComercial, InventoryState, Piso, PriceChange, PriceHistoryEntry,
   PriceProposal, PricingParams, StatusHistoryEntry, Tipologia, Unit,
 } from './types'
+import { nombreEdificio } from './nomenclatura'
 
 export class InventoryError extends Error {
   constructor(message: string) {
@@ -50,7 +51,7 @@ export function unidadesEnAlcance(units: Unit[], a: Alcance) {
 export function describirAlcance(a: Alcance) {
   const partes: string[] = []
   if (a.codigos) partes.push(a.codigos.length === 1 ? a.codigos[0] : `${a.codigos.length} unidades seleccionadas`)
-  if (a.edificio) partes.push(`Edificio ${a.edificio}`)
+  if (a.edificio) partes.push(nombreEdificio(a.edificio))
   if (a.piso) partes.push(a.piso === 'PB' ? 'Planta baja' : `Piso ${a.piso}`)
   if (a.tipologia) partes.push(a.tipologia)
   return partes.length ? partes.join(' · ') : 'Todo el proyecto'
@@ -247,7 +248,7 @@ export function validarParametros(p: PricingParams) {
   if (!(p.cuotasPct >= 0 && p.cuotasPct <= 100)) errores.push('Las cuotas deben estar entre 0% y 100%.')
   if (p.reservaPct + p.cuotasPct > 100) errores.push('Reserva + cuotas no puede superar el 100%.')
   for (const ed of [1, 2] as Edificio[]) {
-    if (!(Number.isInteger(p.meses[ed]) && p.meses[ed] >= 1 && p.meses[ed] <= 120)) errores.push(`Los meses del Edificio ${ed} deben ser un entero entre 1 y 120.`)
+    if (!(Number.isInteger(p.meses[ed]) && p.meses[ed] >= 1 && p.meses[ed] <= 120)) errores.push(`Los meses del ${nombreEdificio(ed)} deben ser un entero entre 1 y 120.`)
   }
   return errores
 }
@@ -341,7 +342,7 @@ export function puedeReservarse(u: Unit) {
 export function marcarReservada(state: InventoryState, codigo: string, reservaId: string, actor: Actor) {
   const u = state.units.find((x) => x.codigo === codigo)
   if (!u) throw new InventoryError(`No existe la unidad ${codigo}.`)
-  if (!puedeReservarse(u)) throw new InventoryError(`La unidad ${codigo} no está disponible para reservar (${ESTADOS[u.estado].label}).`)
+  if (!puedeReservarse(u)) throw new InventoryError(`La unidad ${u.dpt} no está disponible para reservar (${ESTADOS[u.estado].label}).`)
   return cambiarEstado(state, codigo, 'reservado', `Reserva ${reservaId} aprobada`, actor, { reservaId, sistema: true })
 }
 
@@ -349,7 +350,7 @@ export function marcarReservada(state: InventoryState, codigo: string, reservaId
 export function liberarReserva(state: InventoryState, codigo: string, reservaId: string, motivo: string, actor: Actor) {
   const u = state.units.find((x) => x.codigo === codigo)
   if (!u) throw new InventoryError(`No existe la unidad ${codigo}.`)
-  if (u.estado !== 'reservado' || u.reservaId !== reservaId) throw new InventoryError(`La unidad ${codigo} no tiene la reserva ${reservaId}.`)
+  if (u.estado !== 'reservado' || u.reservaId !== reservaId) throw new InventoryError(`La unidad ${u.dpt} no tiene la reserva ${reservaId}.`)
   return cambiarEstado(state, codigo, 'disponible', motivo, actor, { sistema: true })
 }
 

@@ -32,6 +32,7 @@ import { Destacado } from '@/features/venta/GuiaVenta'
 import OperacionPanel from '@/features/venta/OperacionPanel'
 import { useOperacion } from '@/features/venta/useOperacion'
 import { cn } from '@/lib/utils'
+import { nombreEdificio } from '@/features/inventario/nomenclatura'
 
 const numero = (s: string) => (s.trim() === '' ? null : Number(s.replace(',', '.')))
 const pct = (v: number) => `${v.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
@@ -247,7 +248,7 @@ function CondicionesForm({ unit, params, valor, onChange, puedeDescontar, soloLe
       {unit && (
         <div className={cn('rounded-lg border border-border p-3 text-xs', !vertical && 'sm:col-span-2 xl:col-span-4')}>
           <div className="flex items-center justify-between gap-2"><b>Departamento {unit.dpt}</b><EstadoBadge estado={estadoEfectivo(unit)} /></div>
-          <p className="mt-1 text-muted-foreground">Edificio {unit.edificio} · {pisoLabel(unit.piso)} · {unit.tipologia} · {fmtM2(unit.areaM2 + unit.bodegaM2)}</p>
+          <p className="mt-1 text-muted-foreground">{nombreEdificio(unit.edificio)} · {pisoLabel(unit.piso)} · {unit.tipologia} · {fmtM2(unit.areaM2 + unit.bodegaM2)}</p>
           {precioFinal !== null && <p className="mt-2 text-sm font-semibold text-primary">Precio final {fmtUsd(precioFinal)}</p>}
         </div>
       )}

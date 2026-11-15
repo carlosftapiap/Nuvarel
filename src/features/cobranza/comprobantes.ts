@@ -3,6 +3,7 @@ import { modoRemoto } from '@/app/auth'
 import type { Datos, Filtro } from '@/features/conexion/datos'
 import { almacenContratosSupabase, nombreSeguro, type AlmacenContratos } from '@/features/contratos/almacen'
 import { fmtFechaCorta } from '@/features/financiamiento/plan'
+import { nombreEdificio } from '@/features/inventario/nomenclatura'
 
 /**
  * Comprobantes de pago y recibos. El archivo va al bucket privado; en las tablas solo queda su ruta.
@@ -172,7 +173,7 @@ export async function cargarUnidadDocumento(d: Datos | null, codigo: string): Pr
 export function filasUnidad(u: UnidadDocumento | null | undefined): [string, string][] {
   if (!u) return []
   return [
-    ['Edificio y piso', `Edificio ${u.edificio} · ${u.piso === 'PB' ? 'Planta baja' : `Piso ${u.piso}`}${u.ubicacion ? ` · ${u.ubicacion}` : ''}`],
+    ['Edificio y piso', `${nombreEdificio(u.edificio)} · ${u.piso === 'PB' ? 'Planta baja' : `Piso ${u.piso}`}${u.ubicacion ? ` · ${u.ubicacion}` : ''}`],
     ['Tipología y área', `${u.tipologia} · ${m2(u.areaM2)}`],
     ...(u.patioM2 > 0 ? [['Patio', m2(u.patioM2)] as [string, string]] : []),
     ...(u.bodegaCodigo ? [['Bodega', `${u.bodegaCodigo}${u.bodegaM2 > 0 ? ` · ${m2(u.bodegaM2)}` : ''}`] as [string, string]] : []),
@@ -226,7 +227,7 @@ export function construirReciboPdf(r: Recibo, comprobante?: string | null, unida
     titulo: 'Recibo de pago', numero: r.numero, emisor: r.emisor, emisorRuc: r.emisorRuc, emisorDireccion: r.emisorDireccion,
     filas: [
       ['Recibí de', r.documento ? `${r.cliente} · ${r.documento}` : r.cliente],
-      ['Departamento', `${r.departamento} (${r.codigoUnidad})`],
+      ['Departamento', r.departamento],
       ...filasUnidad(unidad),
       ['Concepto', r.concepto],
       ['Fecha del pago', fmtFechaCorta(r.fechaPago)],
@@ -260,7 +261,7 @@ export function construirConstanciaPdf(c: Comprobante, x: DatosConstancia, unida
     titulo: 'Constancia provisional de recepción de comprobante', numero: c.constanciaNumero ?? '', emisor: x.emisor, emisorRuc: x.emisorRuc, emisorDireccion: x.emisorDireccion,
     filas: [
       ['Cliente', x.documento ? `${x.cliente} · ${x.documento}` : x.cliente],
-      ['Departamento', `${x.departamento} (${x.codigoUnidad})`],
+      ['Departamento', x.departamento],
       ...filasUnidad(unidad),
       ['Concepto', x.concepto],
       ['Medio de pago', MEDIOS_PAGO[c.medio].label],

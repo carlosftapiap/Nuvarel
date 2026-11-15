@@ -6,6 +6,7 @@ import { fmtFecha, fmtNum, fmtUsd } from '../pricing'
 import { trazaAjuste } from '../service'
 import { useInventory } from '../store'
 import type { PriceHistoryEntry, PriceProposal } from '../types'
+import { numeroComercial } from '../nomenclatura'
 
 export const TIPO: Record<PriceHistoryEntry['tipo'], string> = {
   precio_m2: 'Precio por m²', porcentaje: 'Ajuste %', importacion: 'Importación Excel', parametros: 'Parámetros de pago', restablecer: 'Lista base restablecida',
@@ -29,7 +30,7 @@ export function TrazaTexto({ h, propuestas }: { h: PriceHistoryEntry; propuestas
 export default function HistoryPanel() {
   const { state } = useInventory()
   const [abierto, setAbierto] = useState<string | null>(null)
-  const dpt = (codigo: string) => state.units.find((u) => u.codigo === codigo)?.dpt ?? codigo
+  const dpt = (codigo: string) => state.units.find((u) => u.codigo === codigo)?.dpt ?? numeroComercial(codigo)
   return (
     <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
       <section className="dashboard-card p-5 [&_.section-heading]:p-0" aria-labelledby="hist-precios">
@@ -78,7 +79,7 @@ export default function HistoryPanel() {
           <ol className="mt-3 grid gap-2">
             {state.statusHistory.map((s) => (
               <li key={s.id} className="rounded-lg border border-border p-3 text-xs">
-                <div><b>Departamento {dpt(s.codigo)}</b> <span className="text-muted-foreground">{s.codigo}</span>: {etiquetaEstado(s.de)} <ArrowRight className="inline size-3" /> <b>{etiquetaEstado(s.a)}</b>{s.reservaId ? ` · ${s.reservaId}` : ''}</div>
+                <div><b>Departamento {dpt(s.codigo)}</b>: {etiquetaEstado(s.de)} <ArrowRight className="inline size-3" /> <b>{etiquetaEstado(s.a)}</b>{s.reservaId ? ` · ${s.reservaId}` : ''}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{fmtFecha(s.fecha)} · {s.usuario} · “{s.motivo}”</div>
               </li>
             ))}

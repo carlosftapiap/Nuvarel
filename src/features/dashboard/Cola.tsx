@@ -69,7 +69,8 @@ export default function ColaDelDia({ onAviso, onError, propios = false, max = 6,
 
 function Cola({ onAviso, onError, propios, max, vacio }: { onAviso: (m: string) => void; onError: (m: string) => void; propios: boolean; max: number; vacio?: ReactNode }) {
   const { actor, can } = useSession()
-  const { state } = useClientesOpcional()!
+  const { state, cargando } = useClientesOpcional()!
+  const cargandoReservas = useReservasOpcional()?.cargando ?? false
   const { flujo, abrir, dialogos } = useAccionesReserva(onAviso, onError)
   const hoy = hoyGuayaquil()
   const clientes = clientesVisibles(state.clientes, actor).filter((c) => c.etapa !== 'perdido' && (!propios || c.asesorId === actor.id))
@@ -78,19 +79,22 @@ function Cola({ onAviso, onError, propios, max, vacio }: { onAviso: (m: string) 
     .filter((x) => x.p.accion)
     .sort((a, b) => a.r.vigenciaHasta.localeCompare(b.r.vigenciaHasta))
   const gestiones = ordenarPorUrgencia(clientes.filter((c) => ['vencida', 'hoy'].includes(urgencia(c, hoy))), hoy)
-  const sinGestion = clientes.filter((c) => urgencia(c, hoy) === 'sin_actividad').length
+  const sinGestionLista = clientes.filter((c) => urgencia(c, hoy) === 'sin_actividad')
+  const sinGestion = sinGestionLista.length
   const vencidas = gestiones.filter((c) => urgencia(c, hoy) === 'vencida').length
   const total = reservas.length + gestiones.length + (sinGestion ? 1 : 0)
   return (
     <>
-      {total === 0 ? (vacio ?? (
+      {cargando || cargandoReservas ? (
+        <p className="rounded-2xl border border-dashed border-[#c9cfda] bg-white px-6 py-10 text-center text-[13px] text-slate-600">Cargando tu día…</p>
+      ) : total === 0 ? (vacio ?? (
         <div className="grid grid-cols-[minmax(0,1fr)] justify-items-center gap-2 rounded-2xl border border-dashed border-[#c9cfda] bg-white px-6 py-10 text-center">
           <span className="grid grid-cols-[minmax(0,1fr)] size-12 place-items-center rounded-2xl bg-secondary text-primary"><CheckCheck className="size-6" aria-hidden="true" /></span>
           <p className="text-[15px] font-semibold">Todo al día</p>
           <p className="max-w-sm text-[13px] text-slate-600">No hay reservas ni gestiones pendientes. Buen momento para atender a un cliente nuevo o revisar el pipeline.</p>
           <div className="mt-1 flex flex-wrap justify-center gap-2">
             <Button size="sm" variant="outline" asChild><Link to="/clientes">Ver mis clientes</Link></Button>
-            <Button size="sm" variant="outline" asChild><Link to="/comercial">Ver pipeline</Link></Button>
+            <Button size="sm" variant="outline" asChild><Link to="/clientes?vista=embudo">Ver embudo</Link></Button>
           </div>
         </div>
       )) : (
@@ -107,7 +111,8 @@ function Cola({ onAviso, onError, propios, max, vacio }: { onAviso: (m: string) 
             <li><Link to={`/clientes?filtro=${vencidas ? 'vencidas' : 'hoy'}`} className="flex items-center gap-1 px-2 text-xs font-semibold text-primary hover:underline">Ver las {gestiones.length} gestiones pendientes<ChevronRight className="size-3.5" /></Link></li>
           )}
           {sinGestion > 0 && (
-            <FilaCola icono={ListChecks} tono="neutro" titulo={`${sinGestion} ${sinGestion === 1 ? 'cliente' : 'clientes'} sin próxima gestión`} detalle="Sin siguiente paso, el seguimiento se enfría" estado="Esta semana">
+            <FilaCola icono={ListChecks} tono="aviso" titulo={`${sinGestion} ${sinGestion === 1 ? 'cliente' : 'clientes'} sin próxima gestión`}
+              detalle={`${sinGestionLista.slice(0, 3).map((c) => c.nombre).join(', ')}${sinGestion > 3 ? ` y ${sinGestion - 3} más` : ''}: programa su siguiente paso`} estado="Sin siguiente paso">
               <Button size="sm" variant="outline" asChild><Link to="/clientes?filtro=sin">Ver lista</Link></Button>
             </FilaCola>
           )}
@@ -124,11 +129,14 @@ export function usePendientesDelDia(propios = false) {
   const { actor, can } = useSession()
   const clientesCtx = useClientesOpcional()
   const reservasCtx = useReservasOpcional()
-  if (!clientesCtx || !reservasCtx) return null
+  // Mientras llegan los datos no hay nada que contar: sin esto, el día parecería «al día» por un instante.
+  if (!clientesCtx || !reservasCtx || clientesCtx.cargando || reservasCtx.cargando) return null
   const hoy = hoyGuayaquil()
   const clientes = clientesVisibles(clientesCtx.state.clientes, actor).filter((c) => c.etapa !== 'perdido' && (!propios || c.asesorId === actor.id))
   const reservas = reservasVisibles(reservasCtx.state.reservas, actor).filter((r) => siguientePaso(r, can, { remoto: reservasCtx.remoto }).accion).length
   const vencidas = clientes.filter((c) => urgencia(c, hoy) === 'vencida').length
   const deHoy = clientes.filter((c) => urgencia(c, hoy) === 'hoy').length
-  return { reservas, vencidas, deHoy, total: reservas + vencidas + deHoy }
+  // Un cliente activo sin próxima gestión también es trabajo pendiente: sin él, el día no está «al día».
+  const sinGestion = clientes.filter((c) => urgencia(c, hoy) === 'sin_actividad').length
+  return { reservas, vencidas, deHoy, sinGestion, total: reservas + vencidas + deHoy + sinGestion }
 }

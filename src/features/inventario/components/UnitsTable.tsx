@@ -18,6 +18,7 @@ import { calcularPrecio, fmtCuotas, fmtM2, fmtNum, fmtUsd, type PriceBreakdown }
 import { estadoPrecio, unidadesTxt } from '../service'
 import type { PriceHistoryEntry, PricingParams, Unit } from '../types'
 import { ETIQUETA_PRECIO, EstadoBadge, pisoCorto } from './shared'
+import { nombreEdificio, textoBusquedaUnidad } from '../nomenclatura'
 
 export interface Filtros {
   q: string
@@ -39,7 +40,7 @@ export function filtrarUnidades(units: Unit[], f: Filtros) {
     (f.piso === 'todos' || u.piso === f.piso) &&
     (f.tipologia === 'todos' || u.tipologia === f.tipologia) &&
     (f.estado === 'todos' || estadoEfectivo(u) === f.estado) &&
-    (!q || norm(`${u.codigo} ${u.dpt} ${u.ubicacion} ${u.tipologia} ${u.bodegaCodigo ?? ''}`).includes(q)),
+    (!q || norm(`${u.codigo} ${textoBusquedaUnidad(u)} ${u.ubicacion} ${u.tipologia} ${u.bodegaCodigo ?? ''}`).includes(q)),
   )
 }
 
@@ -82,7 +83,7 @@ export default function UnitsTable({
         cell: ({ row }) => (
           <div>
             <div className="font-semibold text-foreground">{row.original.dpt}</div>
-            <div className="text-xs text-foreground/70">{row.original.codigo}</div>
+            <div className="text-xs text-foreground/70">{nombreEdificio(row.original.edificio)}</div>
           </div>
         ),
       },
@@ -116,7 +117,7 @@ export default function UnitsTable({
             onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)} />
         ),
         cell: ({ row }) => (
-          <Checkbox aria-label={`Seleccionar ${row.original.codigo}`} checked={row.getIsSelected()}
+          <Checkbox aria-label={`Seleccionar ${row.original.dpt}`} checked={row.getIsSelected()}
             onCheckedChange={(v) => row.toggleSelected(!!v)} onClick={(e) => e.stopPropagation()} />
         ),
       })
@@ -155,7 +156,7 @@ export default function UnitsTable({
           <label htmlFor="inv-q" className="sr-only">Buscar unidad</label>
           <Input id="inv-q" value={filtros.q} onChange={(e) => set('q')(e.target.value)} placeholder="Buscar por departamento, código, ubicación o bodega" className="h-8 pl-8 text-xs" />
         </div>
-        <FiltroSelect label="Edificio" value={filtros.edificio} onChange={set('edificio')} opciones={[['1', 'Edificio 1'], ['2', 'Edificio 2']]} />
+        <FiltroSelect label="Edificio" value={filtros.edificio} onChange={set('edificio')} opciones={[['1', 'Edificio A'], ['2', 'Edificio B']]} />
         <FiltroSelect label="Piso" value={filtros.piso} onChange={set('piso')} opciones={(['PB', '1', '2', '3', '4', '5'] as const).map((p) => [p, p === 'PB' ? 'Planta baja' : `Piso ${p}`])} />
         <FiltroSelect label="Tipología" value={filtros.tipologia} onChange={set('tipologia')} opciones={[['1 hab', '1 hab'], ['2 hab', '2 hab'], ['2 hab + estudio', '2 hab + estudio']]} />
         <FiltroSelect label="Estado" value={filtros.estado} onChange={set('estado')} opciones={FILTRO_ESTADOS.map((e) => [e, ESTADOS_EFECTIVOS[e].label])} />
@@ -180,7 +181,7 @@ export default function UnitsTable({
                 className="cursor-pointer" tabIndex={0}
                 onClick={() => onOpen(row.original.codigo)}
                 onKeyDown={(e) => { if (e.key === 'Enter') onOpen(row.original.codigo) }}
-                aria-label={`Abrir ficha del departamento ${row.original.dpt} (${row.original.codigo})`}>
+                aria-label={`Abrir ficha del departamento ${row.original.dpt}`}>
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id} className={`py-2.5 ${cell.column.id === 'codigo' ? 'sticky left-0 z-10 bg-card' : ''}`}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                 ))}
@@ -197,7 +198,7 @@ export default function UnitsTable({
           <li key={row.id}>
             <button type="button" onClick={() => onOpen(row.original.codigo)} className="grid w-full gap-1 rounded-lg border border-border bg-card p-3 text-left text-xs">
               <span className="flex flex-wrap items-center justify-between gap-2"><b className="text-sm">Departamento {row.original.dpt}</b><EstadoBadge estado={estadoEfectivo(row.original)} /></span>
-              <span className="text-xs text-foreground/70">{row.original.codigo} · {row.original.tipologia} · {fmtM2(row.original.precio.areaVendibleM2)}</span>
+              <span className="text-xs text-foreground/70">{nombreEdificio(row.original.edificio)} · {row.original.tipologia} · {fmtM2(row.original.precio.areaVendibleM2)}</span>
               <span className="flex flex-wrap items-baseline justify-between gap-2"><b className="text-base tabular-nums">{fmtUsd(row.original.precio.precioVenta)}</b><span className={ETIQUETA_PRECIO[row.original.vigencia.tipo].tono}>{ETIQUETA_PRECIO[row.original.vigencia.tipo].label}</span></span>
               <span className="text-xs text-foreground/80">{fmtCuotas(row.original.precio)}</span>
             </button>

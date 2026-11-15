@@ -4,6 +4,7 @@ import autoTable from 'jspdf-autotable'
 import { cronogramaPorMes, fmtFechaCorta } from '@/features/financiamiento/plan'
 import { ESTADOS } from '@/features/inventario/estados'
 import type { Cotizacion } from './cotizacion'
+import { nombreEdificio } from '@/features/inventario/nomenclatura'
 
 // Paleta del manual de marca AMURA.
 const INK: [number, number, number] = [40, 40, 40]
@@ -61,7 +62,7 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
   doc.setDrawColor(...SAND).setLineWidth(0.4).line(M, y, W - M, y)
   y += 8
   doc.setFont('helvetica', 'bold').setFontSize(13).setTextColor(...INK).text(`Departamento ${c.unidad.dpt}`, M, y)
-  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...SLATE).text(`${c.unidad.codigo} · Edificio ${c.unidad.edificio} · ${pisoTxt(c.unidad.piso)}`, W - M, y, { align: 'right' })
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...SLATE).text(`${nombreEdificio(c.unidad.edificio)} · ${pisoTxt(c.unidad.piso)}`, W - M, y, { align: 'right' })
   y += 4
   const u = c.unidad
   autoTable(doc, {

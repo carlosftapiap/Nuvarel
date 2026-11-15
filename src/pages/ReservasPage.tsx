@@ -22,6 +22,7 @@ import SolicitudesAnulacion from '@/features/clientes/components/SolicitudesAnul
 import { useClientes } from '@/features/clientes/store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { nombreEdificio, numeroAnterior, numeroComercial } from '@/features/inventario/nomenclatura'
 
 type Pestana = 'accion' | 'solicitada' | 'pago_verificado' | 'confirmada' | 'anulada' | 'todas'
 interface Rechazo { motivo: string; revisadoEn: string | null; referencia: string; archivo: string | null }
@@ -80,7 +81,7 @@ export default function ReservasPage() {
   // Si nada espera a esta persona, se abre la lista completa en lugar de un vacío.
   const actual: Pestana = pestana ?? (delCodigo ? 'todas' : cuenta('accion') ? 'accion' : 'todas')
   const lista = visibles
-    .filter((r) => enPestana(r, actual) && (!q.trim() || norm(`${r.codigo} ${r.clienteNombre} ${inv.units.find((u) => u.codigo === r.unidad)?.dpt ?? r.unidad}`).includes(norm(q.trim()))))
+    .filter((r) => enPestana(r, actual) && (!q.trim() || norm(`${r.codigo} ${r.clienteNombre} ${inv.units.find((u) => u.codigo === r.unidad)?.dpt ?? r.unidad} ${numeroAnterior(r.unidad) ?? ''}`).includes(norm(q.trim()))))
     .sort((a, b) => prioridad(a, paso(a)) - prioridad(b, paso(b)) || a.vigenciaHasta.localeCompare(b.vigenciaHasta) || b.codigo.localeCompare(a.codigo))
   const elegida = lista.find((r) => r.id === (sel ?? delCodigo?.id)) ?? (movil ? undefined : lista[0])
   const elegir = (r: Reserva) => { setSel(r.id); setVerDetalle(true); if (codigo) setParams({}, { replace: true }) }
@@ -174,7 +175,7 @@ export default function ReservasPage() {
                         <Avatar nombre={r.clienteNombre} />
                         <span className="min-w-0">
                           <span className="block truncate text-sm font-semibold">{r.clienteNombre}</span>
-                          <span className="block truncate text-xs text-slate-600">Dpto. {u?.dpt ?? r.unidad}{u?.tipologia ? ` · ${u.tipologia}` : ''} · {r.codigo}</span>
+                          <span className="block truncate text-xs text-slate-600">Dpto. {u?.dpt ?? numeroComercial(r.unidad)}{u?.tipologia ? ` · ${u.tipologia}` : ''} · {r.codigo}</span>
                           {p.accion ? <span className="mt-0.5 block truncate text-xs font-semibold text-[#3730a3]">Te toca: {p.boton}</span>
                             : vencida ? <span className="mt-0.5 block text-xs font-semibold text-rose-700">Cotización vencida</span> : null}
                         </span>
@@ -255,7 +256,7 @@ function Detalle({ r, p, unidad, hoy, rechazo, pendiente, remoto, hayDesistimien
         ))}
       </dl>
 
-      <p className="text-[13px] text-slate-700"><b>Unidad:</b> Dpto. {unidad?.dpt ?? r.unidad}{unidad ? ` · ${unidad.tipologia} · Edificio ${unidad.edificio}` : ''} · {r.meses} cuotas de {fmtUsd(r.cuotaMensual)}</p>
+      <p className="text-[13px] text-slate-700"><b>Unidad:</b> Dpto. {unidad?.dpt ?? numeroComercial(r.unidad)}{unidad ? ` · ${unidad.tipologia} · ${nombreEdificio(unidad.edificio)}` : ''} · {r.meses} cuotas de {fmtUsd(r.cuotaMensual)}</p>
 
       <ol aria-label="Avance de la reserva" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {etapas.map(([t, ok]) => (

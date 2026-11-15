@@ -14,6 +14,7 @@ import { calcularTablero } from '@/features/cobranza/tablero'
 import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2 } from '@/features/inventario/pricing'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 /** Pantalla de inicio de Finanzas: comprobantes reportados que esperan verificación. Confirmar o rechazar usa las reglas de siempre. */
 export default function PagosPorVerificarPage() {
@@ -71,7 +72,7 @@ function Bandeja({ datos }: { datos: Datos }) {
               {filas.map((f) => (
                 <tr key={f.comprobante.id} className="border-t border-border align-top">
                   <td className="px-4 py-2 font-medium">{f.cliente}</td>
-                  <td className="px-2 py-2">{f.unidad}</td>
+                  <td className="px-2 py-2">{numeroComercial(f.unidad)}</td>
                   <td className="px-2 py-2">{f.tipo === 'reserva' ? `Reserva ${f.numero}` : `Contrato ${f.numero}`}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.reportado)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.confirmado)}</td>

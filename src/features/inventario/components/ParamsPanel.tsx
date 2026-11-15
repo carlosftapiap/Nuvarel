@@ -46,8 +46,8 @@ export default function ParamsPanel({ onMessage }: { onMessage: (m: string) => v
           <Campo id="par-reserva" label="Pago a la firma, acumulado (%)" value={form.reserva} onChange={(v) => setForm({ ...form, reserva: v })} disabled />
           <Campo id="par-cuotas" label="Cuotas durante la obra (%)" value={form.cuotas} onChange={(v) => setForm({ ...form, cuotas: v })} disabled />
           <div className="grid gap-1"><span className="text-xs text-muted-foreground">Contra entrega (calculado)</span><span className="flex h-8 items-center rounded-lg border border-border bg-muted px-3 text-sm tabular-nums">{Number.isFinite(contra) ? `${contra}%` : '—'}</span></div>
-          <Campo id="par-m1" label="Meses de cuotas · Edificio 1" value={form.m1} onChange={(v) => setForm({ ...form, m1: v })} disabled={!editable} />
-          <Campo id="par-m2" label="Meses de cuotas · Edificio 2" value={form.m2} onChange={(v) => setForm({ ...form, m2: v })} disabled={!editable} />
+          <Campo id="par-m1" label="Meses de cuotas · Edificio A" value={form.m1} onChange={(v) => setForm({ ...form, m1: v })} disabled={!editable} />
+          <Campo id="par-m2" label="Meses de cuotas · Edificio B" value={form.m2} onChange={(v) => setForm({ ...form, m2: v })} disabled={!editable} />
         </div>
         <p className="mt-2 text-xs text-muted-foreground">La entrada es política comercial fija: 6 % a la firma + 14 % en cuotas = 20 %; 80 % contra entrega.</p>
         {editable && (

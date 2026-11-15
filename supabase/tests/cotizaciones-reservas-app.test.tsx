@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PGlite } from '@electric-sql/pglite'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { ConexionProvider } from '@/app/auth'
 import { SessionProvider } from '@/app/session'
 import { ClientesProvider } from '@/features/clientes/store'
@@ -27,6 +27,19 @@ async function actorDe(id: string): Promise<Actor> {
   return { id: s.id, nombre: s.nombre, rol: s.rol, permisos: s.permisos, alcance: { tipo: s.alcance, usuarios: s.usuariosAlcance } }
 }
 
+/** Muestra a dónde llevó la navegación (p. ej. el recorrido de Atender cliente). */
+function Ubicacion() {
+  const l = useLocation()
+  return <p>{l.pathname + l.search}</p>
+}
+
+/** Emite como el recorrido único (Atender cliente → Financiamiento): abre o reutiliza la negociación y emite. */
+async function emitirComo(usuario: string, vigenciaDias: number) {
+  const d = datosPglite(db, usuario)
+  const oportunidad = await d.rpc<string>('oportunidades_crear', { p_client: cliente, p_unidad: 'E1-PB-A2', p_tipologia: null })
+  return d.rpc<string>('cotizaciones_emitir', { p_opportunity: oportunidad, p_descuento_pct: 0, p_vigencia_dias: vigenciaDias, p_observaciones: '' })
+}
+
 async function abrirComo(id: string, url: string) {
   const actor = await actorDe(id)
   return render(
@@ -40,6 +53,7 @@ async function abrirComo(id: string, url: string) {
                   <Route path="/clientes" element={<ClientesPage />} />
                   <Route path="/cotizaciones" element={<CotizacionesPage />} />
                   <Route path="/reservas" element={<ReservasPage />} />
+                  <Route path="/venta" element={<Ubicacion />} />
                 </Routes>
               </MemoryRouter>
             </ReservasProvider>
@@ -77,39 +91,34 @@ beforeAll(async () => {
 }, 60_000)
 
 describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
-  it('el corredor cotiza con los datos de la ficha, sin escribirlos otra vez, y crea una sola negociación', async () => {
-    const user = userEvent.setup()
+  it('cotizar abre el recorrido único; la emisión usa los datos de la ficha y una sola negociación', async () => {
+    // Cotizaciones es historial: un enlace para cotizar lleva a Atender cliente con el cliente y el departamento.
     const s = await abrirComo(cora, `/cotizaciones?cliente=${cliente}&unidad=E1-PB-A2`)
-    await waitFor(() => expect(screen.getByLabelText('Nombre completo *')).toHaveValue('Andrea Mora'))
-    expect(screen.getByLabelText('Nombre completo *')).toBeDisabled()
-    expect(screen.getByLabelText('Cédula o RUC')).toHaveValue('1712345675')
-    expect(screen.queryByLabelText('Nombre *')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '15 días' }))
-    await user.click(screen.getByRole('button', { name: /Generar PDF/ }))
-    expect(await screen.findByText(/COT-\d{4}-0001 generada para Andrea Mora/, undefined, { timeout: 10_000 })).toBeInTheDocument()
+    expect(await screen.findByText(`/venta?cliente=${cliente}&unidad=E1-PB-A2`)).toBeInTheDocument()
+    s.unmount()
 
+    await emitirComo(cora, 15)
     const q = await uno<{ client_id: string; opportunity_id: string; estado: string; cliente: { documento: string }; precio_final: string }>(`select * from public.quotes where client_id = $1`, [cliente])
     expect(q).toMatchObject({ client_id: cliente, estado: 'emitida', cliente: { documento: '1712345675' } })
     expect(q.opportunity_id).toBeTruthy()
     expect((await uno<{ etapa: string }>(`select etapa from public.clients where id = $1`, [cliente])).etapa).toBe('cotizacion')
-    expect(localStorage.getItem('amura.cotizaciones.v1')).toBeNull()
-    s.unmount()
 
     // Una segunda cotización usa la misma negociación.
-    const s2 = await abrirComo(cora, `/cotizaciones?cliente=${cliente}&unidad=E1-PB-A2`)
-    await waitFor(() => expect(screen.getByLabelText('Nombre completo *')).toHaveValue('Andrea Mora'))
-    await user.click(screen.getByRole('button', { name: '30 días' }))
-    await user.click(screen.getByRole('button', { name: /Generar PDF/ }))
-    expect(await screen.findByText(/COT-\d{4}-0002 generada/, undefined, { timeout: 10_000 })).toBeInTheDocument()
+    await emitirComo(cora, 30)
     expect((await uno<{ n: number }>(`select count(*)::int as n from public.opportunities where client_id = $1`, [cliente])).n).toBe(1)
     expect((await uno<{ n: number; v: number }>(`select count(*)::int as n, max(version)::int as v from public.quotes where client_id = $1`, [cliente]))).toEqual({ n: 2, v: 2 })
-    s2.unmount()
+
+    // El historial muestra ambas, con su PDF, y no escribe nada en el navegador.
+    const h = await abrirComo(cora, '/cotizaciones')
+    expect(await screen.findByRole('button', { name: /Descargar COT-\d{4}-0001/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Descargar COT-\d{4}-0002/ })).toBeInTheDocument()
+    expect(localStorage.getItem('amura.cotizaciones.v1')).toBeNull()
+    h.unmount()
   })
 
-  it('cotizar exige un cliente registrado cuando está conectado', async () => {
+  it('un enlace para cotizar solo un departamento abre Atender cliente, donde se elige al cliente registrado', async () => {
     await abrirComo(cora, '/cotizaciones?unidad=E1-PB-A2')
-    expect(await screen.findByText('Elige un cliente registrado.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Generar PDF/ })).toBeDisabled()
+    expect(await screen.findByText('/venta?unidad=E1-PB-A2')).toBeInTheDocument()
   })
 
   it('otro corredor no ve las cotizaciones ni las reservas de ese cliente', async () => {
@@ -176,7 +185,10 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
     const ficha = await screen.findByRole('dialog', { name: /Andrea Mora/ })
     expect(within(ficha).getByRole('button', { name: 'Reserva' })).toHaveAttribute('aria-pressed', 'true')
     expect(within(ficha).getByRole('button', { name: 'Negociación' })).toBeDisabled()
+    // La cotización queda en el historial (Actividad) y la negociación aprobada, en Operaciones.
+    await userEvent.click(within(ficha).getByRole('tab', { name: 'Actividad' }))
     expect(within(ficha).getByText(/COT-\d{4}-0001 · E1-PB-A2/)).toBeInTheDocument()
+    await userEvent.click(within(ficha).getByRole('tab', { name: 'Operaciones' }))
     expect(within(ficha).getByText('Reserva aprobada')).toBeInTheDocument()
   })
 

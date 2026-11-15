@@ -1,6 +1,7 @@
 import type { DatosCobranza } from './api'
 import type { Comprobante } from './comprobantes'
 import type { Tablero } from './tablero'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 /**
  * Bandeja de Finanzas: comprobantes reportados que esperan verificación, de reservas y de cuotas.
@@ -27,7 +28,7 @@ export interface FilaPorVerificar {
 export function porVerificar(d: DatosCobranza, tablero: Tablero, actorId: string): FilaPorVerificar[] {
   const dpt = (codigo: string) => {
     const n = d.departamentos.get(codigo)
-    return n ? `AMURA · Dpto. ${n} (${codigo})` : `AMURA · ${codigo}`
+    return n ? `AMURA · Dpto. ${n}` : `AMURA · Dpto. ${numeroComercial(codigo)}`
   }
   const filas: FilaPorVerificar[] = []
   for (const c of d.comprobantes.filter((k) => k.estado === 'reportado')) {

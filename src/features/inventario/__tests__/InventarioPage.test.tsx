@@ -38,6 +38,11 @@ const simular = async (user: ReturnType<typeof userEvent.setup>, ficha: HTMLElem
 }
 
 describe('InventarioPage', () => {
+  it('con ?vista=mapa abre directamente el mapa por edificio', () => {
+    renderPage('asesor', '/inventario?vista=mapa')
+    expect(screen.getByRole('heading', { name: 'Edificio B' })).toBeInTheDocument()
+  })
+
   it('muestra las 72 unidades, el valor total y los pendientes por separado', () => {
     renderPage('asesor')
     expect(screen.getByText(/72 departamentos/)).toBeInTheDocument()
@@ -71,9 +76,9 @@ describe('InventarioPage', () => {
     renderPage('asesor')
     await user.type(screen.getByLabelText('Buscar unidad'), '1002')
     expect(screen.getByText('1–1 de 1 unidad')).toBeInTheDocument()
-    await user.click(screen.getByRole('row', { name: /E1-PB-A2/ }))
+    await user.click(screen.getByRole('row', { name: /A002/ }))
     const ficha = await screen.findByRole('dialog')
-    expect(within(ficha).getByText(/Departamento 1002/)).toBeInTheDocument()
+    expect(within(ficha).getByText(/Departamento A002/)).toBeInTheDocument()
     expect(within(ficha).getByText('Pago a la firma 6 %')).toBeInTheDocument()
     expect(within(ficha).queryByText(/^Reserva · /)).not.toBeInTheDocument()
     // La reserva predeterminada es USD 500 y se descuenta del pago a la firma: 10.328,83 − 500.
@@ -132,7 +137,7 @@ describe('InventarioPage', () => {
     expect(within(ficha).getByText(/Precio por m² · /)).toBeInTheDocument()
     expect(within(ficha).getByText('Aprobado')).toBeInTheDocument()
     await user.click(within(ficha).getByRole('button', { name: 'Cerrar ficha' }))
-    const fila = await screen.findByRole('row', { name: /E1-PB-A1/ })
+    const fila = await screen.findByRole('row', { name: /A001/ })
     expect(within(fila).getByText((t) => /166\.911/.test(t))).toBeInTheDocument()
     expect(within(fila).getByText(/Aprobado/)).toBeInTheDocument()
     expect(screen.getByText((t) => /11\.202\.425/.test(t))).toBeInTheDocument()
@@ -176,10 +181,10 @@ describe('InventarioPage', () => {
     expect(within(dlg).getByText(/Elige el edificio para ver/)).toBeInTheDocument()
     expect(within(dlg).getByRole('button', { name: 'Aplicar cambio' })).toBeDisabled()
     await user.click(within(dlg).getByLabelText('Edificio'))
-    await user.click(await screen.findByRole('option', { name: 'Edificio 1' }))
+    await user.click(await screen.findByRole('option', { name: 'Edificio A' }))
     expect(within(dlg).getByText(/29 unidades/)).toBeInTheDocument()
     expect(within(dlg).getByText('1 excluida')).toBeInTheDocument()
-    expect(within(dlg).getByLabelText('Unidades excluidas')).toHaveTextContent(/Departamento 1001: Precio congelado/)
+    expect(within(dlg).getByLabelText('Unidades excluidas')).toHaveTextContent(/Departamento A001: Precio congelado/)
     await user.type(within(dlg).getByLabelText(/Motivo del cambio/), 'Ajuste del edificio 1')
     await user.click(within(dlg).getByRole('button', { name: 'Aplicar cambio' }))
     expect(await screen.findByText(/Precio actualizado en 29 unidades/)).toBeInTheDocument()

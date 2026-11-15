@@ -56,7 +56,7 @@ export function construirEstadoCuentaPdf(e: EstadoCuenta, x: CabeceraEstadoCuent
   const datos: [string, string][] = [
     ['Comprador', x.documento ? `${x.cliente} · ${x.documento}` : x.cliente],
     ['Contrato', `${x.codigoContrato} · ${x.estado}`],
-    ['Departamento', `${x.departamento} (${x.codigoUnidad})`],
+    ['Departamento', x.departamento],
     ...filasUnidad(unidad),
     ['Precio', usd(x.precio)],
   ]

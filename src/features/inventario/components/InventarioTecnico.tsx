@@ -4,6 +4,7 @@ import type { Datos } from '@/features/conexion/datos'
 import { ESTADO_DOCUMENTO, estadoDocumento } from '../data/data-quality'
 import { fmtM2 } from '../pricing'
 import { FieldError } from './shared'
+import { nombreEdificio } from '../nomenclatura'
 
 interface FilaTecnica {
   codigo: string; dpt: string; edificio: number; piso: string; ubicacion: string; tipologia: string
@@ -34,7 +35,7 @@ export default function InventarioTecnico({ datos }: { datos: Datos }) {
                 return (
                   <tr key={f.codigo} className="border-t border-border">
                     <td className="px-4 py-2"><div className="font-semibold">{f.dpt}</div><div className="text-xs text-muted-foreground">{f.codigo}</div></td>
-                    <td className="px-2 py-2">Edificio {f.edificio} · {f.piso === 'PB' ? 'Planta baja' : `Piso ${f.piso}`}<div className="text-xs text-muted-foreground">{f.ubicacion}</div></td>
+                    <td className="px-2 py-2">{nombreEdificio(f.edificio)} · {f.piso === 'PB' ? 'Planta baja' : `Piso ${f.piso}`}<div className="text-xs text-muted-foreground">{f.ubicacion}</div></td>
                     <td className="px-2 py-2">{f.tipologia}</td>
                     <td className="px-2 py-2 text-right tabular-nums">{fmtM2(Number(f.area_m2))}</td>
                     <td className="px-2 py-2 text-right tabular-nums">{f.bodega_codigo ? `${f.bodega_codigo} · ${fmtM2(Number(f.bodega_m2))}` : '—'}</td>

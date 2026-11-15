@@ -58,7 +58,7 @@ describe('menú lateral por rol (separado de los permisos)', () => {
 
   it('Vendedor y Corredor: herramientas comerciales y sus comisiones; sin Plan, Precios, Obra, Ventas ni Cobranzas', () => {
     for (const rol of ['asesor', 'corredor']) {
-      expect(lateral(rol)).toEqual(['Dashboard', 'Atender cliente', 'Clientes', 'Pipeline', 'Cotizaciones', 'Reservas', 'Inventario', 'Financiamiento', 'Comisiones'])
+      expect(lateral(rol)).toEqual(['Dashboard', 'Atender cliente', 'Clientes', 'Cotizaciones', 'Reservas', 'Inventario', 'Financiamiento', 'Comisiones'])
       // Ocultar no bloquea su operación: siguen pudiendo abrir el contrato y el estado de cuenta de sus clientes desde la venta.
       for (const p of ['ventas.ver', 'cobranzas.ver', 'reservas.solicitar', 'comisiones.ver_propias'] as const) expect(can(rol, p)).toBe(true)
       for (const p of ['comisiones.calcular', 'comisiones.aprobar', 'comisiones.finanzas'] as const) expect(can(rol, p)).toBe(false)
@@ -67,8 +67,8 @@ describe('menú lateral por rol (separado de los permisos)', () => {
 
   it('Supervisor: vende con las herramientas del vendedor y gestiona a su equipo; entra a su Dashboard de equipo', () => {
     const visibles = NAV_GROUPS.flatMap((g) => g.items).filter((i) => enMenu(i, 'supervisor', (p) => can('supervisor', p))).map((i) => etiquetaDe(i, 'supervisor'))
-    expect(visibles).toEqual(expect.arrayContaining(['Dashboard de equipo', 'Mi equipo', 'Atender cliente', 'Inventario', 'Financiamiento', 'Cotizaciones', 'Clientes (míos y del equipo)', 'Pipeline', 'Reservas', 'Ventas y contratos', 'Comisiones']))
-    expect(visibles).toHaveLength(11)
+    expect(visibles).toEqual(expect.arrayContaining(['Dashboard de equipo', 'Mi equipo', 'Atender cliente', 'Inventario', 'Financiamiento', 'Cotizaciones', 'Clientes (míos y del equipo)', 'Reservas', 'Ventas y contratos', 'Comisiones']))
+    expect(visibles).toHaveLength(10)
     // Todo lo que ve el vendedor, salvo su Dashboard individual (el Supervisor tiene el suyo).
     const vendedor = NAV_GROUPS.flatMap((g) => g.items).filter((i) => enMenu(i, 'asesor', (p) => can('asesor', p))).map((i) => i.to)
     expect(vendedor.filter((to) => to !== '/' && !NAV_ITEMS.some((i) => i.to === to && enMenu(i, 'supervisor', (p) => can('supervisor', p))))).toEqual([])
@@ -107,14 +107,14 @@ describe('menú compacto: «Trabajo» primero, el resto en grupos plegables', ()
   })
 
   it('el Supervisor entra a su Dashboard de equipo y conserva sus herramientas de venta', () => {
-    expect(trabajoDe('supervisor', ve('supervisor')).map((i) => i.to)).toEqual(['/equipo', '/clientes', '/venta', '/reservas', '/comercial'])
+    expect(trabajoDe('supervisor', ve('supervisor')).map((i) => i.to)).toEqual(['/equipo', '/clientes', '/venta', '/reservas', '/cotizaciones'])
     expect(barraDe('supervisor', ve('supervisor')).map((b) => b.corto)).toEqual(['Equipo', 'Clientes', 'Atender', 'Reservas'])
   })
 
   it('todos los perfiles tienen barra inferior en el celular, adaptada a sus permisos', () => {
     expect(barraDe('finanzas', ve('finanzas')).map((b) => b.to)).toEqual(['/finanzas', '/pagos-por-verificar', '/cobranzas', '/ventas'])
     expect(barraDe('constructor', ve('constructor')).map((b) => b.to)).toEqual(['/obra', '/inventario'])
-    expect(barraDe('administrador', ve('administrador')).map((b) => b.corto)).toEqual(['Inicio', 'Clientes', 'Reservas', 'Pipeline'])
+    expect(barraDe('administrador', ve('administrador')).map((b) => b.corto)).toEqual(['Inicio', 'Clientes', 'Reservas', 'Ventas'])
   })
 
   it('el menú lateral muestra cada módulo visible una sola vez y no agrega nada a lo que el perfil ya ve', () => {

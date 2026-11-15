@@ -11,6 +11,7 @@ import { useInventory } from '@/features/inventario/store'
 import { autorizar, faltaPara, MOTIVOS_DESISTIMIENTO, rechazar, revisarFinanzas, type Desistimiento } from '../desistimiento'
 import { useClientes } from '../store'
 import ReglasAnulacion from './ReglasAnulacion'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 type Accion = 'autorizar' | 'finanzas' | 'rechazar'
 const TEXTO: Record<Accion, { titulo: string; boton: string; campo: string; ayuda: string }> = {
@@ -50,7 +51,7 @@ export default function SolicitudesAnulacion({ onDone }: { onDone: (m: string) =
           <li key={d.id} className="grid gap-1.5 rounded-lg border border-border px-3 py-2 text-xs">
             <div className="flex flex-wrap items-center gap-2">
               <b>{nombre(d.clienteId)}</b>
-              <span className="text-muted-foreground">{d.codigoUnidad} · {MOTIVOS_DESISTIMIENTO[d.motivo]}</span>
+              <span className="text-muted-foreground">{numeroComercial(d.codigoUnidad ?? '')} · {MOTIVOS_DESISTIMIENTO[d.motivo]}</span>
               {d.montoRecibido ? <span className="font-medium tabular-nums">{fmtUsd2(d.montoRecibido)} recibidos</span> : d.nivel === 'gerencia_y_finanzas' && <span className="text-muted-foreground">Comprobante sin verificar</span>}
             </div>
             <div className="text-xs text-muted-foreground">Solicitó {d.registradoPor}{d.observaciones ? ` · ${d.observaciones}` : ''}</div>
@@ -93,7 +94,7 @@ function NotaDialog({ d, accion, nombre, onClose, onConfirm }: { d: Desistimient
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t.titulo}</DialogTitle>
-          <DialogDescription>{nombre} · {d.codigoUnidad}. {t.ayuda}</DialogDescription>
+          <DialogDescription>{nombre} · {numeroComercial(d.codigoUnidad ?? '')}. {t.ayuda}</DialogDescription>
         </DialogHeader>
         <ReglasAnulacion actual={d.nivel} />
         <div className="grid gap-1.5">

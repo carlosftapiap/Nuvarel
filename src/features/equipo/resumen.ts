@@ -12,10 +12,15 @@ export type Periodo = 'mes' | 'todo'
 // El Supervisor también vende: para Gerencia aparece con sus ventas propias junto a los vendedores.
 export const ROLES_COMERCIALES = ['asesor', 'corredor', 'supervisor']
 
-export interface Vendedor { id: string; nombre: string; rol: string; equipo: string | null }
+export interface Vendedor { id: string; nombre: string; rol: string; equipo: string | null; equipoId: string | null; supervisorId: string | null }
+export interface EquipoRef { id: string; nombre: string; supervisorId: string | null }
 export interface DatosEquipo {
   /** Quien mira, con sus ventas propias aparte; vendedores no lo incluye, así nada se cuenta dos veces. */
   yo: string; propio: Vendedor; vendedores: Vendedor[]
+  /** Todas las personas visibles para quien mira (supervisores y gerencia incluidos), para resolver nombres. */
+  personas: Vendedor[]
+  /** Equipos con su supervisor asignado, tal como los guarda la base. */
+  equipos: EquipoRef[]
   clientes: Fila[]; cotizaciones: Fila[]; reservas: Fila[]; contratos: Fila[]; oportunidades: Fila[]; actividades: Fila[]
 }
 export interface Indicadores {
@@ -30,13 +35,19 @@ export async function cargarEquipo(d: Datos, yo: string): Promise<DatosEquipo> {
     opcional('clients'), opcional('quotes'), opcional('reservations'), opcional('contracts'), opcional('opportunities'), opcional('client_activities'),
   ])
   const equipo = new Map(equipos.map((e) => [String(e.id), String(e.nombre)]))
-  const vendedor = (p: Fila): Vendedor => ({ id: String(p.id), nombre: String(p.nombre), rol: String(p.rol_id), equipo: p.equipo_id ? (equipo.get(String(p.equipo_id)) ?? null) : null })
+  const vendedor = (p: Fila): Vendedor => ({
+    id: String(p.id), nombre: String(p.nombre), rol: String(p.rol_id),
+    equipo: p.equipo_id ? (equipo.get(String(p.equipo_id)) ?? null) : null,
+    equipoId: p.equipo_id ? String(p.equipo_id) : null,
+    supervisorId: p.supervisor_id ? String(p.supervisor_id) : null,
+  })
+  const personas = perfiles.map(vendedor)
   const vendedores = perfiles
     .filter((p) => p.id !== yo && p.estado === 'activo' && ROLES_COMERCIALES.includes(String(p.rol_id)))
     .map(vendedor)
-  const mio = perfiles.find((p) => p.id === yo)
-  const propio = mio ? vendedor(mio) : { id: yo, nombre: 'Yo', rol: '', equipo: null }
-  return { yo, propio, vendedores, clientes, cotizaciones, reservas, contratos, oportunidades, actividades }
+  const propio = personas.find((p) => p.id === yo) ?? { id: yo, nombre: 'Yo', rol: '', equipo: null, equipoId: null, supervisorId: null }
+  const refs: EquipoRef[] = equipos.map((e) => ({ id: String(e.id), nombre: String(e.nombre), supervisorId: e.supervisor_id ? String(e.supervisor_id) : null }))
+  return { yo, propio, vendedores, personas, equipos: refs, clientes, cotizaciones, reservas, contratos, oportunidades, actividades }
 }
 
 const mesActual = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' }).slice(0, 7)
@@ -87,3 +98,35 @@ export function oportunidadesPorEtapa(d: DatosEquipo, vendedor: string) {
 
 /** Nombre del cliente si la persona puede verlo. */
 export const nombreCliente = (d: DatosEquipo, id: unknown) => s(d.clientes.find((c) => c.id === id)?.nombre) ?? 'Cliente'
+
+/** Un supervisor con sus equipos y los vendedores sin equipo que dependen de él. */
+export interface GrupoSupervisor {
+  /** Nulo cuando ni el equipo ni el vendedor tienen supervisor asignado. */
+  supervisorId: string | null
+  /** Nulo si la base no deja ver a ese supervisor a quien mira. */
+  supervisor: Vendedor | null
+  equipos: { equipo: EquipoRef; vendedores: Vendedor[] }[]
+  sinEquipo: Vendedor[]
+}
+
+/**
+ * Agrupa por supervisor con las asignaciones reales: el supervisor de cada equipo y el supervisor directo de cada vendedor.
+ * Un supervisor no figura entre los vendedores de su equipo: sus ventas propias van aparte, así no se cuentan dos veces.
+ */
+export function gruposPorSupervisor(d: DatosEquipo): GrupoSupervisor[] {
+  const supervisores = new Set(d.equipos.map((e) => e.supervisorId).filter((id): id is string => !!id))
+  const equipoConocido = new Set(d.equipos.map((e) => e.id))
+  const miembros = d.vendedores.filter((v) => !supervisores.has(v.id))
+  const grupos = new Map<string | null, GrupoSupervisor>()
+  const grupo = (supervisorId: string | null) => {
+    if (!grupos.has(supervisorId)) grupos.set(supervisorId, { supervisorId, supervisor: d.personas.find((p) => p.id === supervisorId) ?? null, equipos: [], sinEquipo: [] })
+    return grupos.get(supervisorId)!
+  }
+  for (const e of [...d.equipos].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))) {
+    grupo(e.supervisorId).equipos.push({ equipo: e, vendedores: miembros.filter((v) => v.equipoId === e.id) })
+  }
+  for (const v of miembros) if (!v.equipoId || !equipoConocido.has(v.equipoId)) grupo(v.supervisorId).sinEquipo.push(v)
+  // Primero el grupo de quien mira, después los supervisores por nombre y al final quienes no tienen supervisor.
+  const orden = (g: GrupoSupervisor) => (g.supervisorId === d.yo ? 0 : g.supervisorId === null ? 2 : 1)
+  return [...grupos.values()].sort((a, b) => orden(a) - orden(b) || (a.supervisor?.nombre ?? '').localeCompare(b.supervisor?.nombre ?? '', 'es'))
+}

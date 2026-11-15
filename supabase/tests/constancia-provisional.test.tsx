@@ -7,6 +7,7 @@ import {
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import { datosPglite } from './datos-pglite'
 import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+import { nombreEdificio } from '@/features/inventario/nomenclatura'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, finanzas2: string, legal: string, vera: string, omar: string
@@ -116,7 +117,7 @@ describe('documentos', () => {
     expect(texto).toContain('no acreditado')
     expect(texto).toContain('Banco girador')
     expect(texto).toContain('mero de cheque')
-    expect(texto).toContain(`Edificio ${unidad!.edificio}`)
+    expect(texto).toContain(nombreEdificio(unidad!.edificio))
     expect(texto).toContain(unidad!.tipologia)
     expect(texto).not.toContain('RECHAZADO')
   })
@@ -158,7 +159,7 @@ describe('documentos', () => {
     const texto = construirReciboPdf(aRecibo(fila), null, unidad).output()
     expect(String(fila.numero)).toMatch(/^REC-/)
     expect(texto).toContain('RECIBO DE PAGO')
-    expect(texto).toContain(`Edificio ${unidad!.edificio}`)
+    expect(texto).toContain(nombreEdificio(unidad!.edificio))
     expect(texto).toContain(unidad!.tipologia)
     // Sin unidad (p. ej. sin permiso de Inventario) sale como antes.
     expect(construirReciboPdf(aRecibo(fila)).output()).not.toContain('Edificio y piso')

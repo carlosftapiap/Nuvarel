@@ -22,7 +22,7 @@ export default function LocationSchema({ unit, units, onSelect }: { unit: Unit; 
   const W = 320, pad = 8, rowH = 58, gap = 22
   return (
     <figure>
-      <svg viewBox={`0 0 ${W} ${pad * 2 + rowH * 2 + gap}`} className="w-full" role="img" aria-label={`Esquema del piso con la unidad ${unit.codigo} resaltada`}>
+      <svg viewBox={`0 0 ${W} ${pad * 2 + rowH * 2 + gap}`} className="w-full" role="img" aria-label={`Esquema del piso con el departamento ${unit.dpt} resaltado`}>
         <rect x="1" y="1" width={W - 2} height={pad * 2 + rowH * 2 + gap - 2} rx="10" fill="var(--muted)" stroke="var(--border)" />
         <text x={W / 2} y={pad + rowH + gap / 2 + 3} textAnchor="middle" fontSize="8" fill="var(--muted-foreground)" letterSpacing="1.5">CIRCULACIÓN</text>
         {filas.map((fila, r) => {

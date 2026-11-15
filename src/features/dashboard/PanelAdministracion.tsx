@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle, ArrowUpRight, Banknote, BellRing, Building2, CalendarCheck, CalendarClock, CheckCircle2, ChevronDown, ChevronRight,
-  CircleDollarSign, FileSignature, HardHat, Info, Plus, ShieldAlert, SquareKanban, Users, Wallet, type LucideIcon,
+  CircleDollarSign, FileSignature, HardHat, Info, Plus, Search, ShieldAlert, SquareKanban, Users, Wallet, type LucideIcon,
 } from 'lucide-react'
 import { useSession } from '@/app/session'
 import Aviso from '@/components/Aviso'
 import Estado, { Avatar } from '@/components/Estado'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import AccionesRapidas from '@/features/clientes/components/AccionesRapidas'
 import { TIPOS_ACTIVIDAD, type Cliente } from '@/features/clientes/model'
 import { clientesVisibles, ordenarPorUrgencia, urgencia } from '@/features/clientes/service'
@@ -15,6 +16,9 @@ import { useClientesOpcional } from '@/features/clientes/store'
 import { fmtFechaCorta, hoyGuayaquil } from '@/features/financiamiento/plan'
 import { ESTADO_EFECTIVO_ORDEN, ESTADOS_EFECTIVOS, estadoEfectivo, type EstadoEfectivo } from '@/features/inventario/estados'
 import { calcularPrecio, fmtNum, fmtUsd } from '@/features/inventario/pricing'
+import BuildingMap from '@/features/inventario/components/BuildingMap'
+import UnitDetailSheet from '@/features/inventario/components/UnitDetailSheet'
+import type { PricingParams, Unit } from '@/features/inventario/types'
 import PanelLeads from '@/features/leads/PanelLeads'
 import BannerBienvenida from '@/features/marca/BannerBienvenida'
 import ConoceAmura from '@/features/marca/ConoceAmura'
@@ -26,6 +30,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import type { EdificioFiltro, Panel } from './panel'
 import { usePanelProyecto, type DatosProyecto } from './proyecto'
+import { nombreEdificio, numeroComercial, textoBusquedaUnidad } from '@/features/inventario/nomenclatura'
 
 /**
  * Dashboard de administración: primero lo que pide una decisión, después una tira compacta de indicadores y
@@ -231,7 +236,7 @@ function EmbudoHorizontal({ etapas }: { etapas: Panel['embudo'] }) {
     <div>
       <div className="grid text-center" style={columnas}>
         {etapas.map((e, i) => (
-          <Link key={e.clave} to={DESTINO_ETAPA[e.clave] ?? '/comercial'} className="grid justify-items-center gap-1 rounded-lg px-1 py-1 hover:bg-[#f8f9fb]">
+          <Link key={e.clave} to={DESTINO_ETAPA[e.clave] ?? '/clientes?vista=embudo'} className="grid justify-items-center gap-1 rounded-lg px-1 py-1 hover:bg-[#f8f9fb]">
             <span className="max-w-full truncate text-[13px] text-[#475467]">{e.etiqueta}</span>
             <span className="rounded-md bg-[#f2f4f7] px-1.5 text-xs font-semibold tabular-nums text-[#344054]">{pct(valores[i], valores[0])}</span>
           </Link>
@@ -260,7 +265,7 @@ function EmbudoVertical({ etapas }: { etapas: Panel['embudo'] }) {
     <ol className="grid gap-2.5">
       {etapas.map((e, i) => (
         <li key={e.clave}>
-          <Link to={DESTINO_ETAPA[e.clave] ?? '/comercial'} className="block rounded-xl">
+          <Link to={DESTINO_ETAPA[e.clave] ?? '/clientes?vista=embudo'} className="block rounded-xl">
             <span className="flex items-baseline justify-between gap-2 text-[13px]">
               <span className="text-[#475467]">{e.etiqueta}</span>
               <span className="flex items-center gap-1.5"><b className="tabular-nums text-[#101828]">{cuenta(e.valor)}</b><span className="rounded-md bg-[#f2f4f7] px-1.5 text-xs font-semibold tabular-nums text-[#344054]">{pct(valores[i], valores[0])}</span></span>
@@ -281,7 +286,7 @@ function EmbudoBloque({ panel, vertical }: { panel: Panel | null; vertical: bool
     <Bloque titulo="Embudo comercial" etiqueta="Comercial" color={COLOR.azul} icono={SquareKanban}
       accion={<>
         <span className="mr-1 text-xs text-[#667085]">Conversión <b className="text-[#101828]">{primero && ultimo !== null ? pct(ultimo, primero) : '—'}</b></span>
-        <Abrir to="/comercial" titulo="Pipeline" />
+        <Abrir to="/clientes?vista=embudo" titulo="Embudo de clientes" />
       </>}>
       {!panel ? <p className="text-xs text-[#667085]">Cargando…</p>
         : etapas.every((e) => e.valor === null) ? <p className="text-xs text-[#667085]">Tu perfil no consulta el embudo comercial.</p>
@@ -416,10 +421,6 @@ function InventarioBloque({ p }: { p: DatosProyecto }) {
   const total = inv.unidades
   const partes = ESTADO_EFECTIVO_ORDEN.map((e) => ({ e, n: inv.porEstado[e], color: ESTADOS_EFECTIVOS[e].color }))
   const enTramite = unidades.filter((u) => u.solicitud && u.estado === 'disponible').length
-  const edificios = ([1, 2] as const).filter((e) => filtro === 'todos' || filtro === e).map((e) => {
-    const propias = unidades.filter((u) => u.edificio === e)
-    return { e, total: propias.length, por: ESTADO_EFECTIVO_ORDEN.map((s) => ({ s, n: propias.filter((u) => estadoEfectivo(u) === s).length })) }
-  })
   const destino = (e: EstadoEfectivo) => `/inventario?estado=${e}${q ? `&edificio=${filtro}` : ''}`
   return (
     <Bloque titulo="Inventario" etiqueta="Proyecto" color={COLOR.verde} icono={Building2} accion={<Abrir to={`/inventario${q}`} titulo="Inventario" />}>
@@ -446,15 +447,6 @@ function InventarioBloque({ p }: { p: DatosProyecto }) {
           </li>
         ))}
       </ul>
-      <div className="mt-3 grid gap-2.5 border-t border-[#f2f4f7] pt-3">
-        {edificios.map((b) => (
-          <Link key={b.e} to={`/inventario?edificio=${b.e}`} className="grid grid-cols-[84px_minmax(0,1fr)_auto] items-center gap-3 text-xs hover:opacity-80">
-            <span className="font-semibold text-[#344054]">Edificio {b.e}</span>
-            <span className="flex h-1.5 overflow-hidden rounded-full bg-[#f2f4f7]">{b.por.map((x) => <span key={x.s} style={{ width: b.total ? `${(x.n / b.total) * 100}%` : '0%', background: ESTADOS_EFECTIVOS[x.s].color }} />)}</span>
-            <span className="tabular-nums text-[#667085]">{b.por[0].n} de {b.total}</span>
-          </Link>
-        ))}
-      </div>
       {(enTramite > 0 || referenciales > 0) && (
         <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs">
           {enTramite > 0 && <span className="text-[#0284C7]">{enTramite} con solicitud en trámite</span>}
@@ -529,10 +521,64 @@ function Barras({ filas, formato }: { filas: { key: string; label: string; value
   )
 }
 
+/* ---------------------------------------------------------------- mapa por edificio */
+
+/** Mapa por edificio del inventario en el panel: el mismo componente de Inventario, con búsqueda y la ficha de cada departamento. */
+function MapaEdificios({ units, params, filtro, movil, onAbrir }: {
+  units: Unit[]; params: PricingParams; filtro: EdificioFiltro; movil: boolean; onAbrir: (codigo: string) => void
+}) {
+  const [buscar, setBuscar] = useState('')
+  const [elegido, setElegido] = useState<1 | 2>(1)
+  const coincidencias = useMemo(() => {
+    const q = buscar.trim().toUpperCase()
+    return q ? units.filter((u) => textoBusquedaUnidad(u).toUpperCase().includes(q)) : []
+  }, [units, buscar])
+  // En el celular, una búsqueda que cae en el otro edificio cambia la vista a ese edificio.
+  const buscarEn = (texto: string) => {
+    setBuscar(texto)
+    const q = texto.trim().toUpperCase()
+    const primero = q ? units.find((u) => textoBusquedaUnidad(u).toUpperCase().includes(q)) : undefined
+    if (movil && primero) setElegido(primero.edificio)
+  }
+  const edificios: (1 | 2)[] = filtro === 'todos' ? (movil ? [elegido] : [1, 2]) : [filtro]
+  return (
+    <Bloque titulo="Mapa por edificio" etiqueta="Inventario" color={COLOR.verde} icono={Building2}
+      accion={<Button size="sm" variant="outline" asChild><Link to="/inventario?vista=mapa">Ver mapa completo</Link></Button>}>
+      <div className="mb-4 grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <div className="relative min-w-0 sm:max-w-sm sm:flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#667085]" aria-hidden="true" />
+          <Input type="search" value={buscar} onChange={(e) => buscarEn(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter abre la ficha sin que la misma pulsación active un botón de la ficha recién abierta.
+              if (e.key === 'Enter' && coincidencias.length === 1) { e.preventDefault(); onAbrir(coincidencias[0].codigo) }
+            }}
+            placeholder="Buscar departamento: A502 o B101" aria-label="Buscar departamento" className="h-9 bg-white pl-8 text-[13.5px]" />
+        </div>
+        {buscar.trim() && (
+          <p className="text-xs text-[#667085]" aria-live="polite">
+            {coincidencias.length === 0 ? 'Sin coincidencias' : coincidencias.length === 1 ? 'Un departamento: Enter abre su ficha' : `${coincidencias.length} departamentos`}
+          </p>
+        )}
+        {movil && filtro === 'todos' && (
+          <div role="group" aria-label="Edificio del mapa" className="grid grid-cols-2 gap-1 rounded-xl bg-[#eef0f3] p-1 sm:ml-auto sm:inline-grid sm:w-auto">
+            {([1, 2] as const).map((e) => (
+              <button key={e} type="button" aria-pressed={elegido === e} onClick={() => setElegido(e)}
+                className={cn('h-8 rounded-lg px-3 text-[13px] font-semibold transition', elegido === e ? 'bg-white text-[#101828] shadow-xs' : 'text-[#475467]')}>
+                {nombreEdificio(e)} ({units.filter((u) => u.edificio === e).length})
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <BuildingMap units={units} params={params} onOpen={onAbrir} edificios={edificios} buscar={buscar} sinMarco />
+    </Bloque>
+  )
+}
+
 /* ---------------------------------------------------------------- página */
 
 const FILTROS: { valor: EdificioFiltro; etiqueta: string; param: string }[] = [
-  { valor: 'todos', etiqueta: 'Todos', param: 'todos' }, { valor: 1, etiqueta: 'Edificio 1', param: '1' }, { valor: 2, etiqueta: 'Edificio 2', param: '2' },
+  { valor: 'todos', etiqueta: 'Todos', param: 'todos' }, { valor: 1, etiqueta: 'Edificio A', param: '1' }, { valor: 2, etiqueta: 'Edificio B', param: '2' },
 ]
 
 export default function PanelAdministracion() {
@@ -545,6 +591,11 @@ export default function PanelAdministracion() {
   const reservasCtx = useReservasOpcional()
   const [aviso, setAviso] = useState<string | null>(null)
   const cerrarAviso = useCallback(() => setAviso(null), [])
+  // La ficha de un departamento se abre con ?unidad=, igual que en Inventario.
+  const [params, setParams] = useSearchParams()
+  const unidadAbierta = can('inventario.ver') ? params.get('unidad') : null
+  const abrirUnidad = (codigo: string) => setParams((x) => { x.set('unidad', codigo); return x }, { replace: !!unidadAbierta })
+  const cerrarUnidad = () => setParams((x) => { x.delete('unidad'); return x })
   const hoy = hoyGuayaquil()
 
   const valorPorEstado = useMemo(() => {
@@ -565,11 +616,13 @@ export default function PanelAdministracion() {
   if (clientesCtx) {
     const vencidas = clientesVisibles(clientesCtx.state.clientes, actor).filter((c) => c.etapa !== 'perdido' && urgencia(c, hoy) === 'vencida').length
     if (vencidas) pendientes.push({ clave: 'vencidas', titulo: pl(vencidas, 'gestión comercial vencida', 'gestiones comerciales vencidas'), detalle: 'Clientes con la próxima acción atrasada.', to: '/clientes?filtro=vencidas', sev: 'urgente' })
+    const sinGestion = clientesVisibles(clientesCtx.state.clientes, actor).filter((c) => c.etapa !== 'perdido' && urgencia(c, hoy) === 'sin_actividad').length
+    if (sinGestion) pendientes.push({ clave: 'sin_gestion', titulo: pl(sinGestion, 'cliente sin próxima gestión', 'clientes sin próxima gestión'), detalle: 'Sin siguiente paso programado: el seguimiento se enfría.', to: '/clientes?filtro=sin', sev: 'aviso' })
   }
   if (referenciales > 0 || propuestas > 0) pendientes.push({ clave: 'precios', titulo: 'Precios pendientes de aprobación', detalle: [referenciales ? `${referenciales} unidades con precio referencial` : '', propuestas ? `${propuestas} propuestas por resolver` : ''].filter(Boolean).join(' · '), to: propuestas ? '/precios' : '/inventario', sev: 'aviso' })
   if (panel?.reservasPorVencer?.length) {
     const r = panel.reservasPorVencer[0]
-    pendientes.push({ clave: 'por_vencer', titulo: `${pl(panel.reservasPorVencer.length, 'reserva', 'reservas')} por vencer`, detalle: `${r.unidad}: ${r.dias < 0 ? `venció hace ${-r.dias} d` : r.dias === 0 ? 'vence hoy' : `vence en ${r.dias} d`}`, to: '/reservas', sev: 'urgente' })
+    pendientes.push({ clave: 'por_vencer', titulo: `${pl(panel.reservasPorVencer.length, 'reserva', 'reservas')} por vencer`, detalle: `${numeroComercial(r.unidad)}: ${r.dias < 0 ? `venció hace ${-r.dias} d` : r.dias === 0 ? 'vence hoy' : `vence en ${r.dias} d`}`, to: '/reservas', sev: 'urgente' })
   }
   if (panel?.cuotasVencidas && panel.cuotasVencidas.cuotas > 0) pendientes.push({ clave: 'cuotas', titulo: pl(panel.cuotasVencidas.cuotas, 'cuota vencida', 'cuotas vencidas'), detalle: `${fmtUsd(panel.cuotasVencidas.monto)} en ${pl(panel.cuotasVencidas.contratos, 'contrato', 'contratos')}`, to: '/cobranzas', sev: 'urgente' })
   if (panel?.contratosPendientesFirma) pendientes.push({ clave: 'firma', titulo: `${pl(panel.contratosPendientesFirma, 'contrato pendiente', 'contratos pendientes')} de firma`, detalle: 'Preparados, sin formalizar.', to: '/ventas', sev: 'accion' })
@@ -585,7 +638,7 @@ export default function PanelAdministracion() {
   const meses = panel?.meses.slice(-8) ?? []
   const kpis: Indicador[] = [
     { clave: 'disponibles', label: 'Disponibles', valor: String(inv.porEstado.disponible), detalle: `de ${inv.unidades} departamentos`, to: `/inventario?estado=disponible${q ? `&edificio=${filtro}` : ''}`, icono: Building2, color: COLOR.verde },
-    { clave: 'clientes', label: 'Clientes registrados', valor: cuenta(panel?.clientes ?? null), detalle: panel && panel.clientes === null ? 'Sin acceso' : filtro === 'todos' ? 'En el proyecto' : `Interés en el Edificio ${filtro}`, to: '/clientes', icono: Users, color: COLOR.azul },
+    { clave: 'clientes', label: 'Clientes registrados', valor: cuenta(panel?.clientes ?? null), detalle: panel && panel.clientes === null ? 'Sin acceso' : filtro === 'todos' ? 'En el proyecto' : `Interés en el ${nombreEdificio(filtro)}`, to: '/clientes', icono: Users, color: COLOR.azul },
     { clave: 'reservas', label: 'Reservas activas', valor: cuenta(panel?.reservasActivas ?? null), detalle: panel && panel.reservasActivas === null ? 'Sin acceso' : 'Sin contrato aún', to: '/reservas', icono: CalendarCheck, color: COLOR.violeta },
     { clave: 'contratos', label: 'Contratos firmados', valor: cuenta(panel?.contratosFirmados ?? null), detalle: panel && panel.contratosFirmados === null ? 'Sin acceso' : 'Formalizados en Ventas', to: '/ventas', icono: FileSignature, color: COLOR.cian },
     { clave: 'ventas', label: 'Ventas firmadas', valor: compacto(panel?.ventasFirmadas ?? null), detalle: 'Precio de contratos firmados', to: '/ventas', icono: Banknote, color: COLOR.azul, serie: meses.map((m) => m.ventas) },
@@ -597,12 +650,14 @@ export default function PanelAdministracion() {
   const filasReservas = (panel?.reservasPorEstado ?? []).map((r) => ({ key: r.estado, label: etiquetaReserva[r.estado] ?? r.estado, value: r.cantidad, color: COLOR.violeta, to: '/reservas' }))
   const filasEdificio = ([1, 2] as const).filter((e) => filtro === 'todos' || filtro === e).map((e) => {
     const propias = unidades.filter((u) => u.edificio === e)
-    return { key: `e${e}`, label: `Edificio ${e} · ${propias.length} unidades · ${fmtNum(propias.reduce((t, u) => t + u.areaM2, 0))} m²`, value: propias.reduce((t, u) => t + calcularPrecio(u, state.params).precioVenta, 0), color: e === 1 ? COLOR.azul : COLOR.verde, to: `/inventario?edificio=${e}` }
+    return { key: `e${e}`, label: `${nombreEdificio(e)} · ${propias.length} unidades · ${fmtNum(propias.reduce((t, u) => t + u.areaM2, 0))} m²`, value: propias.reduce((t, u) => t + calcularPrecio(u, state.params).precioVenta, 0), color: e === 1 ? COLOR.azul : COLOR.verde, to: `/inventario?edificio=${e}` }
   })
 
   const atencion = pendientes.length > 0 ? <CentroAtencion items={pendientes} ancho={!movil && agenda.length === 0} /> : null
   const agendaBloque = agenda.length > 0 ? <AgendaHoy clientes={agenda} onAviso={setAviso} /> : null
-  const alDia = !atencion && !agendaBloque
+  // Mientras cargan los clientes, el panel no puede decir que el día está al día.
+  const alDia = !atencion && !agendaBloque && !clientesCtx?.cargando
+  const mapa = can('inventario.ver') ? <MapaEdificios units={state.units} params={state.params} filtro={filtro} movil={movil} onAbrir={abrirUnidad} /> : null
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:gap-5">
@@ -635,6 +690,7 @@ export default function PanelAdministracion() {
           {atencion}
           {agendaBloque}
           <Indicadores items={kpis} />
+          {mapa}
           <EmbudoBloque panel={panel} vertical />
           <InventarioBloque p={p} />
           <VentasBloque panel={panel} movil />
@@ -649,6 +705,7 @@ export default function PanelAdministracion() {
             </div>
           )}
           <Indicadores items={kpis} />
+          {mapa}
           <div className="grid grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-12">
             <div className="lg:col-span-7"><EmbudoBloque panel={panel} vertical={false} /></div>
             <div className="lg:col-span-5"><InventarioBloque p={p} /></div>
@@ -691,7 +748,8 @@ export default function PanelAdministracion() {
       </Plegable>
 
       <p className="flex items-start gap-1.5 text-xs text-[#667085]"><Info className="mt-0.5 size-3 shrink-0" aria-hidden="true" /><span>El valor de lista usa precios {referenciales > 0 ? 'referenciales aún sin aprobar' : 'aprobados'}; no son ventas. Las ventas y los cobros salen de contratos firmados y pagos verificados. «—» indica que tu perfil no consulta ese dato.</span></p>
-      <Aviso texto={aviso} onClose={cerrarAviso} />
+      {can('inventario.ver') && <UnitDetailSheet codigo={unidadAbierta} onClose={cerrarUnidad} onNavigate={abrirUnidad} onMessage={setAviso} mensaje={aviso} />}
+      <Aviso texto={unidadAbierta ? null : aviso} onClose={cerrarAviso} />
     </div>
   )
 }

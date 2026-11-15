@@ -273,7 +273,7 @@ export function construirLibro(state: InventoryState, opts: { plantilla?: boolea
     ['AMURA · Inventario', opts.plantilla ? 'Plantilla de importación' : 'Exportación'],
     ['Generado', new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' })],
     ['Valor m2 patio (USD)', p.patioUsdM2], ['Pago a la firma %', p.reservaPct], ['Cuotas %', p.cuotasPct],
-    ['Meses Edificio 1', p.meses[1]], ['Meses Edificio 2', p.meses[2]],
+    ['Meses Edificio A', p.meses[1]], ['Meses Edificio B', p.meses[2]],
     ['Regla', 'Precio = redondeo(USD/m2 x (area + bodega)) + patio x valor m2 patio'],
     ['Estados válidos', Object.values(ESTADOS).map((e) => e.label).join(', ')],
     ['Aviso', 'Precios referenciales (lista base 28/10/2026). Disponibilidad no confirmada salvo que el estado lo indique.'],

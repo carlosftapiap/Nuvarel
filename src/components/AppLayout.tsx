@@ -27,6 +27,7 @@ import { useReservasOpcional } from '@/features/reservas/store'
 import { reservasVisibles } from '@/features/reservas/service'
 import { siguientePaso } from '@/features/reservas/siguiente'
 import { cn } from '@/lib/utils'
+import { nombreEdificio, textoBusquedaUnidad } from '@/features/inventario/nomenclatura'
 
 function CuentaMenu() {
   const { cuenta, salir } = useConexion()
@@ -105,7 +106,7 @@ function guardarAbiertos(lista: string[]) {
 
 /** Color de cada módulo en el menú: el mismo tono identifica su área en toda la aplicación. */
 const COLOR_MODULO: Record<string, string> = {
-  '/': '#2563eb', '/equipo': '#8b5cf6', '/mi-equipo': '#8b5cf6', '/finanzas': '#10b981', '/venta': '#2563eb', '/clientes': '#8b5cf6', '/comercial': '#2563eb',
+  '/': '#2563eb', '/equipo': '#8b5cf6', '/mi-equipo': '#8b5cf6', '/finanzas': '#10b981', '/venta': '#2563eb', '/clientes': '#8b5cf6',
   '/cotizaciones': '#f97316', '/reservas': '#06b6d4', '/ventas': '#0ea5e9', '/inventario': '#10b981', '/precios': '#f59e0b', '/financiamiento': '#14b8a6',
   '/corredores': '#a855f7', '/pagos-por-verificar': '#f43f5e', '/cobranzas': '#22c55e', '/comisiones': '#eab308', '/obra': '#f97316', '/plan': '#0ea5e9',
   '/cumplimiento': '#14b8a6', '/configuracion': '#64748b',
@@ -232,7 +233,7 @@ function ResultadosBusqueda({ consulta, modulos, cerrar }: { consulta: string; m
     ? clientesVisibles(clientes.clientes, actor).filter((c) => normal(`${c.nombre} ${c.telefono} ${celularLocal(c.telefono)} ${c.email}`).includes(q)).slice(0, 5)
     : []
   const unidades = enMenuDe('/inventario')
-    ? inventario.units.filter((u) => normal(`${u.dpt} ${u.codigo} ${u.ubicacion} ${u.tipologia}`).includes(q)).slice(0, 5)
+    ? inventario.units.filter((u) => normal(`${textoBusquedaUnidad(u)} ${u.ubicacion} ${u.tipologia}`).includes(q)).slice(0, 5)
     : []
   const sinResultados = modulos.length + cli.length + unidades.length === 0
   return (
@@ -251,7 +252,7 @@ function ResultadosBusqueda({ consulta, modulos, cerrar }: { consulta: string; m
         <Grupo titulo="Departamentos">
           {unidades.map((u) => (
             <Link key={u.codigo} to={`/inventario?unidad=${encodeURIComponent(u.codigo)}`} onClick={cerrar}>
-              <span className="min-w-0 flex-1 truncate">Departamento {u.dpt}<span className="block text-xs text-muted-foreground">Edificio {u.edificio} · {u.ubicacion}</span></span>
+              <span className="min-w-0 flex-1 truncate">Departamento {u.dpt}<span className="block text-xs text-muted-foreground">{nombreEdificio(u.edificio)} · {u.ubicacion}</span></span>
               <ChevronRight className="ml-auto size-3.5" />
             </Link>
           ))}

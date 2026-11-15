@@ -13,6 +13,7 @@ import { describirAlcance, guardarCambioPrecio, previsualizarCambioPrecio, unida
 import { useInventory } from '../store'
 import type { Edificio, Piso, Tipologia } from '../types'
 import { FieldError, ReglaPrecios } from './shared'
+import { numeroComercial } from '../nomenclatura'
 
 type TipoAlcance = 'seleccion' | 'filtro'
 
@@ -57,7 +58,7 @@ export default function PriceAdjustDialog({
       }
   const alcanceElegido = tipo === 'seleccion' || edificio !== ''
   const numero = Number(valor.replace(',', '.'))
-  const dpt = (codigo: string) => state.units.find((u) => u.codigo === codigo)?.dpt ?? codigo
+  const dpt = (codigo: string) => state.units.find((u) => u.codigo === codigo)?.dpt ?? numeroComercial(codigo)
   const preview = useMemo(() => {
     if (!valor.trim() || !alcanceElegido) return { error: null, data: null }
     try {
@@ -110,7 +111,7 @@ export default function PriceAdjustDialog({
               </div>
               {tipo === 'filtro' && (
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <Sel id="adj-ed" label="Edificio" value={edificio} onChange={setEdificio} placeholder="Elige el edificio" items={[['todos', 'Ambos edificios'], ['1', 'Edificio 1'], ['2', 'Edificio 2']]} />
+                  <Sel id="adj-ed" label="Edificio" value={edificio} onChange={setEdificio} placeholder="Elige el edificio" items={[['todos', 'Ambos edificios'], ['1', 'Edificio A'], ['2', 'Edificio B']]} />
                   <Sel id="adj-piso" label="Piso" value={piso} onChange={setPiso} items={[['todos', 'Todos los pisos'], ['PB', 'Planta baja'], ['1', 'Piso 1'], ['2', 'Piso 2'], ['3', 'Piso 3'], ['4', 'Piso 4'], ['5', 'Piso 5']]} />
                   <Sel id="adj-tip" label="Tipología" value={tipologia} onChange={setTipologia} items={[['todos', 'Todas'], ['1 hab', '1 hab'], ['2 hab', '2 hab'], ['2 hab + estudio', '2 hab + estudio']]} />
                 </div>

@@ -29,6 +29,7 @@ import type { VersionDocumento } from '@/features/contratos/model'
 import * as contratos from '@/features/contratos/remoto'
 import type { DatosVentas, EstadoContrato, EventoHistorial, Hito, ReservaPorContratar, TipoDocumento, TipoHito, Venta } from '@/features/ventas/remoto'
 import { cn } from '@/lib/utils'
+import { nombreEdificio, numeroComercial } from '@/features/inventario/nomenclatura'
 
 type Filtro = 'todos' | EstadoContrato
 
@@ -126,7 +127,7 @@ function Ventas({ datos, almacen }: { datos: Datos; almacen: AlmacenContratos })
           <ul className="mt-2 grid gap-1.5">
             {porContratar.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
-                <b>{r.codigo}</b><span>{r.clienteNombre}</span><span className="text-muted-foreground">{dpt(r.unidad)?.dpt ?? r.unidad} · {fmtUsd(r.precio)}</span>
+                <b>{r.codigo}</b><span>{r.clienteNombre}</span><span className="text-muted-foreground">{dpt(r.unidad)?.dpt ?? numeroComercial(r.unidad)} · {fmtUsd(r.precio)}</span>
                 {r.contratoAnulado && <span className="text-xs text-amber-800">Contrato anterior anulado: {r.contratoAnulado}</span>}
                 {can('ventas.preparar') && <Button size="xs" className="ml-auto" onClick={() => setCrear(r)}><FilePlus2 />Generar contrato</Button>}
               </li>
@@ -159,7 +160,7 @@ function Ventas({ datos, almacen }: { datos: Datos; almacen: AlmacenContratos })
                   <tr key={v.id} className="cursor-pointer border-t border-border hover:bg-muted/50" tabIndex={0} aria-label={`Abrir ${v.codigo}`} onClick={() => setAbierta(v.id)} onKeyDown={(e) => { if (e.key === 'Enter') setAbierta(v.id) }}>
                     <td className="px-4 py-2"><div className="font-semibold">{v.codigo}</div><div className="text-xs text-muted-foreground">{v.reservaCodigo} · {v.cotizacionNumero}</div></td>
                     <td className="px-2 py-2">{v.cliente?.nombre ?? 'Sin acceso al cliente'}</td>
-                    <td className="px-2 py-2">{u?.dpt ?? v.unidad}<div className="text-xs text-muted-foreground">{u ? `Edificio ${u.edificio} · ${u.tipologia}` : ''}</div></td>
+                    <td className="px-2 py-2">{u?.dpt ?? numeroComercial(v.unidad)}<div className="text-xs text-muted-foreground">{u ? `${nombreEdificio(u.edificio)} · ${u.tipologia}` : ''}</div></td>
                     <td className="px-2 py-2 text-right font-medium tabular-nums">{fmtUsd(v.precio)}</td>
                     <td className="px-2 py-2">{v.corredorOrigen ?? v.origenDetalle ?? (v.origen ? api.ORIGENES_VENTA[v.origen] ?? v.origen : '—')}</td>
                     <td className="px-2 py-2"><VendedorComision v={v} c={comisiones.get(v.codigo)} /></td>
@@ -228,7 +229,7 @@ function Ficha({ v, comision, datos, almacen, versiones, recargarDocumentos, eje
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
               <SheetTitle className="flex flex-wrap items-center gap-2 text-base">{v.codigo} <Estado e={v.estado} /></SheetTitle>
-              <SheetDescription>{v.cliente?.nombre ?? 'Sin acceso al cliente'} · {u?.dpt ?? v.unidad} · {fmtUsd(v.precio)}</SheetDescription>
+              <SheetDescription>{v.cliente?.nombre ?? 'Sin acceso al cliente'} · {u?.dpt ?? numeroComercial(v.unidad)} · {fmtUsd(v.precio)}</SheetDescription>
             </div>
             <button type="button" aria-label="Cerrar" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
           </div>
@@ -268,8 +269,8 @@ function Ficha({ v, comision, datos, almacen, versiones, recargarDocumentos, eje
             <Bloque id="ve-venta" titulo="Venta">
               <Dato t="Cliente" v={v.cliente?.nombre ?? 'Sin acceso al cliente'} />
               {v.cliente?.documento && <Dato t="Cédula o RUC" v={v.cliente.documento} />}
-              <Dato t="Unidad" v={u ? `${u.dpt} · ${u.tipologia}` : v.unidad} />
-              <Dato t="Edificio" v={u ? `Edificio ${u.edificio} · piso ${u.piso}` : '—'} />
+              <Dato t="Unidad" v={u ? `${u.dpt} · ${u.tipologia}` : numeroComercial(v.unidad)} />
+              <Dato t="Edificio" v={u ? `${nombreEdificio(u.edificio)} · piso ${u.piso}` : '—'} />
               <Dato t="Precio final" v={fmtUsd2(v.precio)} fuerte />
               <Dato t="Fecha del contrato" v={fmtFechaCorta(v.fechaContrato)} />
               <Dato t="Fecha de firma" v={v.fechaFirma ? `${fmtFechaCorta(v.fechaFirma)}${v.firmadoPor ? ` · ${v.firmadoPor}` : ''}` : 'Pendiente'} />

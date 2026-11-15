@@ -79,12 +79,14 @@ describe('Supervisor', () => {
     expect(within(screen.getByRole('heading', { name: 'Mi equipo' }).parentElement!).getByText('Clientes asignados').closest('div')!.parentElement).toHaveTextContent('1')
   })
 
-  it('en Mi equipo elige un vendedor y ve sus clientes y cotizaciones', async () => {
-    await abrir(supA, `/mi-equipo?vendedor=${vendA}`, <EquipoPage vista="detalle" />)
-    expect(await screen.findByRole('link', { name: 'Lucía Torres' })).toBeInTheDocument()
-    expect(screen.getByText(/^Cotizaciones \(1\)/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Carlos Pérez', pressed: true })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Beto Bravo' })).toBeNull()
+  it('en Mi equipo abre la gestión de un vendedor en un panel, con sus clientes y cotizaciones', async () => {
+    const user = userEvent.setup()
+    await abrir(supA, '/mi-equipo', <EquipoPage vista="detalle" />)
+    await user.click(await screen.findByRole('button', { name: 'Ver gestión de Carlos Pérez' }))
+    const panel = await screen.findByRole('dialog', { name: 'Carlos Pérez' })
+    expect(await within(panel).findByRole('link', { name: 'Lucía Torres' })).toBeInTheDocument()
+    expect(within(panel).getByText(/^Cotizaciones \(1\)/)).toBeInTheDocument()
+    expect(screen.queryByText('Beto Bravo')).toBeNull()
   })
 
   it('un vendedor de otro equipo no aparece aunque se pida por la dirección', async () => {
@@ -116,6 +118,34 @@ describe('Supervisor', () => {
     await abrir(supA, `/mi-equipo?vendedor=${vendA2}`, <EquipoPage vista="detalle" />)
     expect(await screen.findByText(/Reserva solicitada:/)).toBeInTheDocument()
     expect(screen.getByText(/^Reservas \(1\)/)).toBeInTheDocument()
+  })
+})
+
+describe('Mi equipo por supervisor', () => {
+  it('el administrador ve cada equipo bajo su supervisor, con sus vendedores', async () => {
+    await abrir(admin, '/mi-equipo', <EquipoPage vista="detalle" />)
+    const norte = await screen.findByRole('region', { name: 'Equipo Norte' })
+    expect(within(norte).getByText('Carlos Pérez')).toBeInTheDocument()
+    expect(within(norte).getByText('Ana Andrade')).toBeInTheDocument()
+    expect(within(norte).queryByText('Beto Bravo')).toBeNull()
+    expect(within(screen.getByRole('region', { name: 'Equipo Sur' })).getByText('Beto Bravo')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Sara Supervisora/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Saúl Supervisor/ })).toBeInTheDocument()
+  })
+
+  it('el filtro de supervisor deja ver solo su equipo', async () => {
+    await abrir(admin, `/mi-equipo?supervisor=${supB}`, <EquipoPage vista="detalle" />)
+    expect(await screen.findByText('Beto Bravo')).toBeInTheDocument()
+    expect(screen.queryByText('Carlos Pérez')).toBeNull()
+  })
+
+  it('Ver gestión abre el panel del vendedor sin salir de la pantalla', async () => {
+    const user = userEvent.setup()
+    await abrir(supA, '/mi-equipo', <EquipoPage vista="detalle" />)
+    await user.click(await screen.findByRole('button', { name: 'Ver gestión de Ana Andrade' }))
+    const panel = await screen.findByRole('dialog', { name: 'Ana Andrade' })
+    expect(within(panel).getByText(/^Clientes asignados \(/)).toBeInTheDocument()
+    expect(within(panel).getByText('Actividad comercial reciente')).toBeInTheDocument()
   })
 })
 
@@ -218,14 +248,24 @@ describe('el Supervisor también vende', () => {
     expect(screen.getByRole('link', { name: 'Atender cliente' })).toHaveAttribute('href', '/venta')
   })
 
-  it('en Mi equipo ve primero sus ventas y no las de otro supervisor', async () => {
+  it('en Mi equipo ve primero sus ventas y solo los vendedores de su propio equipo', async () => {
     await abrir(supB, `/mi-equipo?vendedor=${supB}`, <EquipoPage vista="detalle" />)
-    expect(await screen.findByRole('link', { name: 'Cliente Propio Saúl' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mis ventas', pressed: true })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Beto Bravo' })).toBeInTheDocument()
+    const panel = await screen.findByRole('dialog', { name: 'Saúl Supervisor' })
+    expect(await within(panel).findByRole('link', { name: 'Cliente Propio Saúl' })).toBeInTheDocument()
+    cleanup()
+    await abrir(supB, '/mi-equipo', <EquipoPage vista="detalle" />)
+    expect(await screen.findByRole('button', { name: 'Ver gestión de Beto Bravo' })).toBeInTheDocument()
+    expect(screen.queryByText('Sara Supervisora')).toBeNull()
     cleanup()
     await abrir(supB, `/mi-equipo?vendedor=${supA}`, <EquipoPage vista="detalle" />)
     expect(await screen.findByText('Ese vendedor no pertenece a tu equipo.')).toBeInTheDocument()
+  })
+
+  it('el equipo consolida a sus vendedores y las ventas propias del supervisor van aparte, sin duplicarse', async () => {
+    await abrir(supA, '/mi-equipo', <EquipoPage vista="detalle" />)
+    const norte = await screen.findByRole('region', { name: 'Equipo Norte' })
+    expect(within(norte).getByRole('group', { name: 'Indicadores de Equipo Norte' }).textContent).toBe('Clientes1Cotizaciones1Reservas1Ventas0Vencidas0')
+    expect(screen.getByRole('group', { name: 'Tus ventas propias' }).textContent).toBe('Clientes1Cotizaciones1Reservas1Ventas0Vencidas0')
   })
 
   it('no resuelve una reasignación de su propio cliente: la resuelve Gerencia', async () => {

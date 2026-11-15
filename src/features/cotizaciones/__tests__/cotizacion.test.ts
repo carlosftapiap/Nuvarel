@@ -59,8 +59,11 @@ describe('cotizaciones', () => {
     expect(doc.getNumberOfPages()).toBeGreaterThanOrEqual(1)
     const raw = doc.output()
     expect(raw.startsWith('%PDF')).toBe(true)
-    for (const t of ['COT-2026-0001', 'Departamento 1002', 'Cliente de prueba', 'Asesor de prueba', 'Cuota 30 de 30', 'Descuento autorizado']) {
+    for (const t of ['COT-2026-0001', 'Departamento A002', 'Edificio A', 'Cliente de prueba', 'Asesor de prueba', 'Cuota 30 de 30', 'Descuento autorizado']) {
       expect(raw, t).toContain(t)
     }
+    // Nomenclatura comercial: ni el código interno ni el número anterior aparecen en el documento.
+    expect(raw).not.toContain('E1-PB-A2')
+    expect(raw).not.toContain('Edificio 1')
   })
 })

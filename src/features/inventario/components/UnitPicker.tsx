@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { ESTADOS_EFECTIVOS, estadoEfectivo, type EstadoEfectivo } from '../estados'
 import { calcularPrecio, fmtUsd } from '../pricing'
 import type { EstadoComercial, PricingParams, Unit } from '../types'
+import { nombreEdificio } from '../nomenclatura'
 
 /** Selector de departamento agrupado por edificio. Las unidades fuera de `permitidos` aparecen deshabilitadas. */
 export default function UnitPicker({
@@ -26,7 +27,7 @@ export default function UnitPicker({
         <SelectContent className="max-h-80">
           {([1, 2] as const).map((ed) => (
             <SelectGroup key={ed}>
-              <SelectLabel>Edificio {ed}</SelectLabel>
+              <SelectLabel>{nombreEdificio(ed)}</SelectLabel>
               {units.filter((u) => u.edificio === ed && (!soloPermitidos || !permitidos || permitidos.includes(u.estado))).map((u) => {
                 const efectivo = estadoEfectivo(u)
                 const bloqueada = permitidos ? !(permitidos as EstadoEfectivo[]).includes(efectivo) || !!u.solicitud : false

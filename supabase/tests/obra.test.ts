@@ -45,7 +45,7 @@ describe('estructura y permisos', () => {
     expect(Object.keys(F).sort()).toEqual(['edificio1', 'edificio2', 'terreno', 'urbanismo'])
     expect((await dueno<{ n: number }>(`select count(*)::int n from public.obra_actividades`))[0].n).toBe(0)
     const nombres = await dueno<{ nombre: string }>(`select nombre from public.obra_frentes order by orden`)
-    expect(nombres.map((f) => f.nombre)).toEqual(['Terreno y precarga', 'Urbanismo y áreas comunes', 'Edificio 1', 'Edificio 2'])
+    expect(nombres.map((f) => f.nombre)).toEqual(['Terreno y precarga', 'Urbanismo y áreas comunes', 'Edificio A', 'Edificio B'])
     const ctx = (await dueno<{ contexto: string }>(`select contexto from public.obra_frentes where codigo = 'terreno'`))[0].contexto
     expect(ctx).toMatch(/octubre de 2026/)
     expect(ctx).toMatch(/12 meses/)
@@ -72,7 +72,7 @@ describe('estructura y permisos', () => {
     expect((await q(constructor, `select * from public.obra_frentes`)).length).toBe(4)
     expect((await q(finanzas, `select * from public.obra_frentes`)).length).toBe(4)
     const r = await q<{ nombre: string; avance_validado: string | null; pesos_aprobados: boolean }>(vendedor, `select * from public.obra_resumen()`)
-    expect(r.map((x) => x.nombre)).toEqual(['Terreno y precarga', 'Urbanismo y áreas comunes', 'Edificio 1', 'Edificio 2'])
+    expect(r.map((x) => x.nombre)).toEqual(['Terreno y precarga', 'Urbanismo y áreas comunes', 'Edificio A', 'Edificio B'])
     expect(r.every((x) => x.avance_validado === null && x.pesos_aprobados === false)).toBe(true)
     expect(Object.keys(r[0]).sort()).not.toContain('contexto')
   })
@@ -109,8 +109,8 @@ describe('plantillas y actividades', () => {
     expect(sub.map((s) => s.nombre)).toEqual(['Excavación', 'Preparación', 'Acero', 'Encofrado', 'Fundición de losa'])
   })
 
-  it('el Edificio 2 tiene su propio cronograma, independiente del Edificio 1', async () => {
-    await uno(constructor, `select public.obra_plantilla_cargar($1::uuid, 'Etapas del Edificio 2')`, [F.edificio2])
+  it('el Edificio B tiene su propio cronograma, independiente del Edificio A', async () => {
+    await uno(constructor, `select public.obra_plantilla_cargar($1::uuid, 'Etapas del Edificio B')`, [F.edificio2])
     const mismo = await dueno<{ n: number }>(`select count(*)::int n from public.obra_actividades a join public.obra_actividades b on b.id = a.parent_id where a.frente_id <> b.frente_id`)
     expect(mismo[0].n).toBe(0)
     const cuenta = async (f: string) => (await dueno<{ n: number }>(`select count(*)::int n from public.obra_actividades where frente_id = $1`, [f]))[0].n

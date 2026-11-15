@@ -50,8 +50,8 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 export function validarCotizacion(input: CotizacionInput, unit: Unit | undefined, actor: Actor): string[] {
   const e: string[] = []
   if (!unit) return ['Selecciona un departamento.']
-  if (!ESTADOS_COTIZABLES.includes(unit.estado)) e.push(`La unidad ${unit.codigo} está ${ESTADOS[unit.estado].label.toLowerCase()} y no puede cotizarse.`)
-  if (unit.solicitud) e.push(`La unidad ${unit.codigo} está en proceso de reserva (${unit.solicitud.codigo}).`)
+  if (!ESTADOS_COTIZABLES.includes(unit.estado)) e.push(`La unidad ${unit.dpt} está ${ESTADOS[unit.estado].label.toLowerCase()} y no puede cotizarse.`)
+  if (unit.solicitud) e.push(`La unidad ${unit.dpt} está en proceso de reserva (${unit.solicitud.codigo}).`)
   if (input.cliente.nombre.trim().length < 3) e.push('Ingresa el nombre del cliente.')
   if (input.cliente.email.trim() && !EMAIL.test(input.cliente.email.trim())) e.push('El correo del cliente no es válido.')
   if (input.asesor.nombre.trim().length < 3) e.push('Ingresa el nombre del asesor.')

@@ -1,8 +1,8 @@
 import { createInitialState } from '@/features/inventario/__tests__/fixtures'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { SessionProvider } from '@/app/session'
 import { InventoryProvider } from '@/features/inventario/store'
 import { ClientesProvider } from '@/features/clientes/store'
@@ -21,6 +21,12 @@ beforeEach(() => {
   URL.createObjectURL ??= vi.fn(() => 'blob:x')
   URL.revokeObjectURL ??= vi.fn()
 })
+
+/** Muestra a dónde llevó la navegación (p. ej. el recorrido de Atender cliente). */
+function Ubicacion() {
+  const l = useLocation()
+  return <p>{l.pathname + l.search}</p>
+}
 
 function renderAt(ui: React.ReactNode, rol: Rol, url: string) {
   return render(
@@ -96,19 +102,23 @@ describe('Precios', () => {
 })
 
 describe('Cotizaciones', () => {
-  it('genera una cotización PDF y la registra', async () => {
-    const user = userEvent.setup()
-    renderAt(<CotizacionesPage />, 'asesor', '/cotizaciones?unidad=E1-PB-A2&fecha=2026-10-28')
-    const generar = screen.getByRole('button', { name: /Generar PDF/ })
-    expect(generar).toBeDisabled()
-    await user.type(screen.getByLabelText('Nombre completo *'), 'María Pérez')
-    await user.type(screen.getByLabelText('Nombre *'), 'Asesor Nuvarel')
-    await user.type(screen.getAllByLabelText('Correo')[1], 'asesor@nuvarel.com')
-    await user.click(screen.getByRole('button', { name: '15 días' }))
-    expect(generar).toBeEnabled()
-    await user.click(generar)
-    expect(await screen.findByText(/Cotización COT-2026-0001 generada para María Pérez/)).toBeInTheDocument()
-    const lista = screen.getByRole('heading', { name: 'Cotizaciones emitidas' }).parentElement!
-    expect(within(lista).getByText(/COT-2026-0001 · 1002/)).toBeInTheDocument()
+  const pantalla = (
+    <Routes>
+      <Route path="/cotizaciones" element={<CotizacionesPage />} />
+      <Route path="/venta" element={<Ubicacion />} />
+    </Routes>
+  )
+
+  it('es el historial: para emitir abre el recorrido único de Atender cliente', () => {
+    renderAt(pantalla, 'asesor', '/cotizaciones')
+    expect(screen.getByRole('heading', { name: 'Aún no hay cotizaciones.' })).toBeInTheDocument()
+    for (const l of screen.getAllByRole('link', { name: /Nueva cotización/ })) expect(l).toHaveAttribute('href', '/venta')
+    expect(screen.queryByRole('button', { name: /Generar PDF/ })).toBeNull()
+    expect(screen.getByText(/La simulación de crédito es referencial/)).toBeInTheDocument()
+  })
+
+  it('un enlace para cotizar un departamento lleva a Atender cliente con ese departamento', () => {
+    renderAt(pantalla, 'asesor', '/cotizaciones?unidad=E1-PB-A2&fecha=2026-10-28')
+    expect(screen.getByText('/venta?unidad=E1-PB-A2')).toBeInTheDocument()
   })
 })

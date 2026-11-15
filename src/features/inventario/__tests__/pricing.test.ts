@@ -9,7 +9,7 @@ type FilaPdf = { areaM2: number; bodegaM2: number; patioM2: number; usdM2Mostrad
 const PDF = LISTA_PDF as Record<string, FilaPdf>
 
 describe('inventario semilla', () => {
-  it('contiene los 72 departamentos: 30 en Edificio 1 y 42 en Edificio 2', () => {
+  it('contiene los 72 departamentos: 30 en Edificio A y 42 en Edificio B', () => {
     expect(AMURA_UNITS_SEED).toHaveLength(72)
     expect(AMURA_UNITS_SEED.filter((u) => u.edificio === 1)).toHaveLength(30)
     expect(AMURA_UNITS_SEED.filter((u) => u.edificio === 2)).toHaveLength(42)
@@ -20,8 +20,8 @@ describe('inventario semilla', () => {
   it('numera 1001-1505 y 2001-2507', () => {
     const e1 = AMURA_UNITS_SEED.filter((u) => u.edificio === 1).map((u) => u.dpt)
     const e2 = AMURA_UNITS_SEED.filter((u) => u.edificio === 2).map((u) => u.dpt)
-    expect(e1[0]).toBe('1001'); expect(e1.at(-1)).toBe('1505')
-    expect(e2[0]).toBe('2001'); expect(e2.at(-1)).toBe('2507')
+    expect(e1[0]).toBe('A001'); expect(e1.at(-1)).toBe('A505')
+    expect(e2[0]).toBe('B001'); expect(e2.at(-1)).toBe('B507')
   })
 
   it('las superficies coinciden con la lista PDF para las 72 unidades', () => {

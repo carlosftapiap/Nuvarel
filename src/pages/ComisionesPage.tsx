@@ -17,6 +17,7 @@ import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd, fmtUsd2 } from '@/features/inventario/pricing'
 import { useInventory } from '@/features/inventario/store'
 import { cn } from '@/lib/utils'
+import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 const SUBTITULO = 'Seguimiento de cada comisión con los datos de Contratos y Cobranzas: condiciones, vendedor y pago. Nada se paga solo: Finanzas confirma cada pago.'
 type Filtro = 'todas' | EstadoTramo
@@ -61,7 +62,7 @@ function Comisiones({ datos }: { datos: Datos }) {
 
   const aprueba = can('comisiones.aprobar')
   const finanzas = can('comisiones.finanzas')
-  const dpt = (codigo: string) => inv.units.find((u) => u.codigo === codigo)?.dpt ?? codigo
+  const dpt = (codigo: string) => inv.units.find((u) => u.codigo === codigo)?.dpt ?? numeroComercial(codigo)
   const comisiones = d?.comisiones ?? []
   const lista = comisiones.filter((c) => filtro === 'todas' || c.tramos.some((t) => t.estado === filtro))
   const r = api.resumen(comisiones)

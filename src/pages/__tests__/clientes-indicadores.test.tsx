@@ -67,7 +67,7 @@ describe('Clientes: lista de trabajo, filtros de un clic y vistas', () => {
     // Ana (Nuevo) y Beto (Seguimiento futuro) no tienen próxima gestión; Ana además está por contactar.
     expect(within(grupo).getByRole('button', { name: /^Sin próxima gestión/ })).toHaveTextContent('2')
     expect(within(grupo).getByRole('button', { name: /^Por contactar/ })).toHaveTextContent('1')
-    expect(screen.getByRole('button', { name: 'Lista' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Lista de trabajo' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('table')).toBeInTheDocument()
     expect(screen.queryByText('Carla Perdida')).not.toBeInTheDocument()
   })
@@ -110,12 +110,12 @@ describe('Clientes: lista de trabajo, filtros de un clic y vistas', () => {
   it('la última vista elegida se recuerda al volver a abrir la página', async () => {
     const user = userEvent.setup()
     const { unmount } = renderPagina(conDatos())
-    await user.click(screen.getByRole('button', { name: 'Pipeline' }))
-    expect(localStorage.getItem('amura.clientes.vista')).toBe('tablero')
+    await user.click(screen.getByRole('button', { name: 'Embudo' }))
+    expect(localStorage.getItem('amura.clientes.vista')).toBe('embudo')
     expect(screen.getByRole('region', { name: 'Nuevo: 1 clientes' })).toBeInTheDocument()
     unmount()
     renderPagina(conDatos())
-    expect(screen.getByRole('button', { name: 'Pipeline' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Embudo' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('cada fila trae WhatsApp, llamada y seguimiento sin abrir la ficha', () => {
