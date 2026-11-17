@@ -3,6 +3,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 import { completarEnlaces } from '../functions/_shared/cobranza'
 
 let db: PGlite
@@ -52,6 +53,7 @@ describe('avisos por evento', () => {
   })
 
   it('una reserva normal se confirma al verificar el pago: avisa a Legal y al vendedor, no a Gerencia', async () => {
+    await prepararReservasParaPago(db)
     await rpc(finanzas, `select public.reservas_confirmar_pago($1, 1000, $2::date, 'TRF-AV-1', true, 'Ingreso confirmado en banco')`, [reserva, hoy])
     expect(await avisos('reserva_por_aprobar')).toHaveLength(0)
     const a = await avisos('reserva_confirmada')

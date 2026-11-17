@@ -25,6 +25,8 @@ export interface PagoEnRevision {
   pendiente: boolean
   /** Quien lo registró o solicitó: no puede decidirlo. */
   propio: boolean
+  /** Reserva: motivo por el que todavía no se puede confirmar (Cumplimiento sin aprobar o pagador sin registrar). */
+  bloqueo?: string | null
 }
 
 /** Comprobante, datos reportados, historial y decisión. La imagen por sí sola no confirma el pago. */
@@ -144,12 +146,13 @@ export default function RevisionPago({ pago, comprobantes, recibo, datos, almace
             </details>
           )}
         </div>
+        {pago.bloqueo && pago.pendiente && <p role="note" className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{pago.bloqueo}</p>}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cerrar</Button>
           {puedeDecidir && !rechazando && <Button variant="outline" onClick={() => setRechazando(true)}>Rechazar pago</Button>}
           {puedeDecidir && rechazando && <Button variant="outline" onClick={() => setRechazando(false)}>Volver</Button>}
           {puedeDecidir && rechazando && <Button variant="destructive" disabled={enviando || motivo.trim().length < 5} onClick={() => void rechazar()}>{enviando && <Loader2 className="animate-spin" />}Confirmar rechazo</Button>}
-          {puedeDecidir && !rechazando && <Button disabled={enviando || sinArchivo || !verificado || (esReserva && (!montoValido || referencia.trim().length < 3))} onClick={() => void confirmar()}>{enviando && <Loader2 className="animate-spin" />}Confirmar pago</Button>}
+          {puedeDecidir && !rechazando && <Button disabled={enviando || sinArchivo || !verificado || !!pago.bloqueo || (esReserva && (!montoValido || referencia.trim().length < 3))} onClick={() => void confirmar()}>{enviando && <Loader2 className="animate-spin" />}Confirmar pago</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -3,13 +3,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { descargarConstanciaReserva, descargarRecibo } from '@/features/cobranza/comprobantes'
-import { descargarCotizacionPdf } from '@/features/cotizaciones/pdf'
 import { fmtFechaCorta } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2, leerMonto } from '@/features/inventario/pricing'
 import { errorMontoReserva } from './operacion'
 import RegistrarPagoDialog from '@/features/reservas/components/RegistrarPagoDialog'
 import { ESTADO_RESERVA } from '@/features/reservas/model'
+import DocumentosVenta from './DocumentosVenta'
 import GuiaVenta, { Destacado } from './GuiaVenta'
 import type { Operacion } from './useOperacion'
 
@@ -63,11 +63,11 @@ export default function OperacionPanel({ op }: { op: Operacion }) {
               </div>
             )
         )}
-        {cotizacion && <Button variant="outline" onClick={() => void descargarCotizacionPdf(cotizacion)}><Download />Descargar PDF</Button>}
         {reserva?.estado === 'solicitada' && reserva.comprobante && op.datos && <Button variant="outline" onClick={() => void descargarConstanciaReserva(op.datos!, reserva.id).catch((e: Error) => op.setError(e.message))}><Download />Descargar constancia provisional</Button>}
         {recibo && <Button variant="outline" onClick={() => void descargarRecibo(almacen, recibo, null, op.datos).catch((e: Error) => op.setError(e.message))}><Download />Descargar recibo {recibo.numero}</Button>}
         {cotizacion && !reserva && can('cotizaciones.crear') && <Destacado activo={paso.accion === 'reemitir' || paso.accion === 'anulada'}><Button variant={paso.accion === 'reemitir' || paso.accion === 'anulada' ? 'default' : 'ghost'} size="sm" onClick={() => op.cambiarCondiciones()}><RotateCcw />Cambiar condiciones y emitir nueva versión</Button></Destacado>}
       </div>
+      {cotizacion && <DocumentosVenta cotizacion={cotizacion} datos={op.datos} onError={op.setError} className="mt-4"/>}
       <div className="mt-3 empty:hidden"><FieldError>{error ?? errorCarga}</FieldError></div>
       {aviso && <p role="status" className="mt-3 flex items-start gap-2 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-200"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" />{aviso}</p>}
 

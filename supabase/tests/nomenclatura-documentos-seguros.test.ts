@@ -7,6 +7,7 @@ import { aCotizacion } from '@/features/cotizaciones/remoto'
 import { construirPdfCotizacion } from '@/features/cotizaciones/pdf'
 import { numeroComercial } from '@/features/inventario/nomenclatura'
 import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 const migracion = fs.readFileSync(path.resolve(__dirname, '../migrations/20261125000000_nomenclatura_documentos_seguros.sql'), 'utf8')
 let db: PGlite, vendedor: string, finanzas: string, legal: string
@@ -104,17 +105,18 @@ describe('documentos originales', () => {
 
   it('congela la constancia con el medio correcto y el recibo con la unidad de emisión',async () => {
     const { r }=await operacion('A003')
-    await rpc(vendedor,"select reservas_reportar_pago($1,600,current_date,'Banco','CHQ-ORIGINAL',$2::jsonb,'cheque') id",[r,archivo(r)])
+    await rpc(vendedor,"select reservas_reportar_pago($1,600,(now() at time zone 'America/Guayaquil')::date,'Banco','CHQ-ORIGINAL',$2::jsonb,'cheque') id",[r,archivo(r)])
     const c=await uno('select * from comprobantes_pago where reservation_id=$1',[r])
     const snap=c.constancia_snapshot as { departamento: string; comprobante: { medio: string }; estadoEmision: string }
     expect(snap).toMatchObject({ departamento:'A003',estadoEmision:'reportado',comprobante:{ medio:'cheque' } })
-    await rpc(finanzas,"select reservas_confirmar_pago($1,600,current_date,'CHQ-ORIGINAL',true,'') id",[r])
+    await prepararReservasParaPago(db)
+    await rpc(finanzas,"select reservas_confirmar_pago($1,600,(now() at time zone 'America/Guayaquil')::date,'CHQ-ORIGINAL',true,'') id",[r])
     const recibo=await uno('select * from recibos_pago where reservation_id=$1',[r])
     expect(recibo.unidad_snapshot).toMatchObject({ dpt:'A003',edificioNombre:'Edificio A' })
     expect((await uno('select constancia_snapshot from comprobantes_pago where id=$1',[c.id])).constancia_snapshot).toEqual(snap)
     await expect(db.query("update comprobantes_pago set constancia_snapshot='{}' where id=$1",[c.id])).rejects.toThrow(/original/)
     await expect(db.query("update recibos_pago set unidad_snapshot='{}' where id=$1",[recibo.id])).rejects.toThrow(/instantánea/)
-    const contrato=(await rpc(legal,"select contratos_crear($1,current_date,'Prueba de documento') id",[r])).id
+    const contrato=(await rpc(legal,"select contratos_crear($1,(now() at time zone 'America/Guayaquil')::date,'Prueba de documento') id",[r])).id
     const datos=await como(db,legal,()=>uno("select contratos_datos_documento($1,'{}') d",[contrato]))
     expect((datos.d as { unidad: unknown }).unidad).toMatchObject({ codigo:'A003',codigo_interno:'E1-PB-A3',numero_anterior:'1003',edificio:'A' })
     await expect(db.query('select nomenclatura_permitir_reversion()')).rejects.toThrow(/documentos emitidos/)

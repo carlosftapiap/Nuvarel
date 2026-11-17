@@ -28,6 +28,7 @@ import { siguientePaso } from '@/features/reservas/siguiente'
 import { useReservasOpcional } from '@/features/reservas/store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { CabeceraPanel } from '@/components/CabeceraPanel'
 import type { EdificioFiltro, Panel } from './panel'
 import { usePanelProyecto, type DatosProyecto } from './proyecto'
 import { nombreEdificio, numeroComercial, textoBusquedaUnidad } from '@/features/inventario/nomenclatura'
@@ -69,7 +70,7 @@ function Bloque({ titulo, etiqueta, color, icono: Icono, accion, children, class
   return (
     <section aria-label={titulo} className={cn('h-full min-w-0 rounded-2xl border border-[#e6e8ec] bg-white shadow-[0_1px_2px_#1018280d]', className)}>
       <header className="flex flex-wrap items-center gap-2 px-4 pt-4 sm:px-5">
-        <h2 className="text-[15px] font-semibold tracking-tight text-[#101828]">{titulo}</h2>
+        <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight text-[#101828]"><span aria-hidden="true" className="h-4 w-1 rounded-full" style={{ background: color }} />{titulo}</h2>
         {etiqueta && (
           <span className="inline-flex h-6 items-center gap-1.5 rounded-md border border-[#e6e8ec] bg-[#fafbfc] px-1.5 text-xs font-semibold text-[#344054]">
             <span className="grid size-4 place-items-center rounded" style={{ background: color }}><Icono className="size-2.5 text-white" aria-hidden="true" /></span>{etiqueta}
@@ -184,17 +185,18 @@ interface Indicador { clave: string; label: string; valor: string; detalle: stri
 
 function Indicadores({ items }: { items: Indicador[] }) {
   return (
-    <section aria-label="Indicadores principales" className="overflow-hidden rounded-2xl border border-[#e6e8ec] bg-white shadow-[0_1px_2px_#1018280d]">
-      <div className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
+    <section aria-label="Indicadores principales">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         {items.map((k) => (
           <Link key={k.clave} to={k.to} aria-label={`${k.label}: ${k.valor}`}
-            className="flex min-w-0 flex-col gap-2 border-b border-r border-[#eef0f3] p-3.5 transition-colors hover:bg-[#f8f9fb] focus-visible:bg-[#f8f9fb] focus-visible:outline-none sm:p-4">
+            className="relative flex min-w-0 flex-col gap-2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm transition hover:-translate-y-px hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring sm:p-4">
+            <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1" style={{ background: k.color }} />
             <span className="flex min-w-0 items-center gap-2 text-xs font-semibold text-[#475467]">
               <span className="grid size-6 shrink-0 place-items-center rounded-md" style={{ background: `${k.color}1f`, color: k.color }}><k.icono className="size-3.5" aria-hidden="true" /></span>
               <span className="truncate">{k.label}</span>
             </span>
             <span className="flex items-end justify-between gap-2">
-              <b className="text-[22px] font-semibold leading-none tracking-tight tabular-nums text-[#101828]">{k.valor}</b>
+              <b className="font-display text-[22px] font-bold leading-none tracking-tight tabular-nums text-[#101828]">{k.valor}</b>
               {k.serie && <Tendencia valores={k.serie} color={k.color} />}
             </span>
             <span className="truncate text-xs text-[#667085]">{k.detalle}</span>
@@ -524,7 +526,8 @@ function Barras({ filas, formato }: { filas: { key: string; label: string; value
 /* ---------------------------------------------------------------- mapa por edificio */
 
 /** Mapa por edificio del inventario en el panel: el mismo componente de Inventario, con búsqueda y la ficha de cada departamento. */
-function MapaEdificios({ units, params, filtro, movil, onAbrir }: {
+// eslint-disable-next-line react-refresh/only-export-components
+export function MapaEdificios({ units, params, filtro, movil, onAbrir }: {
   units: Unit[]; params: PricingParams; filtro: EdificioFiltro; movil: boolean; onAbrir: (codigo: string) => void
 }) {
   const [buscar, setBuscar] = useState('')
@@ -661,22 +664,16 @@ export default function PanelAdministracion() {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 sm:gap-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-[#667085]">{fechaLarga(hoy)} · AMURA Apartments</p>
-          <h1 className="mt-1 text-[24px] font-semibold leading-tight tracking-tight text-[#101828] sm:text-[26px]">Panorama del negocio</h1>
-          <p className="mt-1 text-[13.5px] text-[#667085]">Lo que pide una decisión, el embudo, el inventario y la cobranza, con datos en vivo.</p>
-        </div>
-        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
-          <div role="group" aria-label="Filtrar por edificio" className="inline-flex rounded-xl bg-[#eef0f3] p-1">
+      <CabeceraPanel eyebrow={`${fechaLarga(hoy)} · AMURA Apartments`} title="Panorama del negocio" subtitle="Lo que pide una decisión, el embudo, el inventario y la cobranza, con datos en vivo."
+        acciones={<>
+          <div role="group" aria-label="Filtrar por edificio" className="inline-flex gap-1">
             {FILTROS.map((f) => (
               <button key={f.param} type="button" aria-pressed={filtro === f.valor} onClick={() => fijarFiltro(f.param)}
-                className={cn('h-8 rounded-lg px-3 text-[13px] font-semibold transition', filtro === f.valor ? 'bg-white text-[#101828] shadow-xs' : 'text-[#475467] hover:text-[#101828]')}>{f.etiqueta}</button>
+                className="h-8 rounded-lg px-3 text-[13px] font-semibold transition">{f.etiqueta}</button>
             ))}
           </div>
           {can('cotizaciones.crear') && <Button asChild><Link to="/venta"><Plus /><span className="max-[420px]:sr-only">Atender cliente</span></Link></Button>}
-        </div>
-      </div>
+        </>} />
       {filtro !== 'todos' && <p className="-mt-2 text-xs text-[#667085]">Filtra inventario, reservas, contratos y cobros. Clientes y cotizaciones se cuentan por su interés en el edificio.</p>}
 
       {alDia && (

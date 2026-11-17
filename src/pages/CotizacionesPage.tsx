@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
-import { ArrowRight, Download, Info, Plus, Search } from 'lucide-react'
+import { ArrowRight, Download, FileText, Info, Plus, Search } from 'lucide-react'
 import DatosLocalesAviso from '@/components/DatosLocalesAviso'
 import Estado from '@/components/Estado'
 import PageHeader from '@/components/PageHeader'
 import { useSession } from '@/app/session'
 import { puedeVerDe } from '@/app/permissions'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { useConexion } from '@/app/auth'
+import DocumentosVenta from '@/features/venta/DocumentosVenta'
 import { Input } from '@/components/ui/input'
 import { descargarCotizacionPdf } from '@/features/cotizaciones/pdf'
 import { useCotizaciones } from '@/features/cotizaciones/store'
@@ -36,6 +39,8 @@ export default function CotizacionesPage() {
   const [filtro, setFiltro] = useState<Filtro>('todas')
   const [q, setQ] = useState('')
   const [aviso, setAviso] = useState<string | null>(null)
+  const [docs, setDocs] = useState<Cotizacion | null>(null)
+  const { datos } = useConexion()
   const hoy = hoyGuayaquil()
 
   if (!can('cotizaciones.crear')) return <PageHeader title="Cotizaciones" subtitle="Tu rol no puede emitir cotizaciones." />
@@ -73,6 +78,7 @@ export default function CotizacionesPage() {
   const acciones = (c: Cotizacion) => (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
       <Button size="icon-sm" variant="outline" aria-label={`Descargar ${c.numero}`} title="Descargar PDF" onClick={() => { void descargarCotizacionPdf(c).catch((e: Error) => setAviso(e.message)) }}><Download /></Button>
+      <Button size="sm" variant="outline" aria-label={`Documentos para el cliente de ${c.numero}`} onClick={() => setDocs(c)}><FileText />Documentos</Button>
       {conectado && <Button size="sm" variant="ghost" asChild><Link to={`/venta?cotizacion=${c.id}`}>Continuar<ArrowRight /></Link></Button>}
       {puedeReservar(c) && <Button size="sm" variant="outline" onClick={() => solicitar(c)}>{c.estado === 'emitida' ? 'Cliente acepta: solicitar reserva' : 'Solicitar reserva'}</Button>}
     </div>
@@ -153,6 +159,13 @@ export default function CotizacionesPage() {
           </table>
         </div>
       )}
+      <Dialog open={!!docs} onOpenChange={(o) => { if (!o) setDocs(null) }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+          <DialogTitle className="sr-only">Documentos para el cliente</DialogTitle>
+          <DialogDescription className="sr-only">Cotización, checklist, ficha técnica y paquete completo</DialogDescription>
+          {docs && <DocumentosVenta cotizacion={docs} datos={datos} onError={setAviso} />}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

@@ -27,6 +27,7 @@ import PanelLeads from '@/features/leads/PanelLeads'
 import { fmtUsd } from '@/features/inventario/pricing'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { CabeceraPanel, KpiColor, TituloSeccion, type TonoKpi } from '@/components/CabeceraPanel'
 import { numeroComercial } from '@/features/inventario/nomenclatura'
 
 /** Dashboard de equipo y detalle por vendedor. Solo con Supabase: el alcance de equipo lo aplica la base. */
@@ -38,19 +39,16 @@ export default function EquipoPage({ vista }: { vista: 'dashboard' | 'detalle' }
   return <Panel datos={datos} vista={vista} />
 }
 
-function Kpi({ t, v, d, tono }: { t: string; v: string | number; d?: string; tono?: string }) {
-  return <div className="dashboard-card !p-4"><div className="text-xs text-muted-foreground">{t}</div><div className={cn('mt-1 text-lg font-semibold tabular-nums tracking-tight', tono)}>{v}</div>{d && <div className="mt-0.5 text-xs text-muted-foreground">{d}</div>}</div>
-}
-
 function Kpis({ i }: { i: Indicadores }) {
+  const tonos: TonoKpi[] = ['indigo', 'violeta', 'ambar', 'verde', 'teal', 'indigo']
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Kpi t="Clientes asignados" v={i.clientes} d={`${i.nuevos} nuevos registrados`} />
-      <Kpi t="Cotizaciones" v={i.cotizaciones} d={`${i.oportunidadesAbiertas} oportunidades abiertas`} />
-      <Kpi t="Reservas solicitadas" v={i.reservasSolicitadas} d={`${i.reservasAprobadas} aprobadas · ${i.reservasRechazadas} rechazadas o anuladas`} />
-      <Kpi t="Ventas concretadas" v={i.ventas} d={`${fmtUsd(i.montoVendido)} vendidos`} />
-      <Kpi t="Actividades registradas" v={i.actividades} d="Llamadas, mensajes, visitas y notas" />
-      <Kpi t="Seguimientos vencidos" v={i.seguimientosVencidos} d="Clientes con la próxima acción atrasada" tono={i.seguimientosVencidos ? 'text-rose-700' : undefined} />
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <KpiColor tono={tonos[0]} t="Clientes asignados" v={i.clientes} d={`${i.nuevos} nuevos registrados`} />
+      <KpiColor tono={tonos[1]} t="Cotizaciones" v={i.cotizaciones} d={`${i.oportunidadesAbiertas} oportunidades abiertas`} />
+      <KpiColor tono={tonos[2]} t="Reservas solicitadas" v={i.reservasSolicitadas} d={`${i.reservasAprobadas} aprobadas · ${i.reservasRechazadas} rechazadas o anuladas`} />
+      <KpiColor tono={tonos[3]} t="Ventas concretadas" v={i.ventas} d={`${fmtUsd(i.montoVendido)} vendidos`} />
+      <KpiColor tono={tonos[4]} t="Actividades registradas" v={i.actividades} d="Llamadas, mensajes, visitas y notas" />
+      <KpiColor tono="rojo" t="Seguimientos vencidos" v={i.seguimientosVencidos} d="Clientes con la próxima acción atrasada" alerta={i.seguimientosVencidos > 0} />
     </div>
   )
 }
@@ -91,24 +89,24 @@ function Panel({ datos, vista }: { datos: Datos; vista: 'dashboard' | 'detalle' 
   const equipo = totales(filas.map((f) => f.i))
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-      <PageHeader eyebrow="Equipo comercial" title="Dashboard de equipo" subtitle="Tus ventas propias y la actividad de tus vendedores. Solo ves a los vendedores asignados a tus equipos."
-        actions={<>{selector}{can('cotizaciones.crear') && <Button asChild><Link to="/venta"><Plus />Atender cliente</Link></Button>}</>} />
+      <CabeceraPanel eyebrow="Equipo comercial" title="Dashboard de equipo" subtitle="Tus ventas propias y la actividad de tus vendedores. Solo ves a los vendedores asignados a tus equipos."
+        acciones={<>{selector}{can('cotizaciones.crear') && <Button asChild><Link to="/venta"><Plus />Atender cliente</Link></Button>}</>} />
       <div className="grid items-start gap-5 xl:grid-cols-2">
         <AtencionEquipo filas={filas} onCambio={() => void cargar()} />
         <section aria-labelledby="mi-dia" className="grid grid-cols-[minmax(0,1fr)] gap-3">
-          <h2 id="mi-dia" className="text-[15px] font-semibold">Mi día</h2>
+          <TituloSeccion id="mi-dia" tono="teal">Mi día</TituloSeccion>
           <ColaDelDia propios max={4} onAviso={setAviso} onError={setAviso} />
         </section>
       </div>
       <section aria-labelledby="mis-ventas" className="grid grid-cols-[minmax(0,1fr)] gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="mis-ventas" className="text-sm font-semibold">Mis ventas</h2>
+          <TituloSeccion id="mis-ventas" tono="violeta">Mis ventas</TituloSeccion>
           <Link className="text-xs text-primary hover:underline" to={`/mi-equipo?vendedor=${d.yo}`}>Ver mi detalle</Link>
         </div>
         <Kpis i={propias} />
       </section>
       <section aria-labelledby="mi-equipo" className="grid grid-cols-[minmax(0,1fr)] gap-3">
-        <h2 id="mi-equipo" className="text-sm font-semibold">Mi equipo</h2>
+        <TituloSeccion id="mi-equipo" tono="indigo">Mi equipo</TituloSeccion>
         {sinEquipo || (
           <>
             <Kpis i={equipo} />
@@ -149,7 +147,7 @@ function AtencionEquipo({ filas, onCambio }: { filas: { v: { id: string; nombre:
   ]
   return (
     <section aria-labelledby="atencion-equipo" className="grid grid-cols-[minmax(0,1fr)] gap-3">
-      <h2 id="atencion-equipo" className="text-[15px] font-semibold">Requiere atención en tu equipo</h2>
+      <TituloSeccion id="atencion-equipo" tono="rojo">Requiere atención en tu equipo</TituloSeccion>
       {items.length === 0 ? <p className="rounded-2xl border border-dashed border-[#c9cfda] bg-white p-5 text-[13px] text-slate-600">Tu equipo está al día: sin reservas por atender ni gestiones atrasadas.</p> : (
         <ul className="grid grid-cols-[minmax(0,1fr)] gap-2">
           {items.map((x) => (
@@ -186,8 +184,8 @@ function Actividades({ d, ids, periodo }: { d: DatosEquipo; ids: string[]; perio
   const lista = d.actividades.filter((a) => ids.includes(String(a.user_id)) && (periodo === 'todo' || String(a.fecha).slice(0, 7) === hoyGuayaquil().slice(0, 7)))
     .sort((a, b) => String(b.created_at ?? b.fecha).localeCompare(String(a.created_at ?? a.fecha))).slice(0, 15)
   return (
-    <div className="dashboard-card">
-      <div className="mb-2 text-xs font-semibold">Actividad comercial reciente</div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold"><span aria-hidden="true" className="h-4 w-1 rounded-full bg-teal-600" />Actividad comercial reciente</h3>
       {lista.length === 0 ? <p className="text-xs text-muted-foreground">Sin actividades registradas en el periodo.</p> : (
         <ol className="grid grid-cols-[minmax(0,1fr)] gap-1 text-xs">
           {lista.map((a) => (

@@ -7,7 +7,7 @@ import { errorArchivo, MEDIOS_PAGO, type DatosPago, type MedioPago } from '@/fea
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import { FieldError } from '@/features/inventario/components/shared'
 import { fmtUsd2, leerMonto, NOTA_RESERVA } from '@/features/inventario/pricing'
-import type { Reserva } from '../model'
+import { RELACION_PAGADOR, type RelacionPagador, type Reserva } from '../model'
 
 /** Solo cuando el cliente ya pagó. Registra la evidencia, no confirma nada: Finanzas verifica el ingreso. */
 export default function RegistrarPagoDialog({ reserva, onClose, onConfirm }: { reserva: Reserva | null; onClose: () => void; onConfirm: (p: DatosPago) => void }) {
@@ -17,12 +17,22 @@ export default function RegistrarPagoDialog({ reserva, onClose, onConfirm }: { r
   const [referencia, setReferencia] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
   const [medio, setMedio] = useState<MedioPago>('transferencia')
+  const [pagNombre, setPagNombre] = useState<string | null>(null)
+  const [pagId, setPagId] = useState<string | null>(null)
+  const [pagRel, setPagRel] = useState<RelacionPagador | null>(null)
+  const [pagRef, setPagRef] = useState('')
   if (!reserva) return null
-  const limpiar = () => { setMonto(''); setFecha(hoyGuayaquil()); setBanco(''); setReferencia(''); setArchivo(null); setMedio('transferencia') }
+  // Con la regla de Cumplimiento (la base trae el estado), el pago registra también quién lo hizo.
+  const pidePagador = reserva.cumplimiento !== undefined
+  const nombrePagador = pagNombre ?? reserva.pagador?.nombre ?? reserva.clienteNombre
+  const idPagador = pagId ?? reserva.pagador?.identificacion ?? reserva.clienteDocumento ?? ''
+  const relPagador = pagRel ?? reserva.pagador?.relacion ?? 'titular'
+  const pagadorListo = !pidePagador || (nombrePagador.trim().length >= 3 && idPagador.trim().length >= 5 && idPagador.trim().length <= 20)
+  const limpiar = () => { setMonto(''); setFecha(hoyGuayaquil()); setBanco(''); setReferencia(''); setArchivo(null); setMedio('transferencia'); setPagNombre(null); setPagId(null); setPagRel(null); setPagRef('') }
   const cerrar = () => { limpiar(); onClose() }
   const montoNum = leerMonto(monto) ?? reserva.montoReserva
   const errorAdjunto = errorArchivo(archivo)
-  const listo = referencia.trim().length >= 3 && banco.trim().length >= 2 && !!fecha && Number.isFinite(montoNum) && montoNum > 0 && !!archivo && !errorAdjunto
+  const listo = referencia.trim().length >= 3 && banco.trim().length >= 2 && !!fecha && Number.isFinite(montoNum) && montoNum > 0 && !!archivo && !errorAdjunto && pagadorListo
   return (
     <Dialog open onOpenChange={(o) => { if (!o) cerrar() }}>
       <DialogContent className="sm:max-w-md">
@@ -60,11 +70,42 @@ export default function RegistrarPagoDialog({ reserva, onClose, onConfirm }: { r
             <Input id="rq-archivo" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} />
           </div>
           <FieldError>{errorAdjunto}</FieldError>
+          {pidePagador && (
+            <fieldset className="grid gap-3 rounded-lg border border-border p-3">
+              <legend className="px-1 text-xs font-semibold">Quién hizo el pago</legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <Label htmlFor="rq-pag-nombre" className="text-xs">Nombre del pagador *</Label>
+                  <Input id="rq-pag-nombre" value={nombrePagador} onChange={(e) => setPagNombre(e.target.value)} maxLength={120} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="rq-pag-id" className="text-xs">Cédula, RUC o pasaporte *</Label>
+                  <Input id="rq-pag-id" value={idPagador} onChange={(e) => setPagId(e.target.value)} maxLength={20} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="rq-pag-rel" className="text-xs">Relación con el comprador *</Label>
+                  <select id="rq-pag-rel" className="h-9 rounded-md border border-border bg-white px-2 text-sm" value={relPagador} onChange={(e) => setPagRel(e.target.value as RelacionPagador)}>
+                    {Object.entries(RELACION_PAGADOR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div className="grid gap-1.5 sm:col-span-2">
+                  <Label htmlFor="rq-pag-ref" className="text-xs">Referencia del pagador (opcional)</Label>
+                  <Input id="rq-pag-ref" value={pagRef} onChange={(e) => setPagRef(e.target.value)} maxLength={60} placeholder="Cuenta de origen o nota" />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Cumplimiento revisa al pagador. Cambiarlo después de su aprobación exige una nueva revisión.</p>
+            </fieldset>
+          )}
           <p className="text-xs text-muted-foreground">Monto acordado: {fmtUsd2(reserva.montoReserva)}. {NOTA_RESERVA}</p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={cerrar}>Cancelar</Button>
-          <Button disabled={!listo} onClick={() => { onConfirm({ monto: montoNum, fecha, banco: banco.trim(), referencia: referencia.trim(), archivo: archivo!, medio }); limpiar() }}>Registrar</Button>
+          <Button disabled={!listo} onClick={() => {
+            const pagador = pidePagador
+              ? { nombre: nombrePagador.trim(), identificacion: idPagador.trim(), relacion: relPagador, referencia: pagRef.trim().length >= 3 ? pagRef.trim() : null }
+              : undefined
+            onConfirm({ monto: montoNum, fecha, banco: banco.trim(), referencia: referencia.trim(), archivo: archivo!, medio, pagador }); limpiar()
+          }}>Registrar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

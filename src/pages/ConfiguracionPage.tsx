@@ -24,9 +24,13 @@ import { cn } from '@/lib/utils'
 import { useConexion } from '@/app/auth'
 import EquiposRemoto from '@/features/config/remoto/EquiposRemoto'
 import DistribucionLeads from '@/features/leads/DistribucionLeads'
+import FormulariosVenta from '@/features/config/remoto/FormulariosVenta'
+import ConfigPlanos from '@/features/planos/ConfigPlanos'
+import EliminacionesAdmin from '@/features/config/remoto/EliminacionesAdmin'
 import ArchivosSinVincular from '@/features/config/remoto/ArchivosSinVincular'
 import MultimediaProyecto from '@/features/config/remoto/MultimediaProyecto'
 import ReceptorPagos from '@/features/config/remoto/ReceptorPagos'
+import CuentasReceptoras from '@/features/config/remoto/CuentasReceptoras'
 import ReservaPredeterminada from '@/features/config/remoto/ReservaPredeterminada'
 import RolesRemoto from '@/features/config/remoto/RolesRemoto'
 import UsuariosRemoto, { AuditoriaRemota, type AccionesCuenta } from '@/features/config/remoto/UsuariosRemoto'
@@ -73,12 +77,16 @@ function ConfiguracionRemota() {
           {can('config.auditoria') && <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>}
           {can('config.roles') && <TabsTrigger value="expediente">Documentos del expediente</TabsTrigger>}
           {can('config.leads') && <TabsTrigger value="leads">Distribución de leads</TabsTrigger>}
+          {can('recursos.publicar') && <TabsTrigger value="formularios">Formularios de venta</TabsTrigger>}
+          {can('config.planos') && <TabsTrigger value="planos">Planos</TabsTrigger>}
+          {can('config.eliminaciones') && <TabsTrigger value="eliminaciones">Eliminaciones</TabsTrigger>}
         </TabsList>
         {verUsuarios && (
           <TabsContent value="usuarios" className="grid gap-4">
             {can('config.usuarios') && <UsuariosRemoto datos={datos!} acciones={accionesSupabase} version={version} onCambio={() => setVersionEquipos((v) => v + 1)} />}
             {can('config.equipos') && <EquiposRemoto datos={datos!} version={versionEquipos} onCambio={() => setVersion((v) => v + 1)} />}
             {can('config.cobros') && <ReceptorPagos datos={datos!} />}
+            {can('config.cobros') && <CuentasReceptoras datos={datos!} />}
             {can('config.cobros') && <ReservaPredeterminada datos={datos!} />}
             {can('config.cobros') && <ArchivosSinVincular datos={datos!} />}
           </TabsContent>
@@ -89,6 +97,9 @@ function ConfiguracionRemota() {
         {can('config.auditoria') && <TabsContent value="notificaciones"><HistorialNotificaciones datos={datos!} /></TabsContent>}
         {can('config.roles') && <TabsContent value="expediente"><CatalogoExpediente datos={datos!} /></TabsContent>}
         {can('config.leads') && <TabsContent value="leads"><DistribucionLeads datos={datos!} /></TabsContent>}
+        {can('recursos.publicar') && <TabsContent value="formularios"><FormulariosVenta /></TabsContent>}
+        {can('config.planos') && <TabsContent value="planos"><ConfigPlanos datos={datos!} /></TabsContent>}
+        {can('config.eliminaciones') && <TabsContent value="eliminaciones"><EliminacionesAdmin datos={datos!} /></TabsContent>}
       </Tabs>
     </>
   )

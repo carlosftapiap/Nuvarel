@@ -36,13 +36,13 @@ describe('Configuración · usuarios reales (Postgres con RLS)', () => {
     await pantalla()
     expect(within(fila('pendiente@empresa.test')).getByText('Sin perfil (sin acceso)')).toBeInTheDocument()
     expect(within(fila('Vera')).getByText('Activo')).toBeInTheDocument()
-    expect(within(fila('Carlos Tapia')).queryByRole('button', { name: 'Cambiar rol' })).toBeNull()
+    expect(within(fila('Carlos Tapia')).queryByRole('button', { name: 'Editar' })).toBeNull()
     expect(within(fila('Carlos Tapia')).queryByRole('button', { name: 'Desactivar' })).toBeNull()
   })
 
   it('cambia el rol sin pasos de más y queda en la base y en la auditoría', async () => {
     await pantalla()
-    fireEvent.click(within(fila('Vera')).getByRole('button', { name: 'Cambiar rol' }))
+    fireEvent.click(within(fila('Vera')).getByRole('button', { name: 'Editar' }))
     fireEvent.change(screen.getByLabelText('Rol'), { target: { value: 'supervisor' } })
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(await screen.findByText('Acceso de Vera actualizado')).toBeInTheDocument()

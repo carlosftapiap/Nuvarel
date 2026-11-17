@@ -9,7 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { Datos } from '@/features/conexion/datos'
 import { useRefresco } from '@/features/conexion/refresco'
 import { almacenContratosSupabase } from '@/features/contratos/almacen'
-import { cargarBandeja, type Bandeja, type ContratoBandeja, type DocumentoBandeja, type Grupo } from '@/features/cumplimiento/bandeja'
+import { cargarBandeja, type Bandeja, type ContratoBandeja, type DocumentoBandeja, type Grupo, type ReservaBandeja } from '@/features/cumplimiento/bandeja'
+import RevisionReserva from '@/features/cumplimiento/components/RevisionReserva'
+import { fmtUsd2 } from '@/features/inventario/pricing'
 import DocumentosCliente from '@/features/cumplimiento/components/DocumentosCliente'
 import ExpedienteCumplimiento from '@/features/cumplimiento/components/Expediente'
 import { ESTADO_DOCUMENTO, ESTADO_REVISION } from '@/features/cumplimiento/expediente'
@@ -31,10 +33,10 @@ export default function BandejaCumplimientoPage() {
   return <Panel datos={datos} />
 }
 
-type Abierto = { tipo: 'cliente'; id: string; nombre: string } | { tipo: 'contrato'; id: string; codigo: string; cliente: string; borrador: boolean }
+type Abierto = { tipo: 'cliente'; id: string; nombre: string } | { tipo: 'contrato'; id: string; codigo: string; cliente: string; borrador: boolean } | { tipo: 'reserva'; reserva: ReservaBandeja }
 
 const PESTANAS: { id: Grupo; label: string; vacio: string }[] = [
-  { id: 'pendiente', label: 'Por revisar', vacio: 'No hay documentos ni contratos esperando revisión.' },
+  { id: 'pendiente', label: 'Por revisar', vacio: 'No hay reservas, documentos ni contratos esperando revisión.' },
   { id: 'corregir', label: 'Por corregir', vacio: 'No hay documentos ni contratos observados.' },
   { id: 'aprobado', label: 'Aprobados', vacio: 'Todavía no hay documentos ni contratos aprobados.' },
 ]
@@ -46,6 +48,7 @@ const fecha = (iso: string | null) => (iso ? fmtFechaCorta(iso.slice(0, 10)) : '
 
 function Panel({ datos }: { datos: Datos }) {
   const conexion = useConexion()
+  const { can } = useSession()
   const almacen = conexion.almacen ?? almacenContratosSupabase
   const [b, setB] = useState<Bandeja | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +68,7 @@ function Panel({ datos }: { datos: Datos }) {
   const noop = useCallback(() => {}, [])
 
   if (!b) return error ? <FieldError>{error}</FieldError> : <p className="p-6 text-sm text-muted-foreground"><Loader2 className="mr-2 inline size-4 animate-spin" />Cargando bandeja…</p>
-  const cuenta = (g: Grupo) => b.documentos.filter((d) => d.grupo === g).length + b.contratos.filter((c) => c.grupo === g).length
+  const cuenta = (g: Grupo) => b.documentos.filter((d) => d.grupo === g).length + b.contratos.filter((c) => c.grupo === g).length + b.reservas.filter((r) => r.grupo === g).length
   const abrirDoc = (d: DocumentoBandeja) => {
     if (d.clientId) setAbierto({ tipo: 'cliente', id: d.clientId, nombre: d.persona })
     else if (d.contratoId) {
@@ -88,10 +91,35 @@ function Panel({ datos }: { datos: Datos }) {
         {PESTANAS.map((p) => {
           const docs = b.documentos.filter((d) => d.grupo === p.id)
           const contratos = b.contratos.filter((c) => c.grupo === p.id)
+          const reservas = b.reservas.filter((r) => r.grupo === p.id)
           return (
             <TabsContent key={p.id} value={p.id} className="grid gap-4">
-              {docs.length + contratos.length === 0 && (
+              {docs.length + contratos.length + reservas.length === 0 && (
                 <div className="module-empty"><span className="module-empty-icon"><ShieldCheck className="size-7" aria-hidden="true" /></span><p className="text-sm text-muted-foreground">{p.vacio}</p></div>
+              )}
+              {reservas.length > 0 && (
+                <div className="dashboard-card !p-0 overflow-x-auto">
+                  <div className="px-4 pt-3 text-xs font-semibold">Solicitudes de reserva</div>
+                  <table className="w-full text-xs">
+                    <thead className="text-xs text-muted-foreground"><tr>
+                      <th className="px-4 py-2 text-left font-medium">Reserva</th><th className="px-2 py-2 text-left font-medium">Cliente</th><th className="px-2 py-2 text-left font-medium">Unidad</th>
+                      <th className="px-2 py-2 text-left font-medium">Monto</th><th className="px-2 py-2 text-left font-medium">Pagador</th><th className="px-2 py-2 text-left font-medium">Apartado hasta</th><th className="px-4 py-2" />
+                    </tr></thead>
+                    <tbody>
+                      {reservas.map((r) => (
+                        <tr key={r.id} className="border-t border-border align-top">
+                          <td className="px-4 py-2 font-medium">{r.codigo}</td>
+                          <td className="px-2 py-2">{r.cliente}</td>
+                          <td className="px-2 py-2">{numeroComercial(r.unidad)}</td>
+                          <td className="px-2 py-2 tabular-nums">{fmtUsd2(r.monto)}</td>
+                          <td className="px-2 py-2">{r.pagador ?? <span className="text-muted-foreground">Sin registrar</span>}</td>
+                          <td className="px-2 py-2 tabular-nums">{fecha(r.apartadoHasta)}</td>
+                          <td className="px-4 py-2 text-right"><Button size="xs" onClick={() => setAbierto({ tipo: 'reserva', reserva: r })}>{p.id === 'pendiente' ? 'Revisar reserva' : 'Ver reserva'}</Button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
               {contratos.length > 0 && (
                 <div className="dashboard-card !p-0 overflow-x-auto">
@@ -165,11 +193,16 @@ function Panel({ datos }: { datos: Datos }) {
         <Sheet open onOpenChange={(o) => { if (!o) { setAbierto(null); void cargar() } }}>
           <SheetContent className="w-full gap-0 overflow-y-auto p-0 data-[side=right]:sm:max-w-3xl">
             <SheetHeader className="border-b border-border">
-              <SheetTitle>{abierto.tipo === 'cliente' ? `Expediente de ${abierto.nombre}` : `Contrato ${abierto.codigo}`}</SheetTitle>
-              <SheetDescription>{abierto.tipo === 'cliente' ? 'Documentos del cliente. Observar o rechazar exige un comentario.' : `${abierto.cliente}. Solo con la aprobación de Cumplimiento el contrato se puede firmar.`}</SheetDescription>
+              <SheetTitle>{abierto.tipo === 'cliente' ? `Expediente de ${abierto.nombre}` : abierto.tipo === 'reserva' ? `Reserva ${abierto.reserva.codigo} · ${abierto.reserva.cliente}` : `Contrato ${abierto.codigo}`}</SheetTitle>
+              <SheetDescription>{abierto.tipo === 'reserva' ? 'Revisa los documentos del cliente y el origen de fondos. Sin tu aprobación Finanzas no puede verificar el pago.' : abierto.tipo === 'cliente' ? 'Documentos del cliente. Observar o rechazar exige un comentario.' : `${abierto.cliente}. Solo con la aprobación de Cumplimiento el contrato se puede firmar.`}</SheetDescription>
             </SheetHeader>
             <div className="p-5">
-              {abierto.tipo === 'cliente'
+              {abierto.tipo === 'reserva' ? (
+                <div className="grid gap-5">
+                  <RevisionReserva reserva={abierto.reserva} datos={datos} puedeDecidir={can('cumplimiento.revisar')} onHecho={(m) => { setAviso(m); setAbierto(null); void cargar() }} />
+                  <DocumentosCliente clientId={abierto.reserva.clientId} nombre={abierto.reserva.cliente} onMessage={(m) => { setAviso(m); void cargar() }} />
+                </div>
+              ) : abierto.tipo === 'cliente'
                 ? <DocumentosCliente clientId={abierto.id} nombre={abierto.nombre} onMessage={(m) => { setAviso(m); void cargar() }} />
                 : <ExpedienteCumplimiento contrato={abierto.id} borrador={abierto.borrador} datos={datos} almacen={almacen} ejecutar={ejecutar} onEstado={noop} />}
             </div>

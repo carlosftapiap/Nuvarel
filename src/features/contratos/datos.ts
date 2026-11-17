@@ -13,6 +13,9 @@ const letras = (v: number | null) => (v === null || v === undefined ? '' : monto
 
 export function datosParaPlantilla(s: InstantaneaDocumento): Record<string, unknown> {
   const u = s.unidad
+  // Esquema AMURA: 6 % inicial (reserva incluida) + 14 % en cuotas = 20 % de entrada; el saldo (80 %) se prevé con crédito hipotecario.
+  const inicial = Math.round((Number(s.pago.reserva) + Number(s.pago.firma)) * 100) / 100
+  const entradaTotal = Math.round((inicial + Number(s.pago.total_cuotas)) * 100) / 100
   const datos = {
     contrato: { codigo: s.contrato.codigo, fecha: fechaCorta(s.contrato.fecha), fecha_larga: fechaLarga(s.contrato.fecha) },
     vendedora: s.vendedora,
@@ -26,6 +29,8 @@ export function datosParaPlantilla(s: InstantaneaDocumento): Record<string, unkn
       reserva: dinero(s.pago.reserva), reserva_letras: letras(s.pago.reserva), firma: dinero(s.pago.firma), num_cuotas: String(s.pago.num_cuotas),
       cuota_mensual: dinero(s.pago.cuota_mensual), total_cuotas: dinero(s.pago.total_cuotas), saldo: dinero(s.pago.saldo), saldo_letras: letras(s.pago.saldo),
       cuotas: s.pago.cuotas.map(cuota), cronograma: s.pago.cronograma.map(cuota), extraordinarias: (s.pago.extraordinarias ?? []).map(cuota),
+      inicial: dinero(inicial), inicial_letras: letras(inicial), entrada_total: dinero(entradaTotal), entrada_total_letras: letras(entradaTotal),
+      credito: dinero(s.pago.saldo), credito_letras: letras(s.pago.saldo),
     },
     manual: s.manual,
   }

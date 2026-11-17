@@ -14,7 +14,7 @@ import ClientesPage from '@/pages/ClientesPage'
 import CotizacionesPage from '@/pages/CotizacionesPage'
 import ReservasPage from '@/pages/ReservasPage'
 import { almacenPrueba, archivoPrueba, datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { como, crearDb, crearUsuario, prepararReservasParaPago } from './db'
 
 // Cada pantalla lee varias tablas de Postgres real; con toda la suite en paralelo tarda más que la espera por defecto.
 configure({ asyncUtilTimeout: 15_000 })
@@ -139,6 +139,7 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
 
   it('Finanzas no puede verificar sin comprobante; el corredor lo registra', async () => {
     const user = userEvent.setup()
+    await prepararReservasParaPago(db)
     const f = await abrirComo(finanzas, '/reservas')
     expect(await screen.findByText('Falta el comprobante')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Verificar pago/ })).not.toBeInTheDocument()
@@ -161,6 +162,7 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
 
   it('Finanzas verifica el ingreso y la reserva normal se confirma sola: reserva, unidad y cliente cambian juntos', async () => {
     const user = userEvent.setup()
+    await prepararReservasParaPago(db)
     const f = await abrirComo(finanzas, '/reservas')
     await user.click(await screen.findByRole('button', { name: /Verificar pago/ }))
     const dlg = await screen.findByRole('dialog', { name: /Verificar pago/ })
@@ -168,6 +170,7 @@ describe('Cotizaciones y Reservas sobre la misma base de datos', () => {
     const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where client_id = $1`, [cliente])
     await user.type(within(dlg).getByLabelText(/Monto recibido/), String(m.monto_reserva).replace('.', ','))
     await user.click(within(dlg).getByLabelText(/Verifiqué el ingreso/))
+    await prepararReservasParaPago(db)
     await user.click(within(dlg).getByRole('button', { name: 'Verificar ingreso' }))
     expect(await screen.findByText(/verificado · reserva confirmada y unidad reservada/)).toBeInTheDocument()
     expect(await estado()).toEqual({ reserva: 'confirmada', unidad: 'reservado', etapa: 'reserva' })

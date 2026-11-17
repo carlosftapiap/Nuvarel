@@ -1,0 +1,79 @@
+# PROMESA DE COMPRAVENTA DE DEPARTAMENTO EN PROYECTO INMOBILIARIO «AMURA APARTMENTS»
+
+BORRADOR PARA REVISIÓN JURÍDICA. No emitir ni firmar hasta que Legal apruebe esta plantilla. Los campos entre llaves se completan con datos validados en el sistema; los marcados como dato legal los completa el abogado en cada documento.
+
+En la ciudad de {lugar_firma}, el {contrato.fecha_larga}, comparecen a celebrar la presente promesa de compraventa, al tenor de las siguientes cláusulas:
+
+## PRIMERA.- COMPARECIENTES.
+Comparecen, por una parte, {vendedora.razon_social}, con RUC {vendedora.ruc}, domiciliada en {vendedora.domicilio}, representada por {vendedora.representante_nombre}, con documento de identidad {vendedora.representante_documento}, en calidad de {vendedora.representante_cargo}, conforme al nombramiento y facultades que se agregan como habilitantes; a quien en adelante se denominará «la PROMITENTE VENDEDORA». Por otra parte, {comprador.nombre}, de nacionalidad {comprador.nacionalidad}, con documento de identidad {comprador.documento}, de estado civil {comprador.estado_civil}, domiciliado en {comprador.domicilio}, {comprador.ciudad}; a quien en adelante se denominará «el PROMITENTE COMPRADOR». {comparecencia_adicional}
+Los comparecientes son capaces para contratar y obligarse, y declaran que intervienen libre y voluntariamente.
+
+## SEGUNDA.- ANTECEDENTES.
+2.1. Dominio del inmueble: {antecedente_dominio}
+2.2. Proyecto inmobiliario: la PROMITENTE VENDEDORA desarrolla sobre dicho inmueble el proyecto «AMURA Apartments», compuesto por el Edificio A y la Torre B. {antecedente_proyecto}
+2.3. Permisos y aprobaciones: {antecedente_permisos}
+2.4. Régimen de propiedad horizontal: {antecedente_propiedad_horizontal}
+2.5. Reserva: el PROMITENTE COMPRADOR reservó el departamento objeto de esta promesa y pagó por ese concepto la suma de {pago.reserva} ({pago.reserva_letras}), que se imputa al precio conforme a la cláusula quinta.
+
+## TERCERA.- OBJETO.
+La PROMITENTE VENDEDORA promete vender y el PROMITENTE COMPRADOR promete comprar el departamento {unidad.departamento}, ubicado en el piso {unidad.piso} del {unidad.edificio} del proyecto «AMURA Apartments», tipología {unidad.tipologia}, con un área útil aproximada de {unidad.area_m2} m², bodega {unidad.bodega_codigo} de {unidad.bodega_m2} m², patio o terraza de {unidad.patio_m2} m² y parqueo {unidad.parqueo}. Las áreas, linderos y alícuota definitivos serán los que consten en la declaratoria de propiedad horizontal: {linderos_alicuota}
+El departamento se describe en los planos y en la memoria descriptiva que se agregan como anexos.
+
+## CUARTA.- PRECIO.
+El precio total de la compraventa prometida es de {precio.total} ({precio.total_letras}), que las partes aceptan como justo. Este precio corresponde a la cotización aprobada por el PROMITENTE COMPRADOR y no se modificará por variaciones posteriores de la lista de precios del proyecto.
+
+## QUINTA.- FORMA DE PAGO.
+El precio se pagará así:
+5.1. Entrada total del veinte por ciento (20 %): {pago.entrada_total} ({pago.entrada_total_letras}), compuesta por:
+  a) Pago inicial del seis por ciento (6 %): {pago.inicial} ({pago.inicial_letras}), que incluye la reserva de {pago.reserva} ya pagada y un pago de {pago.firma} a la suscripción de esta promesa.
+  b) Catorce por ciento (14 %) en {pago.num_cuotas} cuotas durante la construcción, por un total de {pago.total_cuotas}, en las fechas y montos del cronograma de pagos (Anexo 1).
+5.2. Saldo del ochenta por ciento (80 %): {pago.credito} ({pago.credito_letras}), que el PROMITENTE COMPRADOR pagará a la celebración de la compraventa definitiva, previsto mediante un crédito hipotecario de una entidad del sistema financiero, sujeto a su aprobación. {condicion_credito}
+5.3. Los pagos se realizarán únicamente en las cuentas bancarias oficiales de la receptora de pagos del proyecto que la PROMITENTE VENDEDORA comunique por escrito. No se reconocerán pagos hechos en cuentas personales ni a terceros no autorizados.
+5.4. Pagos anticipados: el PROMITENTE COMPRADOR podrá adelantar cuotas o hacer abonos extraordinarios, que se imputarán a las cuotas pendientes en el orden de su vencimiento, sin modificar el precio total.
+5.5. Mora: {condicion_mora}
+
+## SEXTA.- ORIGEN LÍCITO DE LOS FONDOS.
+El PROMITENTE COMPRADOR declara que los fondos con los que paga provienen de actividades lícitas, y autoriza a la PROMITENTE VENDEDORA a verificar la información y documentos que entregó para la debida diligencia, conforme a la normativa de prevención de lavado de activos aplicable. Si un pago lo realiza una persona distinta del PROMITENTE COMPRADOR, este deberá identificarla y justificar el origen de los fondos.
+
+## SÉPTIMA.- CONSTRUCCIÓN Y ENTREGA.
+7.1. La PROMITENTE VENDEDORA construirá el departamento conforme a los planos aprobados y a la memoria descriptiva anexa.
+7.2. Fecha estimada de entrega: {fecha_entrega_estimada}. {plazo_gracia_entrega}
+7.3. La entrega material se hará mediante acta de entrega-recepción suscrita por ambas partes, una vez que el PROMITENTE COMPRADOR haya cumplido con los pagos que le correspondan.
+7.4. Cambios en la obra: {condicion_cambios_obra}
+
+## OCTAVA.- CELEBRACIÓN DE LA COMPRAVENTA DEFINITIVA.
+La escritura pública de compraventa definitiva se celebrará {plazo_escritura}, siempre que se cumplan las siguientes condiciones: a) que esté inscrita la declaratoria de propiedad horizontal del proyecto; b) que el PROMITENTE COMPRADOR haya pagado la entrada total; y c) que se haya aprobado el crédito hipotecario o el PROMITENTE COMPRADOR pague el saldo por otro medio. La escritura se otorgará ante {notaria}.
+
+## NOVENA.- OBLIGACIONES DE LA PROMITENTE VENDEDORA.
+a) Construir y entregar el departamento en las condiciones pactadas. b) Obtener la declaratoria de propiedad horizontal y los permisos necesarios para la transferencia. c) Entregar el inmueble libre de gravámenes, salvo la hipoteca que constituya el PROMITENTE COMPRADOR a favor de su entidad financiera. d) Otorgar la escritura de compraventa definitiva en el plazo pactado. e) Emitir los recibos de los pagos recibidos. {obligaciones_vendedora_adicionales}
+
+## DÉCIMA.- OBLIGACIONES DEL PROMITENTE COMPRADOR.
+a) Pagar el precio en la forma y en las fechas pactadas. b) Entregar la documentación de la debida diligencia y la que requiera la entidad financiera. c) Gestionar oportunamente el crédito hipotecario. d) Comparecer a la firma de la escritura definitiva y a la entrega del departamento. {obligaciones_comprador_adicionales}
+
+## UNDÉCIMA.- INCUMPLIMIENTO, DESISTIMIENTO Y DEVOLUCIONES.
+11.1. Cláusula penal: {clausula_penal}
+11.2. Desistimiento del PROMITENTE COMPRADOR: {condicion_desistimiento}
+11.3. Devoluciones: {condicion_devoluciones}
+11.4. Incumplimiento de la PROMITENTE VENDEDORA: {condicion_incumplimiento_vendedora}
+
+## DUODÉCIMA.- GASTOS E IMPUESTOS.
+{reparto_gastos}
+
+## DECIMOTERCERA.- CONTROVERSIAS.
+{solucion_controversias}
+
+## DECIMOCUARTA.- NOTIFICACIONES.
+Las partes señalan para notificaciones: la PROMITENTE VENDEDORA, {vendedora.domicilio}, correo {vendedora.email}; el PROMITENTE COMPRADOR, {comprador.domicilio}, correo {comprador.email}. Todo cambio deberá comunicarse por escrito.
+
+## DECIMOQUINTA.- FORMALIZACIÓN Y ACEPTACIÓN.
+{formalizacion_notarial}
+Las partes aceptan el contenido de esta promesa y la suscriben en unidad de acto. El cronograma de pagos (Anexo 1) forma parte de esta promesa.
+
+
+[[SALTO]]
+## ANEXO 1.- CRONOGRAMA DE PAGOS
+Departamento {unidad.departamento} · Precio total {precio.total}
+{#pago.cronograma}
+{numero}. {concepto} · vence {vencimiento} · {monto}
+{/pago.cronograma}
+Las cuotas de este cronograma se generan con las condiciones de la cotización aprobada y el calendario de cuotas del edificio. El saldo del 80 % se paga a la celebración de la compraventa definitiva.

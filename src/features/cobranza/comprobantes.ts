@@ -26,7 +26,11 @@ export const MEDIOS_PAGO: Record<MedioPago, { label: string; referencia: string;
   cheque: { label: 'Cheque', referencia: 'Número de cheque', banco: 'Banco girador' },
 }
 
-export interface DatosPago { monto: number; fecha: string; banco: string; referencia: string; archivo: File; medio: MedioPago }
+export interface DatosPago {
+  monto: number; fecha: string; banco: string; referencia: string; archivo: File; medio: MedioPago
+  /** Solo para reservas: quién hizo el pago (regla de Cumplimiento). */
+  pagador?: { nombre: string; identificacion: string; relacion: string; referencia: string | null }
+}
 
 export interface Comprobante {
   id: string; reservaId: string | null; pagoId: string | null; monto: number; fecha: string; banco: string; referencia: string
@@ -97,6 +101,10 @@ async function conLimpieza<T>(almacen: AlmacenContratos | null, ruta: string, re
 }
 
 export async function reportarPagoReserva(d: Datos, almacen: AlmacenContratos | null, reservaId: string, p: DatosPago) {
+  // El pagador se registra primero: si no se puede, no queda un comprobante sin pagador.
+  if (p.pagador) {
+    await d.rpc('reservas_registrar_pagador', { p_id: reservaId, p_nombre: p.pagador.nombre, p_identificacion: p.pagador.identificacion, p_relacion: p.pagador.relacion, p_referencia: p.pagador.referencia })
+  }
   const archivo = await subirComprobante(almacen, `reservas/${reservaId}/`, p.archivo)
   return conLimpieza(almacen, archivo.ruta, () => d.rpc<string>('reservas_reportar_pago', { p_id: reservaId, p_monto: p.monto, p_fecha: p.fecha, p_banco: p.banco, p_referencia: p.referencia, p_archivo: archivo, p_medio: p.medio }))
 }

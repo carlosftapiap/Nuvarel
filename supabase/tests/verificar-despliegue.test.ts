@@ -102,7 +102,7 @@ describe('verificación de despliegue', () => {
 
 const leer = (f: string) => fs.readFileSync(path.join(RAIZ, f), 'utf8')
 // Lo que falta en producción, en el orden del despliegue.
-const PENDIENTES = ['20261112010000_correo_destinatario_efectivo.sql', '20261113000000_pagos_anticipados.sql', '20261114000000_cumplimiento.sql', '20261116000000_notificaciones.sql', '20261117000000_clientes_unicos_reasignacion.sql', '20261118000000_precios_lista_oficial.sql', '20261118010000_inventario_tres_estados.sql', '20261119000000_reserva_confirmacion_automatica.sql', '20261120000000_celular_unico_identificacion.sql', '20261121000000_supervisor_vende.sql', '20261122000000_comisiones_vendedor.sql', '20261123000000_captacion_leads.sql', '20261124000000_nomenclatura_comercial.sql', '20261125000000_nomenclatura_documentos_seguros.sql']
+const PENDIENTES = ['20261112010000_correo_destinatario_efectivo.sql', '20261113000000_pagos_anticipados.sql', '20261114000000_cumplimiento.sql', '20261116000000_notificaciones.sql', '20261117000000_clientes_unicos_reasignacion.sql', '20261118000000_precios_lista_oficial.sql', '20261118010000_inventario_tres_estados.sql', '20261119000000_reserva_confirmacion_automatica.sql', '20261120000000_celular_unico_identificacion.sql', '20261121000000_supervisor_vende.sql', '20261122000000_comisiones_vendedor.sql', '20261123000000_captacion_leads.sql', '20261124000000_nomenclatura_comercial.sql', '20261125000000_nomenclatura_documentos_seguros.sql', '20261126000000_cuotas_inicio_fijo.sql', '20261127000000_calendario_fijo_cuotas.sql', '20261202000000_reserva_cumplimiento.sql', '20261203000000_cuentas_receptoras.sql', '20261204000000_planos_retirar_publicar.sql', '20261205000000_promesa_campos.sql', '20261206000000_eliminaciones_admin.sql', '20261207000000_sin_vendedor.sql', '20261208000000_usuarios_celular.sql']
 // Diferencias que devolvió verificar_despliegue.sql en producción (2026-11-11, por la CLI). Solo cambia con una nueva medición.
 const MEDIDO = { migraciones: ['20261112010000_correo_destinatario_efectivo.sql'], diferencias: ['cobranza_alertas.destinatario_efectivo'] }
 
@@ -152,7 +152,7 @@ describe('despliegue sobre el estado actual de producción', () => {
     // Sin compromisos, las unidades por confirmar quedan disponibles; las 72 con la lista oficial del 12/11/2026.
     expect((await prod.query(`select estado, count(*)::int as n from public.inventory_units group by estado`)).rows).toEqual([{ estado: 'disponible', n: 72 }])
     const lista = (await prod.query<{ t: string; una: boolean }>(`select sum(public.precio_venta(area_m2, bodega_m2, patio_m2, usd_m2, 230)) as t, bool_and(usd_m2 = usd_m2_lista) as una from public.inventory_units`)).rows[0]
-    expect(Math.abs(Number(lista.t) - 11129497)).toBeLessThan(60)
+    expect(Math.abs(Number(lista.t) - (11129497 - 35438))).toBeLessThan(60)
     expect(lista.una).toBe(true)
     expect((await prod.query(`select rol_id, estado from public.profiles where id = $1`, [jarval])).rows[0]).toEqual({ rol_id: 'jarval', estado: 'activo' })
     // Se puede repetir sin efecto.

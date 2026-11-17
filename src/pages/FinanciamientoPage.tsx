@@ -20,7 +20,8 @@ import { textoCuotas } from '@/features/financiamiento/components/ResumenFinanci
 import { calcularCondiciones, type Calculo, type CondicionesFinanciamiento, type CreditoCondiciones } from '@/features/financiamiento/condiciones'
 import { simularHipoteca, type Amortizacion, type CondicionesManuales, type ProductoHipotecario, type Simulacion, type Tramo } from '@/features/financiamiento/hipoteca'
 import { descargarPdfIntegral } from '@/features/financiamiento/pdfIntegral'
-import { cronogramaPorMes, DESCUENTO_MAX, fmtFechaCorta, hoyGuayaquil, sumarMeses } from '@/features/financiamiento/plan'
+import { cronogramaPorMes, DESCUENTO_MAX, fechaCuota, fmtFechaCorta, hoyGuayaquil, type PlanFinanciamiento } from '@/features/financiamiento/plan'
+import { calendarioCuotas, DIA_PAGO_PREDETERMINADO, DIAS_PAGO, etiquetaDiaPago, vencimientos as calcularVencimientos, type DiaPago } from '@/features/financiamiento/calendario'
 import UnitPicker from '@/features/inventario/components/UnitPicker'
 import { EstadoBadge, FieldError, pisoLabel } from '@/features/inventario/components/shared'
 import { estadoEfectivo } from '@/features/inventario/estados'
@@ -99,7 +100,7 @@ function OperacionFinanciamiento() {
       <PageHeader eyebrow="Ventas · Financiamiento" title="Financiamiento de la operación"
         subtitle={`${nombreCliente ?? 'Cliente pendiente'} · ${unit ? `Departamento ${unit.dpt}` : 'Departamento pendiente'}. Plan, operación y cotización en una sola pantalla.`}
         actions={<>
-          {calc.entrada && unit && <Button variant="outline" size="sm" onClick={() => exportar(calc.entrada!, unit, op.condiciones.fecha, credito)}><Download />Excel</Button>}
+          {calc.entrada && unit && <Button variant="outline" size="sm" onClick={() => exportar(calc.entrada!, unit, op.condiciones.fecha, credito, calc.plan?.vencimientos)}><Download />Excel</Button>}
           <Button asChild variant="outline" size="sm"><Link to="/venta"><ArrowLeft />Atender cliente</Link></Button>
         </>} />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -147,7 +148,7 @@ function SimulacionFinanciamiento() {
       <PageHeader eyebrow="Ventas · Financiamiento" title="Simulador de financiamiento"
         subtitle="Entrada del 20% a favor de Nuvarel y crédito hipotecario del 80% del comprador. Una simulación no crea deuda ni es una aprobación bancaria."
         actions={calc.entrada && unit && <>
-          <Button variant="outline" size="sm" onClick={() => exportar(calc.entrada!, unit, cond.fecha, credito)}><Download />Excel</Button>
+          <Button variant="outline" size="sm" onClick={() => exportar(calc.entrada!, unit, cond.fecha, credito, calc.plan?.vencimientos)}><Download />Excel</Button>
           {can('cotizaciones.crear') && <Button size="sm" variant="outline" asChild><Link to={`/cotizaciones?unidad=${encodeURIComponent(codigo)}&fecha=${cond.fecha}${cond.extras.length && !calc.errorExtras ? `&extras=${filasAParam(cond.extras)}` : ''}`}><FileText />Crear cotización</Link></Button>}
         </>} />
       <div className="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -213,13 +214,29 @@ interface CondicionesProps {
 
 function CondicionesForm({ unit, params, valor, onChange, puedeDescontar, soloLectura = false, reservaBloqueada = soloLectura, vertical = false, precioFinal, vigencia, observaciones, unitPicker }: CondicionesProps) {
   const set = <K extends keyof CondicionesFinanciamiento>(k: K, v: CondicionesFinanciamiento[K]) => onChange({ ...valor, [k]: v })
+  const diaPago = valor.diaPago ?? DIA_PAGO_PREDETERMINADO
+  const calendario = unit ? (() => {
+    try {
+      const c = calendarioCuotas(valor.fecha, params.meses[unit.edificio], params.inicioCuotas)
+      return { meses: c.meses, fechas: calcularVencimientos(c, diaPago, valor.fecha) }
+    } catch { return null }
+  })() : null
+  // Cambiar la fecha, el día o el departamento cambia el calendario: el comprador debe volver a aceptarlo.
+  const cambiar = (cambio: Partial<CondicionesFinanciamiento>) => onChange({ ...valor, ...cambio, calendarioAceptado: false })
   return (
     <div className={cn('grid gap-4', !vertical && 'sm:grid-cols-2 xl:grid-cols-4')}>
       <div className={cn(!vertical && 'xl:col-span-1', 'grid content-start gap-3')}>{unitPicker}</div>
       <div className="grid gap-1.5">
         <Label htmlFor="fin-firma" className="text-xs">Fecha de firma</Label>
-        <Input id="fin-firma" type="date" value={valor.fecha} disabled={soloLectura} onChange={(e) => set('fecha', e.target.value)} className="h-9" />
-        <p className="text-xs text-muted-foreground">Las cuotas de entrada se cuentan desde esta fecha.</p>
+        <Input id="fin-firma" type="date" value={valor.fecha} disabled={soloLectura} onChange={(e) => cambiar({ fecha: e.target.value })} className="h-9" />
+        <p className="text-xs text-muted-foreground">Las cuotas de entrada van del mes de firma al mes final del edificio.</p>
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="fin-dia-pago" className="text-xs">¿Qué día del mes desea pagar sus cuotas? *</Label>
+        <select id="fin-dia-pago" required disabled={soloLectura} value={diaPago} onChange={(e) => cambiar({ diaPago: e.target.value as DiaPago })} className="h-9 rounded-md border border-border bg-white px-2 text-sm">
+          {DIAS_PAGO.map((d) => <option key={d} value={d}>{d === 'ultimo' ? 'Último día del mes' : `Día ${d}`}</option>)}
+        </select>
+        <p className="text-xs text-muted-foreground">{etiquetaDiaPago(diaPago)}.</p>
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="fin-reserva" className="text-xs">Reserva (USD)</Label>
@@ -254,19 +271,43 @@ function CondicionesForm({ unit, params, valor, onChange, puedeDescontar, soloLe
       )}
       {unit && (
         <div className={cn('grid gap-2', !vertical && 'sm:col-span-2 xl:col-span-4')}>
-          <CuotasExtraordinarias filas={valor.extras} onChange={(f) => set('extras', f)} meses={params.meses[unit.edificio]} fechaBase={valor.fecha} soloLectura={soloLectura} />
+          <CuotasExtraordinarias filas={valor.extras} onChange={(f) => set('extras', f)} meses={calendario?.meses ?? params.meses[unit.edificio]} fechaBase={valor.fecha} vencimientos={calendario?.fechas ?? undefined} soloLectura={soloLectura} />
         </div>
       )}
+      {unit && calendario?.fechas && (
+        <CalendarioPagos fechaFirma={valor.fecha} diaPago={diaPago} meses={calendario.meses} fechas={calendario.fechas}
+          aceptado={!!valor.calendarioAceptado} onAceptar={soloLectura ? undefined : (v) => set('calendarioAceptado', v)} className={cn(!vertical && 'sm:col-span-2 xl:col-span-4')} />
+      )}
+    </div>
+  )
+}
+
+/** Calendario resultante: cuotas que quedan, primera y última fecha, advertencia si el día ya pasó y aceptación expresa. */
+export function CalendarioPagos({ fechaFirma, diaPago, meses, fechas, aceptado, onAceptar, className }: { fechaFirma: string; diaPago: DiaPago; meses: number; fechas: string[]; aceptado: boolean; onAceptar?: (v: boolean) => void; className?: string }) {
+  const enFirma = diaPago !== 'ultimo' && fechas[0] === fechaFirma && Number(diaPago) < Number(fechaFirma.slice(8))
+  return (
+    <div className={cn('grid gap-2 rounded-lg border border-border p-3 text-xs', className)} role="group" aria-label="Calendario de pagos">
+      <p><b>{meses} cuotas mensuales</b> · primera {fmtFechaCorta(fechas[0])} · última {fmtFechaCorta(fechas[fechas.length - 1])} (fin del calendario del edificio). {etiquetaDiaPago(diaPago)}.</p>
+      {enFirma && (
+        <p role="alert" className="rounded-md bg-amber-50 px-2 py-1.5 text-amber-900">
+          El día {diaPago} ya pasó en el mes de firma: la cuota 1 vence el {fmtFechaCorta(fechaFirma)}, el mismo día de la firma, junto con el pago a la firma.
+          No cambia el número de cuotas ni sus montos. Desde la cuota 2 vencen el día {diaPago} de cada mes.
+        </p>
+      )}
+      <label className="flex items-start gap-2">
+        <input type="checkbox" checked={aceptado} disabled={!onAceptar} onChange={(e) => onAceptar?.(e.target.checked)} className="mt-0.5" />
+        <span>El comprador acepta este calendario de pagos (obligatorio para emitir la cotización).</span>
+      </label>
     </div>
   )
 }
 
 /* ------------------------------------------------ resumen y cálculos */
 
-function exportar(e: EntradaCalculada, unit: Unit, fecha: string, credito: Simulacion | null) {
+function exportar(e: EntradaCalculada, unit: Unit, fecha: string, credito: Simulacion | null, vencimientos?: string[]) {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(e.partidas.map((p, i) => ({
-    'N.º': i, Concepto: p.concepto, Fecha: p.tipo === 'reserva' ? 'Al reservar' : p.tipo === 'firma' ? fmtFechaCorta(fecha) : p.mes ? fmtFechaCorta(sumarMeses(fecha, p.mes)) : 'A la entrega',
+    'N.º': i, Concepto: p.concepto, Fecha: p.tipo === 'reserva' ? 'Al reservar' : p.tipo === 'firma' ? fmtFechaCorta(fecha) : p.mes ? fmtFechaCorta(fechaCuota({ vencimientos }, fecha, p.mes)) : 'A la entrega',
     'Monto (USD)': p.monto,
   }))), 'Entrada 20%')
   if (credito) {
@@ -342,14 +383,14 @@ function PanelFinanciamiento({ calc, unit, condiciones, onCredito, credito, onSi
           <TabsTrigger value="credito">2. Crédito hipotecario 80%</TabsTrigger>
           <TabsTrigger value="pdf">3. Cotización integral</TabsTrigger>
         </TabsList>
-        <TabsContent value="entrada" className="min-w-0"><Entrada e={e} fechaFirma={fecha} /></TabsContent>
+        <TabsContent value="entrada" className="min-w-0"><Entrada e={e} fechaFirma={fecha} plan={plan} /></TabsContent>
         <TabsContent value="credito" className="min-w-0">
           <Credito valor={condiciones.credito} onChange={onCredito} precio={plan.precioFinal} entrada={e.entradaTotal}
             productos={productos} remoto={remoto} errorCatalogo={errorCatalogo} puedeCatalogo={can('financiamiento.catalogo')} datos={datos}
             onSimulacion={onSimulacion} onAbrirCatalogo={() => setCatalogo(true)} />
         </TabsContent>
         <TabsContent value="pdf" className="min-w-0">
-          <Integral unit={unit} precio={plan.precioFinal} fechaFirma={fecha} entrada={e} credito={credito} asesor={asesor} datos={remoto ? datos : null} />
+          <Integral unit={unit} precio={plan.precioFinal} fechaFirma={fecha} vencimientos={plan.vencimientos} entrada={e} credito={credito} asesor={asesor} datos={remoto ? datos : null} />
         </TabsContent>
       </Tabs>
       {catalogo && datos && <CatalogoDialog datos={datos} productos={productos} onClose={() => setCatalogo(false)} onGuardado={cargarCatalogo} />}
@@ -359,11 +400,26 @@ function PanelFinanciamiento({ calc, unit, condiciones, onCredito, credito, onSi
 
 /* ------------------------------------------------------- 1. entrada del 20% */
 
-function Entrada({ e, fechaFirma }: { e: EntradaCalculada; fechaFirma: string }) {
+function Entrada({ e, fechaFirma, plan }: { e: EntradaCalculada; fechaFirma: string; plan: PlanFinanciamiento }) {
+  const vencimientos = plan.vencimientos
   const cuotas = e.partidas.filter((p) => p.tipo === 'cuota')
-  const meses = cronogramaPorMes({ meses: cuotas.length, cuotaMensual: e.cuotaMensual, ultimaCuota: e.ultimaCuota, extraordinarias: e.extraordinarias }, fechaFirma)
+  const meses = cronogramaPorMes({ meses: cuotas.length, cuotaMensual: e.cuotaMensual, ultimaCuota: e.ultimaCuota, extraordinarias: e.extraordinarias, vencimientos }, fechaFirma)
   return (
     <div className="grid gap-4">
+      {(() => {
+        // Al firmar se pagan por separado el complemento del 6 % (descontada la reserva) y, si vence ese día, la cuota 1.
+        const cuota1 = plan.cuotaEnFirma ? meses[0]?.total ?? 0 : 0
+        return (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm" role="group" aria-label="Pago al firmar">
+            <p className="font-semibold">Al firmar ({fmtFechaCorta(fechaFirma)}) el comprador paga {fmtUsd2(e.pagoFirma + cuota1)}</p>
+            <ul className="mt-1 grid gap-0.5 text-xs text-muted-foreground">
+              <li>Pago a la firma (completa el 6 %, descontada la reserva ya abonada): {fmtUsd2(e.pagoFirma)}</li>
+              {cuota1 > 0 && <li>Cuota 1 de {cuotas.length} del diferido, que vence el mismo día porque el día de pago elegido ya pasó: {fmtUsd2(cuota1)}</li>}
+            </ul>
+            {vencimientos && <p className="mt-1 text-xs">{cuotas.length} cuotas hasta el {fmtFechaCorta(vencimientos[vencimientos.length - 1])}.</p>}
+          </div>
+        )
+      })()}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <Caja titulo="Entrada total (20%)" valor={fmtUsd2(e.entradaTotal)} detalle="A favor de Nuvarel" destacado />
         <Caja titulo="Pago adicional a la firma" valor={fmtUsd2(e.pagoFirma)} detalle={`Completa el 6% (${fmtUsd2(e.acumuladoFirma)}) · ${fmtFechaCorta(fechaFirma)}`} />
@@ -392,7 +448,7 @@ function Entrada({ e, fechaFirma }: { e: EntradaCalculada; fechaFirma: string })
                 return (
                   <tr key={i} className={cn('border-t border-border', (p.tipo !== 'cuota' || extra > 0) && 'bg-secondary/40 font-medium')}>
                     <td className="px-4 py-1.5">{p.concepto}</td>
-                    <td className="px-2 py-1.5 tabular-nums">{p.tipo === 'reserva' ? 'Al reservar' : p.tipo === 'firma' ? fmtFechaCorta(fechaFirma) : p.mes ? fmtFechaCorta(sumarMeses(fechaFirma, p.mes)) : 'A la entrega'}</td>
+                    <td className="px-2 py-1.5 tabular-nums">{p.tipo === 'reserva' ? 'Al reservar' : p.tipo === 'firma' ? fmtFechaCorta(fechaFirma) : p.mes ? fmtFechaCorta(fechaCuota({ vencimientos }, fechaFirma, p.mes)) : 'A la entrega'}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{p.tipo === 'cuota' ? fmtUsd2(p.monto) : ''}</td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{extra > 0 ? fmtUsd2(extra) : ''}</td>
                     <td className="px-4 py-1.5 text-right tabular-nums">{fmtUsd2(p.monto + extra)}</td>
@@ -671,13 +727,14 @@ interface IntegralProps {
   unit: { codigo: string; dpt: string; edificio: number; tipologia: string }
   precio: number
   fechaFirma: string
+  vencimientos?: string[]
   entrada: EntradaCalculada
   credito: Simulacion | null
   asesor: string
   datos: Datos | null
 }
 
-function Integral({ unit, precio, fechaFirma, entrada, credito, asesor, datos }: IntegralProps) {
+function Integral({ unit, precio, fechaFirma, vencimientos, entrada, credito, asesor, datos }: IntegralProps) {
   const [cliente, setCliente] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -704,7 +761,7 @@ function Integral({ unit, precio, fechaFirma, entrada, credito, asesor, datos }:
         if (!guardada?.unidad_snapshot) throw new Error('La simulación no tiene una instantánea de emisión. Conserva el original y solicita actualizar la base antes de generar otra.')
         unidadDocumento = guardada.unidad_snapshot
       }
-      await descargarPdfIntegral({ numero: numeroDoc, fecha: hoyGuayaquil(), cliente: cliente.trim(), asesor, unidad: unidadDocumento, precioFinal: precio, fechaFirma, entrada, credito })
+      await descargarPdfIntegral({ numero: numeroDoc, fecha: hoyGuayaquil(), cliente: cliente.trim(), asesor, unidad: unidadDocumento, precioFinal: precio, fechaFirma, vencimientos, entrada, credito })
       setAviso(datos ? `Cotización ${numeroDoc} guardada y descargada.` : 'PDF descargado como borrador (sin conexión a Supabase no se guarda).')
     } catch (e) {
       setError((e as Error).message)

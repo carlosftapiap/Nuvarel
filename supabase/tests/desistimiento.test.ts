@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, gerente2: string, finanzas: string, legal: string, sofia: string, carlos: string, cora: string, jarval: string
@@ -37,6 +38,7 @@ async function aprobada(u: string, c: string, codigo: string) {
   const f = await solicitada(u, c, codigo)
   await rpc(u, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', $2, jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [f.r, `TRF-${f.r.slice(0, 8)}`])
   const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [f.r])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado')`, [f.r, m.monto_reserva, hoyGuayaquil(), `BAN-${f.r.slice(0, 8)}`])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [f.r])
   return { ...f, monto: Number(m.monto_reserva) }
@@ -212,6 +214,7 @@ async function aprobadaConDuenio(c: string) {
   const f = await solicitada(gerente, c, codigo)
   await rpc(gerente, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-G', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [f.r])
   const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [f.r])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-G', true, 'Ingreso confirmado')`, [f.r, m.monto_reserva, hoyGuayaquil()])
   await rpc(gerente2, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [f.r])
   return f
@@ -248,6 +251,7 @@ describe('solicitud rechazada y en pausa', () => {
     await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-P', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [g.r])
     await desistir(carlos, c2, g.op)
     const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [g.r])
+    await prepararReservasParaPago(db)
     await expect(rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-P', true, 'Ingreso confirmado')`, [g.r, m.monto_reserva, hoyGuayaquil()])).rejects.toThrow(/solicitud de anulación pendiente/)
   })
 })

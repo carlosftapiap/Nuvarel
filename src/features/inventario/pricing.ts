@@ -1,4 +1,5 @@
 import type { Edificio, PricingParams, Unit, UnitSeed } from './types'
+import { calendarioCuotas, hoyEcuador } from '@/features/financiamiento/calendario'
 
 /** El 6 % acumulado a la firma forma parte de la entrada del 20 %. La reserva es otro concepto: un monto configurable que se acredita a él. */
 export const etiquetaPagoFirma = (pct: number) => `Pago a la firma ${pct} %`
@@ -50,7 +51,7 @@ export function calcularPrecio(u: PricedUnit, p: PricingParams): PriceBreakdown 
   const precioVenta = round2(precioAreaBodega + valorPatio)
   const reserva = round2((precioVenta * p.reservaPct) / 100)
   const cuotasTotal = round2((precioVenta * p.cuotasPct) / 100)
-  const meses = p.meses[u.edificio as Edificio]
+  const meses = mesesVigentes(p, u.edificio as Edificio)
   const cuotaMensual = meses > 0 ? round2(cuotasTotal / meses) : 0
   return {
     areaVendibleM2,
@@ -67,6 +68,11 @@ export function calcularPrecio(u: PricedUnit, p: PricingParams): PriceBreakdown 
     contraEntrega: round2(precioVenta - reserva - cuotasTotal),
     contraEntregaPct: round2(100 - p.reservaPct - p.cuotasPct),
   }
+}
+
+/** Cuotas que quedan hoy con el calendario fijo del edificio; sin calendario, el plazo completo. */
+export function mesesVigentes(p: PricingParams, edificio: Edificio) {
+  try { return calendarioCuotas(hoyEcuador(), p.meses[edificio], p.inicioCuotas).meses } catch { return 0 }
 }
 
 export function aplicarPorcentaje(usdM2: number, pct: number) {

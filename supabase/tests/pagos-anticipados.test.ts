@@ -3,6 +3,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { como, crearDb, crearUsuario, aprobarCumplimiento } from './db'
+import { prepararReservasParaPago } from './db'
 import { aplicarPagos } from '../functions/_shared/cobranza'
 import { calcularEstadoCuenta } from '../functions/_shared/estadoCuenta'
 
@@ -32,6 +33,8 @@ const registrarYVerificar = async (monto: number, ref: string) => {
 
 beforeAll(async () => {
   db = await crearDb()
+  // Escenario heredado: plazo de 30 meses desde la firma, sin calendario fijo. El calendario se prueba en calendario-fijo-db.test.ts.
+  await db.query(`update public.pricing_params set meses_e1 = 30, inicio_cuotas = null where id = 1`)
   admin = await crearUsuario(db, 'Admin', 'administrador')
   vera = await crearUsuario(db, 'Vera', 'asesor')
   finanzas = await crearUsuario(db, 'Finanzas', 'finanzas', { alcance: 'empresa' })
@@ -53,6 +56,7 @@ beforeAll(async () => {
   await como(db, vera, () => db.query(`select public.reservas_fijar_monto($1, 1000, 'Reserva acordada con el cliente')`, [reserva]))
   await como(db, vera, () => db.query(`select public.reservas_reportar_pago($1::uuid, 1000, $2::date, 'Banco de prueba', 'TRF-RES-A', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reserva, hoy]))
   await como(db, admin, () => db.query(`select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`))
+  await prepararReservasParaPago(db)
   await como(db, finanzas, () => db.query(`select public.reservas_confirmar_pago($1, 1000, $2::date, 'TRF-RES-A', true, 'Ingreso confirmado en banco')`, [reserva, hoy]))
   await como(db, gerente, () => db.query(`select public.reservas_aprobar($1, 'Aprobada en comité de prueba')`, [reserva]))
   // Contrato de hace tres meses: la firma y las cuotas 1 y 2 ya vencieron.

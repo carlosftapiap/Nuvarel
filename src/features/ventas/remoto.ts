@@ -42,6 +42,8 @@ export interface Venta {
   precio: number
   fechaContrato: string
   fechaFirma: string | null
+  /** Día de pago de las cuotas elegido por el comprador; no cambia después de la firma. */
+  diaPago: string | null
   firmadoPor: string | null
   anuladoEn: string | null
   anuladoPor: string | null
@@ -114,7 +116,7 @@ export async function cargarVentas(d: Datos): Promise<DatosVentas> {
     return {
       id, codigo: String(c.codigo), estado: c.estado as EstadoContrato, clienteId: String(c.client_id),
       cliente: k ? { nombre: String(k.nombre), documento: String(k.documento ?? ''), telefono: String(k.telefono ?? ''), email: String(k.email ?? ''), formaPago: s(k.forma_pago) } : null,
-      unidad: String(c.codigo_unidad), precio: n(c.precio), fechaContrato: fecha(c.fecha_contrato)!, fechaFirma: fecha(c.fecha_firma), firmadoPor: nombre(c.firmado_por),
+      unidad: String(c.codigo_unidad), precio: n(c.precio), fechaContrato: fecha(c.fecha_contrato)!, diaPago: c.dia_pago ? String(c.dia_pago) : null, fechaFirma: fecha(c.fecha_firma), firmadoPor: nombre(c.firmado_por),
       anuladoEn: fecha(c.anulado_en), anuladoPor: nombre(c.anulado_por), motivoAnulacion: s(c.motivo_anulacion),
       reservaId: String(c.reservation_id), reservaCodigo: r ? String(r.codigo) : '—', reservaEstado: r ? String(r.estado) : '', montoReserva: r ? n(r.monto_reserva) : 0,
       cotizacionId: r ? String(r.quote_id) : '', cotizacionNumero: q ? String(q.numero) : '—', cotizacionFecha: q ? fecha(q.fecha) : null,

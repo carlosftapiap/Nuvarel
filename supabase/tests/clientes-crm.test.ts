@@ -11,6 +11,7 @@ import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import type { Actor } from '../../src/features/inventario/types'
 import { datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario, aprobarCumplimiento, celularPrueba } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, sofia: string, cora: string, carlos: string, vera: string, finanzas: string, jarval: string
@@ -387,6 +388,7 @@ describe('compatibilidad con cotizaciones, reservas y cobranzas', () => {
 
   async function aprobar(r: string) {
     const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [r])
+    await prepararReservasParaPago(db)
     await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado en banco')`, [r, m.monto_reserva, hoy(), `BAN-${r.slice(0, 8)}`])
     await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité de prueba')`, [r])
   }

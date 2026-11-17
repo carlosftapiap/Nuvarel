@@ -25,7 +25,7 @@ describe('inventario conectado a Supabase', () => {
     expect(s.units).toHaveLength(72)
     expect(s.units[0]).toMatchObject({ codigo: 'E1-PB-A1', estado: 'disponible' })
     expect(s.units[0].precioReferencia).toBeGreaterThan(0)
-    expect(s.params.meses).toEqual({ 1: 30, 2: 42 })
+    expect(s.params.meses).toEqual({ 1: 36, 2: 42 })
   })
 
   it('el estado no se cambia a mano, ni en la pantalla ni en la base', async () => {

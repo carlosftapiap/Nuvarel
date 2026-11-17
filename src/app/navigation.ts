@@ -106,7 +106,7 @@ export const MENU_POR_ROL: Partial<Record<string, string[]>> = {
   corredor: MENU_COMERCIAL,
   // Supervisor: dirige a su equipo y también vende, con las mismas herramientas del vendedor. Entra a su Dashboard de equipo.
   // Sin módulos financieros, de construcción ni de configuración.
-  supervisor: ['/equipo', '/mi-equipo', '/venta', '/clientes', '/cotizaciones', '/reservas', '/inventario', '/financiamiento', '/ventas', '/comisiones'],
+  supervisor: ['/', '/equipo', '/mi-equipo', '/venta', '/clientes', '/cotizaciones', '/reservas', '/inventario', '/financiamiento', '/ventas', '/comisiones'],
   gerencia: ['/', '/equipo', '/mi-equipo', '/venta', '/financiamiento', '/clientes', '/reservas', '/ventas', '/cotizaciones', '/precios', '/inventario', '/corredores', '/cobranzas', '/comisiones', '/obra', '/plan', '/configuracion'],
   // Finanzas entra a su Dashboard financiero; Pagos por verificar está a un clic.
   finanzas: ['/finanzas', '/pagos-por-verificar', '/cobranzas', '/ventas', '/comisiones'],
@@ -120,7 +120,7 @@ export const MENU_POR_ROL: Partial<Record<string, string[]>> = {
 /** Nombre del módulo para un rol, cuando difiere del general. */
 const ETIQUETA_POR_ROL: Partial<Record<string, Record<string, string>>> = {
   // El Supervisor también vende: Clientes y Ventas muestran los suyos y los de su equipo.
-  supervisor: { '/clientes': 'Clientes (míos y del equipo)' },
+  supervisor: { '/': 'Inicio', '/clientes': 'Clientes (míos y del equipo)' },
   // Vendedor y Corredor entran a su agenda del día.
   asesor: { '/': 'Mi día' },
   corredor: { '/': 'Mi día' },
@@ -136,6 +136,9 @@ export function enMenu(item: NavItem, rol: string, can: (p: Permiso) => boolean)
   const menu = menuDe(rol)
   return !menu || menu.includes(item.to)
 }
+
+/** Vendedor y Supervisor abren su inicio con la disponibilidad de departamentos (mapa por edificio). */
+export const INICIO_CON_MAPA: readonly string[] = ['asesor', 'supervisor']
 
 /** Pantalla de inicio del rol, si tiene un menú propio. */
 export const inicioDelRol = (rol: string) => menuDe(rol)?.[0] ?? null

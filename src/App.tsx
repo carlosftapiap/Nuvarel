@@ -9,7 +9,7 @@ import { DirectorioProvider } from './features/config/store'
 import { InventoryProvider } from './features/inventario/store'
 import { ClientesProvider } from './features/clientes/store'
 import { ReservasProvider } from './features/reservas/store'
-import { enMenu, inicioDelRol, NAV_ITEMS } from './app/navigation'
+import { enMenu, INICIO_CON_MAPA, inicioDelRol, NAV_ITEMS } from './app/navigation'
 
 // Módulos con pantalla propia; el resto muestra el marcador "en construcción".
 // Inventario incluye el lector de Excel: se carga bajo demanda para aligerar el inicio.
@@ -41,6 +41,7 @@ const CUSTOM_ROUTES = new Set(['/', '/venta', '/inventario', '/precios', '/finan
 export function Inicio() {
   const { can, actor } = useSession()
   // Un rol con menú propio entra a su primera pantalla (p. ej. Finanzas, a su Dashboard financiero).
+  if (INICIO_CON_MAPA.includes(actor.rol) && can('inventario.ver')) return <DashboardPage />
   const propio = inicioDelRol(actor.rol)
   if (propio && propio !== '/') return <Navigate to={propio} replace />
   if (can('dashboard.ver')) return <DashboardPage />

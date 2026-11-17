@@ -105,7 +105,7 @@ export async function cargarClientes(datos: Datos): Promise<DatosClientes> {
           origen: c.origen as Cliente['origen'], origenDetalle: String(c.origen_detalle ?? ''), corredorOrigenId: s(c.corredor_origen_id), unidadesInteres: (c.unidades_interes as string[] | null) ?? [],
           presupuesto: c.presupuesto === null || c.presupuesto === undefined ? null : Number(c.presupuesto),
           proposito: (c.proposito as Cliente['proposito']) ?? null, formaPago: (c.forma_pago as Cliente['formaPago']) ?? null,
-          asesorId: String(c.asesor_id), asesor: quien(c.asesor_id),
+          asesorId: c.asesor_id ? String(c.asesor_id) : '', asesor: c.asesor_id ? quien(c.asesor_id) : 'Sin vendedor',
           atribucion: { usuarioId: String(c.atribucion_usuario_id ?? c.created_by), nombre: quien(c.atribucion_usuario_id ?? c.created_by), fecha: fecha(c.created_at) ?? '' },
           etapa: c.etapa as Etapa, motivoPerdida: String(c.motivo_perdida ?? ''), fechaRetomar: fecha(c.fecha_retomar), proxima, actividades: acts,
           cotizaciones: [...new Set([...(numeros.get(String(c.id)) ?? []), ...referencias])],

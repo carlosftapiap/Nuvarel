@@ -3,6 +3,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import '@/index.css'
 import { ConexionProvider } from '@/app/auth'
 import { SessionProvider } from '@/app/session'
+import DashboardFinancieroPage from '@/pages/DashboardFinancieroPage'
 import AppLayout from '@/components/AppLayout'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { ClientesProvider } from '@/features/clientes/store'
@@ -61,6 +62,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="reservas" element={<ReservasPage />} />
               <Route path="ventas" element={<VentasPage />} />
               <Route path="cobranzas" element={<CobranzaPage />} />
+              <Route path="finanzas" element={<DashboardFinancieroPage />} />
               <Route path="configuracion" element={<ConfiguracionPage />} />
               <Route path="obra" element={<ObraPage />} />
               <Route path="plan" element={<PlanPage />} />

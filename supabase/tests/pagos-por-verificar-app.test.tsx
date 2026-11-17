@@ -9,7 +9,7 @@ import { SessionProvider } from '@/app/session'
 import type { Actor } from '@/features/inventario/types'
 import PagosPorVerificarPage from '@/pages/PagosPorVerificarPage'
 import { almacenPrueba, datosPglite } from './datos-pglite'
-import { como, crearDb, crearUsuario } from './db'
+import { como, crearDb, crearUsuario, prepararReservasParaPago } from './db'
 
 configure({ asyncUtilTimeout: 15_000 })
 let db: PGlite
@@ -53,6 +53,7 @@ beforeAll(async () => {
 
 describe('Pagos por verificar', () => {
   it('Finanzas ve el comprobante del vendedor, con reportado, confirmado y saldo por separado', async () => {
+    await prepararReservasParaPago(db)
     await abrirComo(finanzas)
     const fila = (await screen.findByText('Cliente Bandeja')).closest('tr')!
     expect(within(fila).getByText(/Reserva RES-/)).toBeInTheDocument()
@@ -70,10 +71,12 @@ describe('Pagos por verificar', () => {
   })
 
   it('Finanzas lo confirma desde la bandeja y desaparece de la lista', async () => {
+    await prepararReservasParaPago(db)
     await abrirComo(finanzas)
     fireEvent.click(within((await screen.findByText('Cliente Bandeja')).closest('tr')!).getByRole('button', { name: 'Revisar pago' }))
     const dlg = await screen.findByRole('dialog')
     fireEvent.click(within(dlg).getByRole('checkbox'))
+    await prepararReservasParaPago(db)
     fireEvent.click(within(dlg).getByRole('button', { name: /Confirmar/ }))
     expect(await screen.findByText('No hay pagos esperando verificación.')).toBeInTheDocument()
     expect((await db.query(`select estado from public.reservations where id = $1`, [reserva])).rows[0]).toEqual({ estado: 'pago_verificado' })

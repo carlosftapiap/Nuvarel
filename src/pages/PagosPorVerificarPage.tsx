@@ -78,8 +78,10 @@ function Bandeja({ datos }: { datos: Datos }) {
                   <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.confirmado)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{fmtUsd2(f.saldo)}</td>
                   <td className="px-2 py-2 tabular-nums">{fmtFechaCorta(f.fecha)}<div className="text-xs text-muted-foreground">{MEDIOS_PAGO[f.comprobante.medio].label} · ref. {f.comprobante.referencia}</div></td>
-                  <td className="px-2 py-2">{f.comprobante.archivoNombre ?? (f.comprobante.ruta ? 'Adjunto' : 'Sin archivo')}</td>
-                  <td className="px-2 py-2"><span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Por verificar</span></td>
+                  <td className="px-2 py-2">{f.comprobante.archivoNombre ?? (f.comprobante.ruta ? 'Adjunto' : 'Sin archivo')}{f.posiblesDuplicados > 0 && <div className="mt-1 font-medium text-amber-800">Posible duplicado: hay {f.posiblesDuplicados} pago(s) con el mismo monto, fecha y banco</div>}</td>
+                  <td className="px-2 py-2">{f.bloqueo
+                    ? <span title={f.bloqueo} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-200">Espera a Cumplimiento</span>
+                    : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-200">Por verificar</span>}</td>
                   <td className="px-4 py-2 text-right whitespace-nowrap">
                     <Button size="xs" variant={f.propio ? 'outline' : 'default'} onClick={() => { setError(null); setAviso(null); setAbierto(f) }}>{f.propio ? 'Ver pago' : 'Revisar pago'}</Button>
                     {f.propio && <div className="mt-1 text-xs text-muted-foreground">Lo registraste tú: lo verifica otra persona</div>}
@@ -92,7 +94,7 @@ function Bandeja({ datos }: { datos: Datos }) {
       )}
       {abierto && (
         <RevisionPago
-          pago={{ tipo: abierto.tipo, id: abierto.id, titulo: `${abierto.tipo === 'reserva' ? 'Pago de' : 'Pago del contrato'} ${abierto.numero} · ${abierto.cliente}`, monto: abierto.reportado, referencia: abierto.comprobante.referencia, fecha: abierto.fecha, pendiente: true, propio: abierto.propio }}
+          pago={{ tipo: abierto.tipo, id: abierto.id, titulo: `${abierto.tipo === 'reserva' ? 'Pago de' : 'Pago del contrato'} ${abierto.numero} · ${abierto.cliente}`, monto: abierto.reportado, referencia: abierto.comprobante.referencia, fecha: abierto.fecha, pendiente: true, propio: abierto.propio, bloqueo: abierto.bloqueo }}
           comprobantes={d.comprobantes.filter((k) => (abierto.tipo === 'reserva' ? k.reservaId : k.pagoId) === abierto.id)}
           recibo={null} datos={datos} almacen={almacenPagos(conexion)} ejecutar={ejecutar} onClose={() => setAbierto(null)} />
       )}

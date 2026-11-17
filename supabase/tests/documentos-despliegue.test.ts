@@ -16,7 +16,7 @@ async function baseSinModulo() {
   await db.exec(STUB_SUPABASE)
   for (const f of fs.readdirSync(path.join(RAIZ, 'migrations')).filter((x) => x.endsWith('.sql')).sort()) {
     // Cumplimiento y notificaciones (fases 3 y 5) son posteriores y dependen de este módulo.
-    if ([MODULO, '20261030000000_plan_responsable_externo.sql', '20261031120000_avance_obra.sql', '20261031210000_obra_avance_directo.sql', '20261114000000_cumplimiento.sql', '20261116000000_notificaciones.sql', '20261124000000_nomenclatura_comercial.sql', '20261125000000_nomenclatura_documentos_seguros.sql'].includes(f)) continue
+    if ([MODULO, '20261030000000_plan_responsable_externo.sql', '20261031120000_avance_obra.sql', '20261031210000_obra_avance_directo.sql', '20261114000000_cumplimiento.sql', '20261116000000_notificaciones.sql', '20261124000000_nomenclatura_comercial.sql', '20261125000000_nomenclatura_documentos_seguros.sql', '20261126000000_cuotas_inicio_fijo.sql', '20261127000000_calendario_fijo_cuotas.sql'].includes(f)) continue
     await db.exec(leer(`migrations/${f}`))
     if (f.startsWith('20261028120000')) await db.exec(leer('seed.sql'))
     if (f.startsWith('20261028220000')) await db.exec(leer('seed_roles.sql'))

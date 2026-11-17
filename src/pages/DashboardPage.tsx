@@ -1,5 +1,5 @@
 ﻿import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowUpRight, Banknote, Building2, CalendarClock, ChevronDown, ChevronRight, CircleDollarSign, FileSignature, HardHat, Info, Plus, Receipt, Tags, Users, type LucideIcon } from 'lucide-react'
 import { PLANTILLAS_ROL } from '@/app/permissions'
 import { useSession } from '@/app/session'
@@ -10,7 +10,8 @@ import { useMedios } from '@/features/marca/useMedios'
 import PageHeader from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import ColaDelDia, { FilaGestion, usePendientesDelDia } from '@/features/dashboard/Cola'
-import PanelAdministracion from '@/features/dashboard/PanelAdministracion'
+import PanelAdministracion, { MapaEdificios } from '@/features/dashboard/PanelAdministracion'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { usePanelProyecto } from '@/features/dashboard/proyecto'
 import { ETAPAS, ETAPAS_EMBUDO } from '@/features/clientes/model'
 import { clientesVisibles, ordenarPorUrgencia, urgencia } from '@/features/clientes/service'
@@ -26,6 +27,7 @@ import { siguientePaso } from '@/features/reservas/siguiente'
 import { useReservasOpcional } from '@/features/reservas/store'
 import { FieldError } from '@/features/inventario/components/shared'
 import { cn } from '@/lib/utils'
+import { CabeceraPanel } from '@/components/CabeceraPanel'
 import { nombreEdificio, numeroComercial } from '@/features/inventario/nomenclatura'
 
 /**
@@ -36,6 +38,18 @@ export default function DashboardPage() {
   const { actor } = useSession()
   // Administración estrena su panel; Gerencia y Consulta siguen con el Panorama hasta aprobar el nuevo diseño.
   return alcanceDe(actor) === 'propio' ? <MiDia /> : actor.rol === 'administrador' ? <PanelAdministracion /> : <Panorama />
+}
+
+/**
+ * Primera tarjeta para vendedores y supervisores: disponibilidad de cada departamento.
+ * Es el mismo mapa del Inventario; tocar un departamento abre su ficha en Inventario.
+ */
+function MapaDisponibilidad() {
+  const { state } = usePanelProyecto()
+  const movil = useIsMobile()
+  const navigate = useNavigate()
+  return <MapaEdificios units={state.units} params={state.params} filtro="todos" movil={movil}
+    onAbrir={(codigo) => navigate(`/inventario?vista=mapa&unidad=${encodeURIComponent(codigo)}`)} />
 }
 
 const alcanceDe = (a: Actor) => a.alcance?.tipo ?? PLANTILLAS_ROL.find((p) => p.id === a.rol)?.alcance ?? 'empresa'
@@ -71,12 +85,13 @@ function Tarjeta({ k }: { k: Kpi }) {
   const { icon: Icon } = k
   return (
     <Link to={k.to} className={cn('group relative flex min-w-0 flex-col justify-between gap-2.5 rounded-2xl border bg-white p-4 shadow-[0_1px_2px_#1018280a] transition hover:border-[#c7d2fe] hover:shadow-[0_8px_20px_-12px_#10182840] focus-visible:ring-2 focus-visible:ring-primary',
-      k.destacado ? 'border-amber-300 bg-amber-50/60' : 'border-border')} aria-label={`${k.label}: ${k.valor}`}>
+      k.destacado ? 'border-amber-300 bg-amber-50/60' : 'border-border', 'overflow-hidden')} aria-label={`${k.label}: ${k.valor}`}>
+      <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1" style={{ background: k.color }} />
       <div className="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
         <span className="truncate">{k.label}</span>
         <span className="grid grid-cols-[minmax(0,1fr)] size-8 shrink-0 place-items-center rounded-xl" style={{ background: k.soft, color: k.color }}><Icon className="size-4" aria-hidden="true" /></span>
       </div>
-      <p className="text-[clamp(22px,2.1vw,28px)] font-semibold leading-none tracking-tight tabular-nums text-slate-900">{k.valor}</p>
+      <p className="font-display text-[clamp(22px,2.1vw,28px)] font-bold leading-none tracking-tight tabular-nums text-slate-900">{k.valor}</p>
       <p className="flex items-center justify-between gap-2 text-xs leading-snug text-slate-600"><span className="min-w-0">{k.hint}</span><ArrowUpRight className="size-3.5 shrink-0 text-slate-300 transition group-hover:text-primary" aria-hidden="true" /></p>
     </Link>
   )
@@ -86,7 +101,7 @@ function Seccion({ titulo, sub, to, children, className }: { titulo: string; sub
   return (
     <section className={cn('min-w-0 rounded-2xl border border-border bg-white p-4 shadow-[0_1px_2px_#1018280a] sm:p-5', className)} aria-label={titulo}>
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div><h2 className="text-[15px] font-semibold text-slate-900">{titulo}</h2>{sub && <p className="mt-0.5 text-xs text-slate-600">{sub}</p>}</div>
+        <div><h2 className="flex items-center gap-2 text-[15px] font-semibold text-slate-900"><span aria-hidden="true" className="h-4 w-1 rounded-full bg-indigo-600" />{titulo}</h2>{sub && <p className="mt-0.5 text-xs text-slate-600">{sub}</p>}</div>
         {to && <Link to={to} className="text-slate-400 hover:text-primary" aria-label={`Abrir ${titulo}`}><ArrowUpRight className="size-4" /></Link>}
       </div>
       {children}
@@ -329,8 +344,9 @@ function Panorama() {
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
-      <PageHeader eyebrow={fecha} title="Panorama del negocio" subtitle="AMURA Apartments · cifras reales de Supabase. Primero lo que espera una decisión; después el embudo y los indicadores."
-        actions={<>
+      {can('inventario.ver') && <MapaDisponibilidad />}
+      <CabeceraPanel eyebrow={`${fecha} · AMURA Apartments`} title="Panorama del negocio" subtitle="Cifras reales de Supabase. Primero lo que espera una decisión; después el embudo y los indicadores."
+        acciones={<>
           <FiltroEdificio filtro={filtro} fijar={fijarFiltro} />
           {can('cotizaciones.crear') && <Button asChild><Link to="/venta"><Plus />Atender cliente</Link></Button>}
         </>} />
@@ -463,6 +479,7 @@ function MiDia() {
   ]
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-5">
+      {can('inventario.ver') && <MapaDisponibilidad />}
       <PageHeader eyebrow={fecha} title={`${saludo}, ${actor.nombre.split(' ')[0]}`} subtitle={resumen}
         actions={can('cotizaciones.crear') ? <Button asChild><Link to="/venta"><Plus />Atender cliente</Link></Button> : undefined} />
       {error && <FieldError>{error}</FieldError>}

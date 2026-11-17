@@ -30,6 +30,7 @@ import * as contratos from '@/features/contratos/remoto'
 import type { DatosVentas, EstadoContrato, EventoHistorial, Hito, ReservaPorContratar, TipoDocumento, TipoHito, Venta } from '@/features/ventas/remoto'
 import { cn } from '@/lib/utils'
 import { nombreEdificio, numeroComercial } from '@/features/inventario/nomenclatura'
+import { etiquetaDiaPago, type DiaPago } from '@/features/financiamiento/calendario'
 
 type Filtro = 'todos' | EstadoContrato
 
@@ -295,6 +296,7 @@ function Ficha({ v, comision, datos, almacen, versiones, recargarDocumentos, eje
               <Dato t={`Pago a la firma (${c.reservaPct} %)`} v={fmtUsd2(c.reserva)} />
               <Dato t="Reserva acordada (se acredita al pago a la firma)" v={fmtUsd2(v.montoReserva)} />
               <Dato t={`${c.meses} cuotas`} v={fmtUsd2(c.cuotaMensual)} />
+              <Dato t="Día de pago de las cuotas" v={etiquetaDiaPago(((v.diaPago ?? (c as { diaPago?: string }).diaPago ?? 'ultimo') as DiaPago))} />
               {!!c.extraordinarias?.length && <Dato t={`${c.extraordinarias.length} cuotas extraordinarias (programadas)`} v={fmtUsd2(c.extraordinarias.reduce((t, e) => t + e.monto, 0))} />}
               <Dato t={`Contra entrega (${c.entregaPct}%)`} v={fmtUsd2(c.contraEntrega)} />
               <Dato t="Forma de pago" v={v.cliente?.formaPago ? FORMAS_PAGO[v.cliente.formaPago as FormaPago] ?? v.cliente.formaPago : 'Sin definir'} />

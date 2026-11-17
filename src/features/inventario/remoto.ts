@@ -15,6 +15,7 @@ const aParams = (r: Fila): PricingParams => ({
   patioUsdM2: n(r.patio_usd_m2), reservaPct: n(r.reserva_pct), cuotasPct: n(r.cuotas_pct),
   meses: { 1: n(r.meses_e1), 2: n(r.meses_e2) },
   ...(r.reserva_predeterminada === undefined ? {} : { reservaPredeterminada: n(r.reserva_predeterminada) }),
+  ...(r.inicio_cuotas === undefined ? {} : { inicioCuotas: s(r.inicio_cuotas)?.slice(0, 10) ?? null }),
 })
 const ordenPiso = (piso: unknown) => (String(piso) === 'PB' ? 0 : n(piso))
 

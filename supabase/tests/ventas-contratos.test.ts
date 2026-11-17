@@ -7,6 +7,7 @@ import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { cargarVentas, historial } from '../../src/features/ventas/remoto'
 import { datosPglite } from './datos-pglite'
 import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, sofia: string, cora: string, carlos: string
@@ -30,6 +31,7 @@ async function reservaAprobada(extra: Record<string, unknown> = {}) {
   const r = (await rpc<{ id: string }>(carlos, `select public.reservas_solicitar($1) as id`, [q])).id
   await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', $2, jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r, `TRF-${r.slice(0, 8)}`])
   const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [r])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
   return { cliente, op, q, r, codigo }

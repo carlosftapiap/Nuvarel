@@ -5,6 +5,7 @@ import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { cargarVentas } from '../../src/features/ventas/remoto'
 import { datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario, aprobarCumplimiento } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, vera: string, nuevo: string
@@ -73,6 +74,7 @@ describe('AMURA de principio a fin, con cada rol y sin atajos', () => {
     await rpc(vera, `select public.reservas_fijar_monto($1, 600, 'Acordado con la clienta')`, [reserva])
     await rpc(vera, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-600', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reserva])
     expect(await unidad()).toBe('disponible')
+    await prepararReservasParaPago(db)
     await rpc(finanzas, `select public.reservas_confirmar_pago($1, 600, $2::date, 'BAN-600', true, 'Ingreso confirmado')`, [reserva, hoy])
     await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [reserva])
     expect(await unidad()).toBe('reservado')

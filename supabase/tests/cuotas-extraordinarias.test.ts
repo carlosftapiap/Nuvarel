@@ -6,6 +6,7 @@ import { cronogramaPorMes, generarPlan, hoyGuayaquil } from '../../src/features/
 import { cargarInventario } from '../../src/features/inventario/remoto'
 import { datosPglite } from './datos-pglite'
 import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, vera: string
@@ -29,6 +30,7 @@ async function contratoDe(q: string, monto = 600) {
   await rpc(vera, `select public.reservas_solicitar_acordada($1, $2)`, [q, monto])
   const r = (await uno<{ id: string }>(`select id from public.reservations where quote_id = $1`, [q])).id
   await rpc(vera, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-EXTRA', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado')`, [r, monto, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
   return (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato con extraordinarias') as id`, [r, '2026-11-10'])).id
@@ -37,6 +39,8 @@ const cuotasDe = async (c: string) => (await db.query<{ numero: number; concepto
 
 beforeAll(async () => {
   db = await crearDb()
+  // Escenario heredado: plazo de 30 meses desde la firma, sin calendario fijo. El calendario se prueba en calendario-fijo-db.test.ts.
+  await db.query(`update public.pricing_params set meses_e1 = 30, inicio_cuotas = null where id = 1`)
   admin = await crearUsuario(db, 'Admin', 'administrador')
   gerente = await crearUsuario(db, 'Gerencia', 'gerencia')
   finanzas = await crearUsuario(db, 'Finanzas', 'finanzas', { alcance: 'empresa' })

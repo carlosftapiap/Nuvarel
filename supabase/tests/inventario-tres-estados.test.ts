@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import { cedulaPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, oficial: string, vendA: string, vendB: string
@@ -30,6 +31,7 @@ async function aprobada(vendedor: string, unidad: string) {
   const r = (await rpc<{ id: string }>(vendedor, `select public.reservas_solicitar($1) as id`, [c.cot])).id
   await rpc(vendedor, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-' || $2, jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r, n])
   const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [r])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-' || $4, true, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), n])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
   return { ...c, r }
@@ -52,7 +54,7 @@ describe('lista oficial de precios', () => {
     const r = await uno<{ n: number; total: string; una: boolean }>(
       `select count(*)::int as n, sum(public.precio_venta(area_m2, bodega_m2, patio_m2, usd_m2, 230)) as total, bool_and(usd_m2 = usd_m2_lista) as una from public.inventory_units`)
     expect(r.n).toBe(72)
-    expect(Math.abs(Number(r.total) - 11129497)).toBeLessThan(60)
+    expect(Math.abs(Number(r.total) - (11129497 - 35438))).toBeLessThan(60) // 0017 cambia seis unidades: -35.438 USD
     expect(r.una).toBe(true)
     // Muestras de la tabla: precio total (departamento + patio a USD 230/m²).
     const precio = async (c: string) => Math.round(Number((await uno<{ p: string }>(`select precio_referencia as p from public.inventory_units where codigo = $1`, [c])).p))

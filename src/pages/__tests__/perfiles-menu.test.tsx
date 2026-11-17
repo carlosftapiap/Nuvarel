@@ -67,12 +67,12 @@ describe('menú lateral por rol (separado de los permisos)', () => {
 
   it('Supervisor: vende con las herramientas del vendedor y gestiona a su equipo; entra a su Dashboard de equipo', () => {
     const visibles = NAV_GROUPS.flatMap((g) => g.items).filter((i) => enMenu(i, 'supervisor', (p) => can('supervisor', p))).map((i) => etiquetaDe(i, 'supervisor'))
-    expect(visibles).toEqual(expect.arrayContaining(['Dashboard de equipo', 'Mi equipo', 'Atender cliente', 'Inventario', 'Financiamiento', 'Cotizaciones', 'Clientes (míos y del equipo)', 'Reservas', 'Ventas y contratos', 'Comisiones']))
-    expect(visibles).toHaveLength(10)
+    expect(visibles).toEqual(expect.arrayContaining(['Inicio', 'Dashboard de equipo', 'Mi equipo', 'Atender cliente', 'Inventario', 'Financiamiento', 'Cotizaciones', 'Clientes (míos y del equipo)', 'Reservas', 'Ventas y contratos', 'Comisiones']))
+    expect(visibles).toHaveLength(11)
     // Todo lo que ve el vendedor, salvo su Dashboard individual (el Supervisor tiene el suyo).
     const vendedor = NAV_GROUPS.flatMap((g) => g.items).filter((i) => enMenu(i, 'asesor', (p) => can('asesor', p))).map((i) => i.to)
     expect(vendedor.filter((to) => to !== '/' && !NAV_ITEMS.some((i) => i.to === to && enMenu(i, 'supervisor', (p) => can('supervisor', p))))).toEqual([])
-    expect(inicioDelRol('supervisor')).toBe('/equipo')
+    expect(inicioDelRol('supervisor')).toBe('/')
     for (const p of ['clientes.asignar', 'reservas.solicitar', 'ventas.ver', 'cobranzas.ver', 'ventas.desistimiento_autorizar'] as const) expect(can('supervisor', p)).toBe(true)
     expect(etiquetaDe(NAV_ITEMS.find((i) => i.to === '/clientes')!, 'asesor')).toBe('Clientes')
   })
@@ -156,7 +156,7 @@ describe('inicio según el perfil', () => {
 
   it('Vendedor, Corredor, Supervisor, Gerencia y JARVAL entran al Dashboard', () => {
     for (const rol of ['asesor', 'corredor', 'gerencia', 'jarval']) expect(inicioDelRol(rol), rol).toBe('/')
-    expect(inicioDelRol('supervisor')).toBe('/equipo')
+    expect(inicioDelRol('supervisor')).toBe('/')
   })
 
   it('Finanzas entra directo a su Dashboard financiero', () => {

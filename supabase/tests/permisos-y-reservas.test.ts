@@ -2,6 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, vendedora: string, otraVendedora: string, finanzas: string
@@ -85,6 +86,7 @@ describe('reservas: pago verificado, aprobación y simultaneidad', () => {
     const { rows } = await db.query<{ id: string }>(`select id from public.reservations where estado = 'solicitada' limit 1`)
     // El comprobante del cliente debe estar registrado antes de que Finanzas verifique el ingreso.
     await pagar(rows[0].id)
+    await prepararReservasParaPago(db)
     await como(db, finanzas, () => db.query(
       `select public.reservas_confirmar_pago($1, 10328.83, (now() at time zone 'America/Guayaquil')::date, 'TRF-1', true, 'Ingreso confirmado en banco')`, [rows[0].id]))
     const st = await db.query(`select estado, pago_receptor, aprobado_por, fecha_confirmacion is not null as fecha from public.reservations where id = $1`, [rows[0].id])
@@ -104,6 +106,7 @@ describe('reservas: pago verificado, aprobación y simultaneidad', () => {
     const quote = await cotizacion('E1-P2-A2', vendedora)
     const r = (await como(db, vendedora, () => db.query<{ id: string }>(`select public.reservas_solicitar($1) as id`, [quote]))).rows[0].id
     await pagar(r)
+    await prepararReservasParaPago(db)
     await como(db, finanzas, () => db.query(
       `select public.reservas_confirmar_pago($1, 10328.83, (now() at time zone 'America/Guayaquil')::date, 'TRF-2', true, 'Ingreso confirmado en banco')`, [r]))
     expect((await db.query(`select estado from public.reservations where id = $1`, [r])).rows[0].estado).toBe('pago_verificado')

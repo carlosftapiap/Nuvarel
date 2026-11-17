@@ -114,6 +114,8 @@ describe('Un solo Financiamiento para Atender cliente y el menú', () => {
     expect(await boton(/Emitir cotización y descargar PDF/)).toBeDisabled()
 
     await user.click(await boton(/Usar este plan/))
+    const acepta = await screen.findByRole('checkbox', { name: /acepta este calendario de pagos/ })
+    if (!(acepta as HTMLInputElement).checked) await user.click(acepta)
     const emitir = await boton(/Emitir cotización y descargar PDF/)
     await waitFor(() => expect(emitir).toBeEnabled())
     // Dos pulsaciones seguidas emiten una sola cotización.
@@ -182,6 +184,8 @@ describe('Un solo Financiamiento para Atender cliente y el menú', () => {
     await user.click(await screen.findByRole('option', { name: /^A005/ }))
     await user.click(await boton(/Continuar en Financiamiento/))
     await user.click(await boton(/Usar este plan/))
+    const acepta = await screen.findByRole('checkbox', { name: /acepta este calendario de pagos/ })
+    if (!(acepta as HTMLInputElement).checked) await user.click(acepta)
     const emitir = await boton(/Emitir cotización y descargar PDF/)
     await waitFor(() => expect(emitir).toBeEnabled())
     await user.click(emitir)

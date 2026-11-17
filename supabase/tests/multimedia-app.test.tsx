@@ -168,10 +168,16 @@ describe('Configuración → Multimedia del proyecto', () => {
 
 describe('Ventas → Atender cliente', () => {
   const seccion = () => screen.findByRole('region', { name: 'Presentación del proyecto AMURA' })
+  /** Siempre visible: no tiene botón para ocultarla. */
+  const abierta = async () => {
+    const s = await seccion()
+    expect(within(s).queryByRole('button', { name: /^(Mostrar|Ocultar)$/ })).toBeNull()
+    return s
+  }
 
   it('el vendedor presenta video y galería sin salir de la pantalla, y no puede modificar nada', async () => {
     await abrir(vera, <VentaPage />)
-    const s = await seccion()
+    const s = await abierta()
     const video = await within(s).findByRole('button', { name: 'Ver video Video promocional de AMURA' })
     expect(document.querySelector('video')).toBeNull()
     for (const nombre of ['Subir', 'Reemplazar', 'Eliminar', 'Editar', 'Usar en banner']) expect(within(s).queryByRole('button', { name: nombre })).toBeNull()
@@ -195,28 +201,26 @@ describe('Ventas → Atender cliente', () => {
   it('no muestra al vendedor lo oculto, y el orden es el del administrador', async () => {
     await como(db, admin, () => db.query(`select public.medio_actualizar('a1000000-0000-4000-8000-000000000003', 'Sala y comedor', '', true, false, true)`))
     await abrir(vera, <VentaPage />)
-    const s = await seccion()
+    const s = await abierta()
     await within(s).findByRole('button', { name: 'Ampliar Torres AMURA' })
     expect(within(s).queryByRole('button', { name: 'Ampliar Sala y comedor' })).toBeNull()
     await como(db, admin, () => db.query(`select public.medio_actualizar('a1000000-0000-4000-8000-000000000003', 'Sala y comedor', '', true, true, true)`))
   })
 
-  it('se puede ocultar y lo recuerda', async () => {
-    const { unmount } = await abrir(vera, <VentaPage />)
-    const s = await seccion()
+  it('siempre está visible, también en la siguiente visita', async () => {
+    const primera = await abrir(vera, <VentaPage />)
+    const s = await abierta()
     await within(s).findByRole('button', { name: 'Ampliar Torres AMURA' })
-    fireEvent.click(within(s).getByRole('button', { name: 'Ocultar' }))
-    expect(within(s).queryByRole('button', { name: 'Ampliar Torres AMURA' })).toBeNull()
-    unmount()
+    primera.unmount()
     await abrir(vera, <VentaPage />)
-    expect(within(await seccion()).getByRole('button', { name: 'Mostrar' })).toBeInTheDocument()
+    await within(await abierta()).findByRole('button', { name: 'Ampliar Torres AMURA' })
   })
 
   it('sin material publicado lo dice con claridad', async () => {
     const ids = (await db.query<{ id: string }>(`select id from public.medios_proyecto where activo`)).rows.map((f) => f.id)
     await db.exec(`update public.medios_proyecto set activo = false`)
     await abrir(vera, <VentaPage />)
-    expect(await within(await seccion()).findByText(/Todavía no hay material publicado/)).toBeInTheDocument()
+    expect(await within(await abierta()).findByText(/Todavía no hay material publicado/)).toBeInTheDocument()
     await db.query(`update public.medios_proyecto set activo = true where id = any($1)`, [ids])
   })
 })

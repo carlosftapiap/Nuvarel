@@ -1,5 +1,6 @@
 import { calcularPrecio, etiquetaPagoFirma, round2 } from '@/features/inventario/pricing'
 import type { PricingParams, Unit } from '@/features/inventario/types'
+import { calendarioCuotas, DIA_PAGO_PREDETERMINADO, vencimientos, type DiaPago } from './calendario'
 
 export interface PagoCronograma {
   n: number
@@ -35,6 +36,18 @@ export interface PlanFinanciamiento {
   contraEntrega: number
   /** Solo si el plan las tiene, ordenadas por mes. */
   extraordinarias?: CuotaExtraordinaria[]
+  /** Día del mes elegido por el comprador para pagar sus cuotas. */
+  diaPago?: DiaPago
+  /** Fecha de firma con la que se calcularon las cuotas que quedan y sus vencimientos. */
+  fechaFirma?: string
+  /** Vencimiento de cada cuota mensual (calendario fijo). Sin calendario: un mes después de la firma cada una. */
+  vencimientos?: string[]
+  /** Vencimiento de la última cuota: el mismo mes final para todos los compradores del edificio. */
+  ultimaFecha?: string
+  /** La cuota 1 vence el día de la firma porque el día elegido ya pasó ese mes. */
+  cuotaEnFirma?: boolean
+  /** El comprador aceptó expresamente el calendario (solo en cotizaciones emitidas). */
+  calendarioAceptado?: boolean
   cronograma: PagoCronograma[]
 }
 
@@ -69,6 +82,13 @@ export function sumarMeses(iso: string, meses: number) {
   return `${ny}-${String(nm).padStart(2, '0')}-${String(Math.min(d, ult)).padStart(2, '0')}`
 }
 
+/** La cuota 1 vence el día de la firma porque el día elegido ya pasó ese mes. */
+export const cuotaEnFirma = (fechas: string[], dia: DiaPago, fechaFirma: string) =>
+  dia !== 'ultimo' && fechas[0] === fechaFirma && Number(dia) < Number(fechaFirma.slice(8))
+
+/** Vencimiento de la cuota mensual n (1 = primera): el del calendario guardado o, sin él, n meses después de la firma. */
+export const fechaCuota = (p: { vencimientos?: string[] | null }, fechaFirma: string, n: number) => p.vencimientos?.[n - 1] ?? sumarMeses(fechaFirma, n)
+
 export function fmtFechaCorta(iso: string | null) {
   if (!iso) return 'A la entrega'
   const [y, m, d] = iso.split('-')
@@ -101,10 +121,10 @@ export function armarCronograma(p: Omit<PlanFinanciamiento, 'cronograma'>, fecha
   for (let i = 1; i <= p.meses; i++) {
     const monto = i === p.meses ? p.ultimaCuota : p.cuotaMensual
     saldo = round2(saldo - monto)
-    cronograma.push({ n: n++, tipo: 'cuota', concepto: `Cuota ${i} de ${p.meses}`, fecha: sumarMeses(fecha, i), monto, saldo })
+    cronograma.push({ n: n++, tipo: 'cuota', concepto: `Cuota ${i} de ${p.meses}`, fecha: fechaCuota(p, fecha, i), monto, saldo })
     for (const e of extras.filter((x) => x.mes === i)) {
       saldo = round2(saldo - e.monto)
-      cronograma.push({ n: n++, tipo: 'extraordinaria', concepto: 'Cuota extraordinaria', fecha: sumarMeses(fecha, i), monto: e.monto, saldo })
+      cronograma.push({ n: n++, tipo: 'extraordinaria', concepto: 'Cuota extraordinaria', fecha: fechaCuota(p, fecha, i), monto: e.monto, saldo })
     }
   }
   cronograma.push({ n, tipo: 'entrega', concepto: `Saldo contra entrega ${p.entregaPct}%`, fecha: null, monto: p.contraEntrega, saldo: round2(saldo - p.contraEntrega) })
@@ -114,20 +134,21 @@ export function armarCronograma(p: Omit<PlanFinanciamiento, 'cronograma'>, fecha
 export interface CronogramaMes { mes: number; fecha: string; cuota: number; extraordinaria: number; total: number }
 
 /** Una fila por mes: cuota mensual, extraordinaria y total. */
-export function cronogramaPorMes(p: Pick<PlanFinanciamiento, 'meses' | 'cuotaMensual' | 'ultimaCuota' | 'extraordinarias'>, fecha: string): CronogramaMes[] {
+export function cronogramaPorMes(p: Pick<PlanFinanciamiento, 'meses' | 'cuotaMensual' | 'ultimaCuota' | 'extraordinarias' | 'vencimientos'>, fecha: string): CronogramaMes[] {
   return Array.from({ length: p.meses }, (_, k) => {
     const mes = k + 1
     const cuota = mes === p.meses ? p.ultimaCuota : p.cuotaMensual
     const extraordinaria = round2((p.extraordinarias ?? []).filter((e) => e.mes === mes).reduce((t, e) => t + e.monto, 0))
-    return { mes, fecha: sumarMeses(fecha, mes), cuota, extraordinaria, total: round2(cuota + extraordinaria) }
+    return { mes, fecha: fechaCuota(p, fecha, mes), cuota, extraordinaria, total: round2(cuota + extraordinaria) }
   })
 }
 
 /**
- * Plan de pagos de AMURA: reserva (6%), cuotas mensuales (14% en 30 meses E1 / 42 meses E2) y saldo contra entrega (80%).
- * Los porcentajes y plazos vienen de los parámetros vigentes del inventario.
+ * Plan de pagos de AMURA: 6 % a la firma, 14 % en las cuotas que quedan del calendario fijo del edificio y 80 % contra entrega.
+ * Calendario: Edificio A dic 2026 a nov 2029; Torre B dic 2026 a may 2030. La cuota vence el día que elige el comprador.
+ * `fechaReserva` es la fecha de firma prevista.
  */
-export function generarPlan(unit: Unit, params: PricingParams, opts: { descuentoPct?: number; fechaReserva: string; extraordinarias?: CuotaExtraordinaria[] }): PlanFinanciamiento {
+export function generarPlan(unit: Unit, params: PricingParams, opts: { descuentoPct?: number; fechaReserva: string; extraordinarias?: CuotaExtraordinaria[]; diaPago?: DiaPago }): PlanFinanciamiento {
   const descuentoPct = opts.descuentoPct ?? 0
   if (!Number.isFinite(descuentoPct) || descuentoPct < 0 || descuentoPct > DESCUENTO_MAX) {
     throw new Error(`El descuento debe estar entre 0% y ${DESCUENTO_MAX}%.`)
@@ -139,17 +160,22 @@ export function generarPlan(unit: Unit, params: PricingParams, opts: { descuento
   const precioFinal = round2(precioLista - descuentoMonto)
   const reserva = round2((precioFinal * params.reservaPct) / 100)
   const cuotasTotal = round2((precioFinal * params.cuotasPct) / 100)
-  const meses = params.meses[unit.edificio]
+  const calendario = calendarioCuotas(opts.fechaReserva, params.meses[unit.edificio], params.inicioCuotas)
+  const meses = calendario.meses
   const { cuotaMensual, ultimaCuota, extraordinarias } = repartirCuotas(cuotasTotal, meses, opts.extraordinarias)
   const contraEntrega = round2(precioFinal - reserva - cuotasTotal)
 
-  const plan = {
+  const dia = opts.diaPago ?? DIA_PAGO_PREDETERMINADO
+  const fechas = vencimientos(calendario, dia, opts.fechaReserva)
+  const plan: Omit<PlanFinanciamiento, 'cronograma'> = {
     precioLista, descuentoPct, descuentoMonto, precioFinal,
     areaVendibleM2: base.areaVendibleM2,
     usdM2Final: base.areaVendibleM2 ? round2((precioFinal - base.valorPatio) / base.areaVendibleM2) : 0,
     reservaPct: params.reservaPct, cuotasPct: params.cuotasPct, entregaPct: round2(100 - params.reservaPct - params.cuotasPct),
     reserva, cuotasTotal, meses, cuotaMensual, ultimaCuota, contraEntrega,
     ...(extraordinarias.length ? { extraordinarias } : {}),
+    diaPago: dia, fechaFirma: opts.fechaReserva,
+    ...(fechas ? { vencimientos: fechas, ultimaFecha: fechas[fechas.length - 1], cuotaEnFirma: cuotaEnFirma(fechas, dia, opts.fechaReserva) } : {}),
   }
   return { ...plan, cronograma: armarCronograma(plan, opts.fechaReserva) }
 }

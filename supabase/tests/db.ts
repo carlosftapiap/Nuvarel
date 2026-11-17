@@ -86,6 +86,38 @@ export async function aprobarCumplimiento(db: PGlite) {
      where c.estado = 'borrador' and public.cumplimiento_estado(c.id) is distinct from 'aprobado'`)
 }
 
+const revisoresReserva = new WeakMap<PGlite, string>()
+
+/**
+ * Antes de verificar un pago de reserva: registra el pagador y deja aprobada la revisión de Cumplimiento
+ * con un revisor distinto de quien solicita y de quien verifica. Solo afecta a las reservas abiertas de la prueba.
+ */
+export async function prepararReservasParaPago(db: PGlite) {
+  // Bases anteriores a la regla de Cumplimiento no tienen estas columnas: no hay nada que preparar.
+  const { rows: cols } = await db.query<{ n: number }>(`select count(*)::int as n from information_schema.columns where table_name = 'reservations' and column_name = 'cumplimiento_estado'`)
+  if (!cols[0].n) return
+  // El revisor de la prueba queda inactivo: solo firma la decisión, sin recibir avisos ni cambiar los destinatarios de las demás pruebas.
+  let revisor = revisoresReserva.get(db)
+  if (!revisor) {
+    const { rows } = await db.query<{ id: string }>('select gen_random_uuid() as id')
+    revisor = rows[0].id
+    await db.query('insert into auth.users (id, email) values ($1, $2)', [revisor, `revisor-reserva-${revisor.slice(0, 8)}@prueba.local`])
+    await db.query(`insert into public.profiles (id, nombre, email, estado, rol_id) values ($1, 'Revisor de prueba', $2, 'inactivo', 'oficial_cumplimiento')`, [revisor, `revisor-reserva-${revisor.slice(0, 8)}@prueba.local`])
+    revisoresReserva.set(db, revisor)
+  }
+  await db.query(`select set_config('app.flujo', 'on', false), set_config('app.cumplimiento', 'on', false)`)
+  await db.query(
+    `update public.reservations set pagador_nombre = coalesce(pagador_nombre, 'Pagador de prueba'),
+            pagador_identificacion = coalesce(pagador_identificacion, '0900000001'),
+            pagador_relacion = coalesce(pagador_relacion, 'titular')
+      where estado = 'solicitada'`)
+  await db.query(
+    `update public.reservations set cumplimiento_estado = 'aprobado', cumplimiento_decidido_por = $1, cumplimiento_decidido_en = now(),
+            apartado_hasta = greatest(apartado_hasta, now() + interval '48 hours')
+      where estado = 'solicitada' and cumplimiento_estado is distinct from 'aprobado'`, [revisor])
+  await db.query(`select set_config('app.flujo', '', false), set_config('app.cumplimiento', '', false)`)
+}
+
 /** Cédula ecuatoriana válida y distinta para cada número: la base no acepta documentos inválidos ni repetidos. */
 /** Celular ecuatoriano de prueba, distinto para cada número. */
 export const celularPrueba = (n: number) => `09${String(n % 100_000_000).padStart(8, '0')}`

@@ -13,6 +13,7 @@ import type { Actor } from '@/features/inventario/types'
 import VentasPage from '@/pages/VentasPage'
 import { datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario, aprobarCumplimiento } from './db'
+import { prepararReservasParaPago } from './db'
 
 // Cada pantalla lee varias tablas de Postgres real; con toda la suite en paralelo tarda más que la espera por defecto.
 configure({ asyncUtilTimeout: 15_000 })
@@ -66,6 +67,7 @@ beforeAll(async () => {
   reserva = (await rpc<{ id: string }>(carlos, `select public.reservas_solicitar($1) as id`, [cot])).id
   await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-1', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reserva])
   const m = await q<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [reserva])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-1', true, 'Ingreso confirmado')`, [reserva, m.monto_reserva, hoyGuayaquil()])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [reserva])
 }, 60_000)
@@ -108,7 +110,7 @@ describe('Ventas y contratos conectado a la base de datos', () => {
     expect(within(f).getByText(/^COT-\d{4}-0001/)).toBeInTheDocument()
     expect(within(f).getByText(/^RES-\d{4}-0001/)).toBeInTheDocument()
     expect(within(f).getByText('Crédito bancario')).toBeInTheDocument()
-    expect(within(f).getByText('Cuota 1 de 30')).toBeInTheDocument()
+    expect(within(f).getByText('Cuota 1 de 36')).toBeInTheDocument()
     expect(within(f).getByText(/Se vuelve exigible al firmar/)).toBeInTheDocument()
     expect(within(f).getByRole('link', { name: 'Ver en Cobranzas' })).toBeInTheDocument()
     expect(await within(f).findByText('Generar contrato', { selector: 'b' })).toBeInTheDocument()

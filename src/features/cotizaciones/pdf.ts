@@ -2,6 +2,7 @@ import { etiquetaPagoFirma, NOTA_RESERVA } from '@/features/inventario/pricing'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { cronogramaPorMes, fmtFechaCorta } from '@/features/financiamiento/plan'
+import { etiquetaDiaPago } from '@/features/financiamiento/calendario'
 import { ESTADOS } from '@/features/inventario/estados'
 import type { Cotizacion } from './cotizacion'
 import { edificioDocumento, ERROR_ORIGINAL_DOCUMENTO } from '@/features/inventario/nomenclatura'
@@ -26,6 +27,13 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
   if (c.documentoDisponible === false) throw new Error(ERROR_ORIGINAL_DOCUMENTO)
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   doc.setProperties({ title: `Cotización ${c.numero} · AMURA`, subject: `Departamento ${c.unidad.dpt}`, author: c.asesor.nombre, creator: 'AMURA · Nuvarel' })
+  pintarCotizacion(doc, c, logo)
+  pieDocumento(doc, c.numero)
+  return doc
+}
+
+/** Dibuja la cotización desde la página actual del documento. Sin pie: lo pone quien arma el documento. */
+export function pintarCotizacion(doc: jsPDF, c: Cotizacion, logo?: LogoPdf) {
   const W = doc.internal.pageSize.getWidth()
   const M = 16
   let y = 14
@@ -63,8 +71,7 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
   doc.setDrawColor(...SAND).setLineWidth(0.4).line(M, y, W - M, y)
   y += 8
   doc.setFont('helvetica', 'bold').setFontSize(13).setTextColor(...INK).text(`Departamento ${c.unidad.dpt}`, M, y)
-  const referencia = /^[12][0-5]0[1-7]$/.test(c.unidad.dpt) ? `${c.unidad.codigo} · ` : ''
-  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...SLATE).text(`${referencia}${edificioDocumento(c.unidad)} · ${pisoTxt(c.unidad.piso)}`, W - M, y, { align: 'right' })
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(...SLATE).text(`${edificioDocumento(c.unidad)} · ${pisoTxt(c.unidad.piso)}`, W - M, y, { align: 'right' })
   y += 4
   const u = c.unidad
   autoTable(doc, {
@@ -119,6 +126,21 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
   })
   y += 27
 
+  // Calendario elegido por el comprador: día de pago, cuotas que quedan, fecha final y lo que se paga al firmar.
+  if (c.plan.diaPago) {
+    const v = c.plan.vencimientos
+    const firma = c.plan.fechaFirma ?? c.fecha
+    const cuota1 = c.plan.cuotaEnFirma ? (c.plan.meses === 1 ? c.plan.ultimaCuota : c.plan.cuotaMensual) + extras.filter((e) => e.mes === 1).reduce((s, e) => s + e.monto, 0) : 0
+    const lineas = [
+      `Día de pago elegido: ${etiquetaDiaPago(c.plan.diaPago)}. ${c.plan.meses} cuotas${v ? ` del ${fmtFechaCorta(v[0])} al ${fmtFechaCorta(v[v.length - 1])}` : ''}. Firma prevista: ${fmtFechaCorta(firma)}.`,
+      ...(c.plan.cuotaEnFirma ? [`El día elegido ya pasó en el mes de firma: la cuota 1 (${usd(cuota1)}) vence el mismo día de la firma, aparte del pago a la firma.`] : []),
+      ...(c.plan.calendarioAceptado ? ['El comprador aceptó expresamente este calendario de pagos.'] : []),
+    ]
+    doc.setFont('helvetica', 'normal').setFontSize(8.5).setTextColor(...INK)
+    for (const l of lineas) { doc.text(doc.splitTextToSize(l, W - 2 * M), M, y); y += 5 }
+    y += 2
+  }
+
   // Cronograma
   doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(...INK).text('Cronograma de pagos', M, y)
   autoTable(doc, {
@@ -161,7 +183,7 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
     'Esta cotización no constituye reserva ni promesa de compraventa; la unidad se separa únicamente con la reserva confirmada.',
     `El pago a la firma y las cuotas forman la entrada del ${num(c.plan.reservaPct + c.plan.cuotasPct, 0)} %. ${NOTA_RESERVA}`,
     extras.length ? 'Las cuotas extraordinarias son pagos programados dentro de las cuotas del 14 %; no constituyen pagos recibidos.' : '',
-    'Las fechas de este cronograma son referenciales: en el contrato, las cuotas se cuentan desde la firma; el saldo se paga a la entrega del inmueble.',
+    'Las cuotas van del mes de firma al mes final del calendario del edificio (Edificio A: noviembre de 2029; Edificio B: mayo de 2030), el día de pago elegido. Si la firma cambia de mes, el contrato recalcula las cuotas que quedan con ese mismo día; el saldo se paga a la entrega del inmueble.',
     'Superficies según planos y lista de precios del proyecto; pueden tener variaciones menores en obra.',
   ].filter(Boolean)
   const necesita = (c.observaciones ? 14 : 0) + condiciones.length * 9 + 10
@@ -181,7 +203,12 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
     y += lines.length * 3.6 + 1
   })
 
-  // Pie de página
+}
+
+/** Pie de página AMURA con número de página, para un documento completo. */
+export function pieDocumento(doc: jsPDF, etiqueta: string) {
+  const W = doc.internal.pageSize.getWidth()
+  const M = 16
   const total = doc.getNumberOfPages()
   for (let i = 1; i <= total; i++) {
     doc.setPage(i)
@@ -189,7 +216,7 @@ export function construirPdfCotizacion(c: Cotizacion, logo?: LogoPdf) {
     doc.setDrawColor(...SAND).setLineWidth(0.3).line(M, H - 14, W - M, H - 14)
     doc.setFont('helvetica', 'normal').setFontSize(7.5).setTextColor(...GRAY)
     doc.text('AMURA Apartments · Desarrolla Inmobiliaria Jarval · Comercializa Nuvarel', M, H - 9)
-    doc.text(`${c.numero} · Página ${i} de ${total}`, W - M, H - 9, { align: 'right' })
+    doc.text(`${etiqueta} · Página ${i} de ${total}`, W - M, H - 9, { align: 'right' })
   }
   return doc
 }

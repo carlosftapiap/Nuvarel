@@ -11,6 +11,7 @@ import type { Actor } from '@/features/inventario/types'
 import CobranzaPage from '@/pages/CobranzaPage'
 import { almacenPrueba, archivoPrueba, datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 configure({ asyncUtilTimeout: 15_000 })
 
@@ -66,6 +67,7 @@ beforeAll(async () => {
 describe('Reservas dentro de Cobranzas', () => {
   it('una solicitud aparece desde que se crea, sin contarse como ingreso ni crear cartera', async () => {
     const user = userEvent.setup()
+    await prepararReservasParaPago(db)
     const s = await abrir(finanzas)
     await irAIndicadores()
     await screen.findByText('Reservas pendientes de pago')
@@ -125,7 +127,9 @@ describe('Reservas dentro de Cobranzas', () => {
 
   it('recaudado cuenta solo lo confirmado por Finanzas, una vez, también al pasar a contrato', async () => {
     const user = userEvent.setup()
+    await prepararReservasParaPago(db)
     await rpc(finanzas, `select public.reservas_confirmar_pago($1, 700, $2::date, 'BAN-1', true, 'Ingreso confirmado')`, [reserva, hoyGuayaquil()])
+    await prepararReservasParaPago(db)
     let s = await abrir(finanzas)
     await irAIndicadores()
     await screen.findByText('Total recaudado')
@@ -141,6 +145,7 @@ describe('Reservas dentro de Cobranzas', () => {
 
     await rpc(legal, `select public.contratos_crear($1, $2::date, 'Contrato de la reserva')`, [reserva, hoyGuayaquil()])
     expect(await conteo('payments')).toBe(1)
+    await prepararReservasParaPago(db)
     s = await abrir(finanzas)
     await irAIndicadores()
     await screen.findByText('Total recaudado')

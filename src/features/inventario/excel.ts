@@ -4,7 +4,7 @@ import { dataFlags } from './data/data-quality'
 import { ESTADOS, ESTADOS_PRECIO_BLOQUEADO, MOTIVO_SIN_CAMBIO, parseEstado, puedeCambiarManual } from './estados'
 import { calcularPrecio, round2, totalVenta } from './pricing'
 import type { Actor, EstadoComercial, InventoryState, PriceChange, PriceHistoryEntry, StatusHistoryEntry, Unit } from './types'
-import { letraEdificio, numeroAnterior, resolverUnidad } from './nomenclatura'
+import { letraEdificio, resolverUnidad } from './nomenclatura'
 
 /* ------------------------------------------------------------------ lectura */
 
@@ -251,7 +251,7 @@ export function filasExportacion(state: InventoryState) {
   return state.units.map((u) => {
     const p = calcularPrecio(u, state.params)
     return {
-      Codigo: u.dpt, DPT: u.dpt, 'Codigo interno': u.codigo, 'Numero anterior': numeroAnterior(u.codigo), Edificio: letraEdificio(u.edificio), Piso: u.piso === 'PB' ? 'PB' : `P${u.piso}`, Ubicacion: u.ubicacion, Tipologia: u.tipologia,
+      Codigo: u.dpt, DPT: u.dpt, 'Codigo interno': u.codigo, Edificio: letraEdificio(u.edificio), Piso: u.piso === 'PB' ? 'PB' : `P${u.piso}`, Ubicacion: u.ubicacion, Tipologia: u.tipologia,
       'Area m2': u.areaM2, Bodega: u.bodegaCodigo ?? 'sin bodega', 'Bodega m2': u.bodegaM2, 'Area + bodega m2': p.areaVendibleM2,
       'Patio m2': u.patioM2, Parqueo: u.parqueo ?? 'sin asignar', 'USD/m2': u.usdM2, 'Precio area + bodega': p.precioAreaBodega, 'Valor patio': p.valorPatio,
       'Precio de venta': p.precioVenta, [`Pago a la firma ${state.params.reservaPct}%`]: p.reserva, 'Cuota mensual': p.cuotaMensual, Meses: p.meses,

@@ -2,6 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { como, crearDb, crearUsuario, aprobarCumplimiento } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, vera: string, finanzas: string, gerente: string
@@ -16,6 +17,8 @@ const cuota = (numero: number) => uno<{ pagado: string; pendiente: string; situa
 
 beforeAll(async () => {
   db = await crearDb()
+  // Escenario heredado: plazo de 30 meses desde la firma, sin calendario fijo. El calendario se prueba en calendario-fijo-db.test.ts.
+  await db.query(`update public.pricing_params set meses_e1 = 30, inicio_cuotas = null where id = 1`)
   admin = await crearUsuario(db, 'Admin', 'administrador')
   vera = await crearUsuario(db, 'Vera', 'asesor')
   finanzas = await crearUsuario(db, 'Finanzas', 'finanzas', { alcance: 'empresa' })
@@ -47,6 +50,7 @@ describe('reserva configurable y cronograma al firmar', () => {
   it('verificación y aprobación de la reserva con su comprobante', async () => {
     await como(db, vera, () => db.query(`select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-RES-1', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reservaId]))
     await como(db, admin, () => db.query(`select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`))
+    await prepararReservasParaPago(db)
     await como(db, finanzas, () => db.query(`select public.reservas_confirmar_pago($1, 1000, $2::date, 'TRF-RES-1', true, 'Ingreso confirmado en banco')`, [reservaId, hoy]))
     await como(db, gerente, () => db.query(`select public.reservas_aprobar($1, 'Aprobada en comité de prueba')`, [reservaId]))
     expect((await uno<{ estado: string }>(`select estado from public.reservations where id = $1`, [reservaId])).estado).toBe('confirmada')

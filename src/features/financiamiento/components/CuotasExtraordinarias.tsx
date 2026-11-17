@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { fmtUsd2, leerMonto } from '@/features/inventario/pricing'
-import { fmtFechaCorta, sumarMeses, type CronogramaMes, type CuotaExtraordinaria } from '../plan'
+import { fechaCuota, fmtFechaCorta, type CronogramaMes, type CuotaExtraordinaria } from '../plan'
 
 /** Lo que el vendedor escribe, antes de validarlo. */
 export interface FilaExtra { mes: string; monto: string }
@@ -17,9 +17,9 @@ export const leerFilas = (filas: FilaExtra[]): CuotaExtraordinaria[] => filas.ma
 export const filasAParam = (filas: FilaExtra[]) => filas.map((f) => `${f.mes.trim()}:${leerMonto(f.monto) ?? ''}`).join(',')
 export const filasDeParam = (v: string | null): FilaExtra[] => (v ? v.split(',').map((x) => { const [mes, monto] = x.split(':'); return { mes: mes ?? '', monto: monto ?? '' } }) : [])
 
-export default function CuotasExtraordinarias({ filas, onChange, meses, fechaBase, soloLectura = false }: { filas: FilaExtra[]; onChange: (f: FilaExtra[]) => void; meses: number; fechaBase: string; soloLectura?: boolean }) {
+export default function CuotasExtraordinarias({ filas, onChange, meses, fechaBase, vencimientos, soloLectura = false }: { filas: FilaExtra[]; onChange: (f: FilaExtra[]) => void; meses: number; fechaBase: string; vencimientos?: string[]; soloLectura?: boolean }) {
   const cambiar = (i: number, cambio: Partial<FilaExtra>) => onChange(filas.map((f, j) => (j === i ? { ...f, ...cambio } : f)))
-  const fecha = (mes: string) => { const m = Number(mes); return Number.isInteger(m) && m >= 1 && m <= meses ? fmtFechaCorta(sumarMeses(fechaBase, m)) : '—' }
+  const fecha = (mes: string) => { const m = Number(mes); return Number.isInteger(m) && m >= 1 && m <= meses ? fmtFechaCorta(fechaCuota({ vencimientos }, fechaBase, m)) : '—' }
   return (
     <div className="grid gap-2" role="group" aria-label="Cuotas extraordinarias">
       {filas.map((f, i) => (

@@ -75,8 +75,8 @@ describe('Configuración: Usuarios', () => {
     const a = acciones()
     await abrir(admin, <UsuariosRemoto datos={datosPglite(db, admin)} acciones={a} />)
     const fila = (await screen.findAllByText('Vera Vendedora'))[0].closest('tr')!
-    fireEvent.click(within(fila).getByRole('button', { name: 'Cambiar rol' }))
-    await screen.findByRole('dialog', { name: /Cambiar rol/ })
+    fireEvent.click(within(fila).getByRole('button', { name: 'Editar' }))
+    await screen.findByRole('dialog', { name: /Editar a/ })
     escribir('Alcance de datos', 'equipo')
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(await screen.findByText('Acceso de Vera Vendedora actualizado')).toBeInTheDocument()
@@ -155,8 +155,8 @@ describe('Configuración: Equipos', () => {
     const equipo = (await screen.findByText('Equipo Sur')).closest('li')!
     expect(within(equipo).getByText(/Sin integrantes/)).toBeInTheDocument()
     const fila = (await screen.findAllByText('Vera Vendedora'))[0].closest('tr')!
-    fireEvent.click(within(fila).getByRole('button', { name: 'Cambiar rol' }))
-    await screen.findByRole('dialog', { name: /Cambiar rol/ })
+    fireEvent.click(within(fila).getByRole('button', { name: 'Editar' }))
+    await screen.findByRole('dialog', { name: /Editar a/ })
     const sur = within(screen.getByLabelText(/^Equipo .su Supervisor/)).getByRole('option', { name: 'Equipo Sur' }) as HTMLOptionElement
     escribir(/^Equipo .su Supervisor/, sur.value)
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))

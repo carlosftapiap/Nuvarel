@@ -13,6 +13,7 @@ import type { Actor } from '@/features/inventario/types'
 import VentasPage from '@/pages/VentasPage'
 import { almacenPrueba, archivoPrueba, datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 configure({ asyncUtilTimeout: 15_000 })
 let db: PGlite
@@ -70,6 +71,7 @@ beforeAll(async () => {
   const reserva = (await rpc<{ id: string }>(carlos, `select public.reservas_solicitar($1) as id`, [cot])).id
   await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-1', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reserva])
   const m = await q<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [reserva])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-1', true, 'Ingreso confirmado')`, [reserva, m.monto_reserva, hoyGuayaquil()])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [reserva])
   await rpc(legal, `select public.contratos_crear($1, $2::date, 'Contrato de prueba') as id`, [reserva, hoyGuayaquil()])

@@ -35,7 +35,7 @@ type Vista = 'lista' | 'embudo'
 const CLAVE_VISTA = 'amura.clientes.vista'
 const vistaGuardada = (): Vista => (typeof localStorage !== 'undefined' && ['tablero', 'embudo'].includes(localStorage.getItem(CLAVE_VISTA) ?? '') ? 'embudo' : 'lista')
 
-type Filtro = 'activos' | 'vencidas' | 'hoy' | 'semana' | 'sin' | 'nuevos' | 'perdidos' | 'todos'
+type Filtro = 'activos' | 'vencidas' | 'hoy' | 'semana' | 'sin' | 'sin_vendedor' | 'nuevos' | 'perdidos' | 'todos'
 const activo = (c: Cliente) => c.etapa !== 'perdido'
 const con = (u: Urgencia) => (c: Cliente) => activo(c) && urgencia(c) === u
 
@@ -46,6 +46,7 @@ const FILTROS: { k: Filtro; label: string; fn: (c: Cliente) => boolean; alerta?:
   { k: 'hoy', label: 'Para hoy', fn: con('hoy'), alerta: 'bg-amber-100 text-amber-900' },
   { k: 'semana', label: 'Próximos 7 días', fn: con('semana') },
   { k: 'sin', label: 'Sin próxima gestión', fn: con('sin_actividad'), alerta: 'bg-amber-100 text-amber-900' },
+  { k: 'sin_vendedor', label: 'Sin vendedor', fn: (c) => !c.asesorId, alerta: 'bg-amber-100 text-amber-900' },
   { k: 'nuevos', label: 'Por contactar', fn: (c) => c.etapa === 'nuevo' },
   { k: 'perdidos', label: 'Perdidos', fn: (c) => c.etapa === 'perdido' },
   { k: 'todos', label: 'Todos', fn: () => true },

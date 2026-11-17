@@ -21,13 +21,23 @@ export interface ContratoBandeja {
   observaciones: string | null; enviadoEn: string; ultimaEn: string
 }
 export interface Decision { id: string; cuando: string; que: string; sobre: string; estado: string; quien: string | null; nota: string | null }
-export interface Bandeja { documentos: DocumentoBandeja[]; contratos: ContratoBandeja[]; historial: Decision[] }
+/** Solicitud de reserva que espera la revisión de Cumplimiento antes de que Finanzas verifique el pago. */
+export interface ReservaBandeja {
+  id: string; codigo: string; cliente: string; clientId: string; unidad: string; monto: number
+  estado: 'pendiente' | 'observado' | 'aprobado'; grupo: Grupo
+  pagador: string | null; apartadoHasta: string | null; prorrogas: number; creadaEn: string; creadaPor: string
+}
+export interface Bandeja { documentos: DocumentoBandeja[]; contratos: ContratoBandeja[]; reservas: ReservaBandeja[]; historial: Decision[] }
 
 const GRUPO_DOC: Record<DocumentoBandeja['estado'], Grupo> = { cargado: 'pendiente', observado: 'corregir', rechazado: 'corregir', aprobado: 'aprobado' }
 const GRUPO_REV: Record<EstadoRevision, Grupo> = { pendiente: 'pendiente', observado: 'corregir', rechazado: 'corregir', aprobado: 'aprobado' }
 const DECISION: Record<string, string> = { pendiente: 'Enviado a Cumplimiento', observado: 'Observado', aprobado: 'Aprobado', rechazado: 'Rechazado' }
 
-export function armarBandeja(t: { docs: Fila[]; tipos: Fila[]; clientes: Fila[]; compradores: Fila[]; contratos: Fila[]; revisiones: Fila[] }): Bandeja {
+const DECISION_RESERVA: Record<string, string> = {
+  pendiente: 'Reserva por revisar', observado: 'Reserva observada', aprobado: 'Reserva aprobada', rechazado: 'Reserva rechazada', prorrogado: 'Prórroga autorizada', vencido: 'Apartado vencido',
+}
+
+export function armarBandeja(t: { docs: Fila[]; tipos: Fila[]; clientes: Fila[]; compradores: Fila[]; contratos: Fila[]; revisiones: Fila[]; reservas?: Fila[]; historialReservas?: Fila[] }): Bandeja {
   const nombreTipo = new Map(t.tipos.map((x) => [String(x.clave), String(x.nombre)]))
   const cliente = new Map(t.clientes.map((x) => [String(x.id), String(x.nombre)]))
   const comprador = new Map(t.compradores.map((x) => [String(x.id), x]))
@@ -76,17 +86,40 @@ export function armarBandeja(t: { docs: Fila[]; tipos: Fila[]; clientes: Fila[];
     }),
   ].sort((a, b) => b.cuando.localeCompare(a.cuando))
 
-  return { documentos, contratos, historial }
+  // Reservas abiertas con revisión de Cumplimiento (las rechazadas quedan anuladas y solo aparecen en el historial).
+  const GRUPO_RES: Record<ReservaBandeja['estado'], Grupo> = { pendiente: 'pendiente', observado: 'corregir', aprobado: 'aprobado' }
+  const reservas = (t.reservas ?? [])
+    .filter((r) => (r.estado === 'solicitada' || r.estado === 'pago_verificado' || r.estado === 'confirmada') && ['pendiente', 'observado', 'aprobado'].includes(String(r.cumplimiento_estado)))
+    .map((r): ReservaBandeja => {
+      const estado = String(r.cumplimiento_estado) as ReservaBandeja['estado']
+      return {
+        id: String(r.id), codigo: String(r.codigo), cliente: cliente.get(String(r.client_id)) ?? 'Cliente', clientId: String(r.client_id), unidad: String(r.codigo_unidad),
+        monto: Number(r.monto_reserva ?? 0), estado, grupo: GRUPO_RES[estado],
+        pagador: r.pagador_nombre ? `${String(r.pagador_nombre)} · ${String(r.pagador_identificacion ?? '')}` : null,
+        apartadoHasta: s(r.apartado_hasta), prorrogas: Number(r.prorrogas ?? 0), creadaEn: String(r.created_at ?? ''), creadaPor: String(r.created_by ?? ''),
+      }
+    })
+    .sort((a, b) => a.creadaEn.localeCompare(b.creadaEn))
+  const codigoReserva = new Map((t.reservas ?? []).map((r) => [String(r.id), r]))
+  const historialReservas: Decision[] = (t.historialReservas ?? []).map((h) => {
+    const r = codigoReserva.get(String(h.reserva_id))
+    return { id: `h-${String(h.id)}`, cuando: String(h.creado_en), que: `Reserva ${String(r?.codigo ?? '')}`.trim(), sobre: cliente.get(String(r?.client_id)) ?? 'Cliente',
+      estado: DECISION_RESERVA[String(h.estado)] ?? String(h.estado), quien: null, nota: s(h.motivo) }
+  })
+
+  return { documentos, contratos, reservas, historial: [...historial, ...historialReservas].sort((a, b) => b.cuando.localeCompare(a.cuando)) }
 }
 
 export async function cargarBandeja(d: Datos): Promise<Bandeja> {
-  const [docs, tipos, clientes, compradores, contratos, revisiones] = await Promise.all([
+  const [docs, tipos, clientes, compradores, contratos, revisiones, reservas, historialReservas] = await Promise.all([
     d.select<Fila>('expediente_documentos'),
     d.select<Fila>('expediente_tipos'),
     d.select<Fila>('clients'),
     d.select<Fila>('contract_buyers').catch(() => []),
     d.select<Fila>('contracts').catch(() => []),
     d.select<Fila>('cumplimiento_revisiones').catch(() => []),
+    d.select<Fila>('reservations').catch(() => []),
+    d.select<Fila>('reservas_cumplimiento_historial').catch(() => []),
   ])
-  return armarBandeja({ docs, tipos, clientes, compradores, contratos, revisiones })
+  return armarBandeja({ docs, tipos, clientes, compradores, contratos, revisiones, reservas, historialReservas })
 }

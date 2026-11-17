@@ -7,6 +7,7 @@ import {
 import { hoyGuayaquil } from '@/features/financiamiento/plan'
 import { datosPglite } from './datos-pglite'
 import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 import { nombreEdificio } from '@/features/inventario/nomenclatura'
 
 let db: PGlite
@@ -29,7 +30,10 @@ async function solicitud() {
 const reportar = (u: string, r: string, medio?: string) => medio === undefined
   ? rpc<{ id: string }>(u, `select public.reservas_reportar_pago($1, 600, $2::date, 'Banco Pichincha', $3, $4::jsonb) as id`, [r, hoy(), `TRF-${++n}`, adjunto('reservas', r)])
   : rpc<{ id: string }>(u, `select public.reservas_reportar_pago($1, 600, $2::date, 'Banco Pichincha', $3, $4::jsonb, $5) as id`, [r, hoy(), `CHQ-${++n}`, adjunto('reservas', r), medio])
-const confirmar = (u: string, r: string) => rpc<{ id: string | null }>(u, `select public.reservas_confirmar_pago($1, 600, $2::date, 'BAN-OK', true, '') as id`, [r, hoy()])
+const confirmar = async (u: string, r: string) => {
+  await prepararReservasParaPago(db)
+  return rpc<{ id: string | null }>(u, `select public.reservas_confirmar_pago($1, 600, $2::date, 'BAN-OK', true, '') as id`, [r, hoy()])
+}
 const comprobante = async (u: string, r: string) => {
   const [f] = await datosPglite(db, u).select<Record<string, unknown>>('comprobantes_pago', { filtros: { reservation_id: r } })
   return aComprobante(f)

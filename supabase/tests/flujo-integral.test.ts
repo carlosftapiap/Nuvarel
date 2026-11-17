@@ -6,6 +6,7 @@ import { cargarClientes } from '../../src/features/clientes/remoto'
 import { hoyGuayaquil } from '../../src/features/financiamiento/plan'
 import { datosPglite } from './datos-pglite'
 import { aprobarCumplimiento, cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, sofia: string, cora: string, carlos: string, vera: string, jarval: string
@@ -25,6 +26,7 @@ async function reservaAprobada(u: string, cliente: string, unidad: string) {
   const r = (await rpc<{ id: string }>(u, `select public.reservas_solicitar($1) as id`, [q])).id
   await rpc(u, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', $2, jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r, `TRF-${r.slice(0, 8)}`])
   const m = await uno<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [r])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, $4, true, 'Ingreso confirmado')`, [r, m.monto_reserva, hoyGuayaquil(), `BAN-${r.slice(0, 8)}`])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
   return { op, q, r }
@@ -219,8 +221,10 @@ describe('cliente → oportunidad → cotización → reserva → contrato → c
     await rpc(gerente, `select public.cotizaciones_aceptar($1, 'Cliente acepta')`, [q])
     const r = (await rpc<{ id: string }>(gerente, `select public.reservas_solicitar($1) as id`, [q])).id
     await expect(rpc(gerente, `select public.reservas_aprobar($1, 'Aprobar sin pago')`, [r])).rejects.toThrow(/verificado por Finanzas/)
+    await prepararReservasParaPago(db)
     await expect(rpc(finanzas, `select public.reservas_confirmar_pago($1, 1, $2::date, 'REF', true, 'Sin comprobante')`, [r, hoyGuayaquil()])).rejects.toThrow(/comprobante/)
     await rpc(gerente, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r])
+    await prepararReservasParaPago(db)
     await expect(rpc(gerente, `select public.reservas_confirmar_pago($1, 1, $2::date, 'REF', true, 'Sin permiso')`, [r, hoyGuayaquil()])).rejects.toThrow(/Sin permiso/)
     await expect(rpc(gerente, `select public.reservas_anular($1, 'Prueba terminada')`, [r])).rejects.toThrow(/requiere autorización/)
   })

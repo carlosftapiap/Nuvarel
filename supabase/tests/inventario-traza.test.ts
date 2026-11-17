@@ -6,6 +6,7 @@ import { cargarInventario } from '../../src/features/inventario/remoto'
 import { trazaAjuste } from '../../src/features/inventario/service'
 import { datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, gerente: string, finanzas: string, legal: string, carlos: string
@@ -47,6 +48,7 @@ describe('imputación de la reserva en el contrato', () => {
     const r = (await rpc<{ id: string }>(carlos, `select public.reservas_solicitar($1) as id`, [cot])).id
     await rpc(carlos, `select public.reservas_fijar_monto($1, 500, 'Reserva acordada con el cliente')`, [r])
     await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-500', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [r])
+    await prepararReservasParaPago(db)
     await rpc(finanzas, `select public.reservas_confirmar_pago($1, 500, $2::date, 'BAN-500', true, 'Ingreso confirmado')`, [r, hoyGuayaquil()])
     await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [r])
     const k = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato de la venta') as id`, [r, hoyGuayaquil()])).id

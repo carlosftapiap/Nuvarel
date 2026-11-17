@@ -82,7 +82,8 @@ export function useOperacion(b: Borrador, setB: (f: (x: Borrador) => Borrador) =
   const contrato = reservaActiva ? contratos.find((c) => c.reserva === reservaActiva.id && c.estado !== 'anulado') ?? null : null
 
   const condiciones: CondicionesFinanciamiento = cotizacion
-    ? { fecha: cotizacion.fecha, descuento: String(cotizacion.plan.descuentoPct), reserva: reservaActiva ? String(reservaActiva.montoReserva) : b.financiamiento.reserva, extras: aFilas(cotizacion.plan.extraordinarias), credito: b.financiamiento.credito }
+    ? { fecha: cotizacion.fecha, descuento: String(cotizacion.plan.descuentoPct), reserva: reservaActiva ? String(reservaActiva.montoReserva) : b.financiamiento.reserva, extras: aFilas(cotizacion.plan.extraordinarias), credito: b.financiamiento.credito,
+        diaPago: cotizacion.plan.diaPago ?? 'ultimo', calendarioAceptado: !!cotizacion.plan.calendarioAceptado }
     : b.financiamiento
   // Una cotización emitida muestra el plan que guardó la base, no uno recalculado.
   const montoActivo = reservaActiva?.montoReserva ?? leerReserva(b.financiamiento.reserva)
@@ -136,7 +137,9 @@ export function useOperacion(b: Borrador, setB: (f: (x: Borrador) => Borrador) =
 
   const emitirYDescargar = () => ejecutar(async () => {
     if (!confirmadoVigente) throw new Error('Confirma el plan antes de emitir la cotización.')
-    const c = await emitir({ clienteId, codigo, descuentoPct: calc.descuentoPct, vigenciaDias: Number(b.vigencia), observaciones: b.observaciones, extraordinarias: leerFilas(b.financiamiento.extras) })
+    if (!b.financiamiento.calendarioAceptado) throw new Error('El comprador debe aceptar expresamente el calendario de pagos antes de emitir la cotización.')
+    const c = await emitir({ clienteId, codigo, descuentoPct: calc.descuentoPct, vigenciaDias: Number(b.vigencia), observaciones: b.observaciones, extraordinarias: leerFilas(b.financiamiento.extras),
+      fechaFirma: b.financiamiento.fecha, diaPago: b.financiamiento.diaPago ?? 'ultimo', calendarioAceptado: b.financiamiento.calendarioAceptado })
     setB((x) => ({ ...x, cotizacionId: c.id }))
     await recargarClientes()
     const misma = versionDelPlan(c.plan) === b.planConfirmado?.version
@@ -144,7 +147,7 @@ export function useOperacion(b: Borrador, setB: (f: (x: Borrador) => Borrador) =
       await descargarCotizacionPdf(c)
       setAviso(`Cotización ${c.numero} emitida y descargada. Plan ${versionDelPlan(c.plan)}.`)
     } catch (e) {
-      setAviso(`Cotización ${c.numero} emitida. El PDF no se descargó: usa «Descargar PDF».`)
+      setAviso(`Cotización ${c.numero} emitida. El PDF no se descargó: usa «Descargar cotización».`)
       setError((e as Error).message)
     }
     if (!misma) setError(`La base calculó un plan distinto del confirmado (${versionDelPlan(c.plan)}). Revísalo antes de continuar.`)

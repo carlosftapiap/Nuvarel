@@ -24,6 +24,19 @@ export const SQL_PRODUCCION: [string, string, string][] = [
   ['0013', 'captacion_leads', '20261123000000_captacion_leads.sql'],
   ['0015', 'nomenclatura_comercial', '20261124000000_nomenclatura_comercial.sql'],
   ['0016', 'nomenclatura_documentos_seguros', '20261125000000_nomenclatura_documentos_seguros.sql'],
+  ['0017', 'cuotas_inicio_fijo', '20261126000000_cuotas_inicio_fijo.sql'],
+  ['0018', 'calendario_fijo_cuotas', '20261127000000_calendario_fijo_cuotas.sql'],
+  ['0019', 'maestros_expediente', '20261128000000_maestros_expediente.sql'],
+  ['0020', 'orden_contrato', '20261129000000_orden_contrato.sql'],
+  ['0021', 'planos', '20261130000000_planos.sql'],
+  ['0022', 'planos_carga_simple', '20261201000000_planos_carga_simple.sql'],
+  ['0023', 'reserva_cumplimiento', '20261202000000_reserva_cumplimiento.sql'],
+  ['0024', 'cuentas_receptoras', '20261203000000_cuentas_receptoras.sql'],
+  ['0025', 'planos_retirar_publicar', '20261204000000_planos_retirar_publicar.sql'],
+  ['0026', 'promesa_campos', '20261205000000_promesa_campos.sql'],
+  ['0027', 'eliminaciones_admin', '20261206000000_eliminaciones_admin.sql'],
+  ['0028', 'sin_vendedor', '20261207000000_sin_vendedor.sql'],
+  ['0029', 'usuarios_celular', '20261208000000_usuarios_celular.sql'],
 ]
 
 // Script de una sola vez (no es migración): va numerado y en el control, pero no es copia de ninguna migración.

@@ -3,6 +3,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 import { como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 let db: PGlite
 let admin: string, vera: string, legal: string, oficial: string, finanzas: string, gerente: string
@@ -43,6 +44,7 @@ beforeAll(async () => {
   await como(db, vera, () => db.query(`select public.reservas_fijar_monto($1, 1000, 'Reserva acordada con el cliente')`, [reserva]))
   await como(db, vera, () => db.query(`select public.reservas_reportar_pago($1::uuid, 1000, $2::date, 'Banco de prueba', 'TRF-RES-CU', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reserva, hoy]))
   await como(db, admin, () => db.query(`select public.config_definir_receptor('NUVAREL', 'Receptor acordado')`))
+  await prepararReservasParaPago(db)
   await como(db, finanzas, () => db.query(`select public.reservas_confirmar_pago($1, 1000, $2::date, 'TRF-RES-CU', true, 'Ingreso confirmado en banco')`, [reserva, hoy]))
   await como(db, gerente, () => db.query(`select public.reservas_aprobar($1, 'Aprobada en comité de prueba')`, [reserva]))
   contrato = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato con revisión de cumplimiento') as id`, [reserva, hoy])).rows[0].id

@@ -29,6 +29,7 @@ insert into public.permissions (clave, modulo, descripcion) values
   ('reservas.verificar_pago', 'Reservas', 'Verificar pago de reserva'),
   ('reservas.confirmar', 'Reservas', 'Confirmar reservas'),
   ('reservas.anular', 'Reservas', 'Anular reservas'),
+  ('reservas.prorrogar', 'Reservas', 'Autorizar la prórroga de corrección de Cumplimiento'),
   ('ventas.ver', 'Ventas y contratos', 'Consultar expediente'),
   ('ventas.preparar', 'Ventas y contratos', 'Preparar documentos'),
   ('ventas.formalizar', 'Ventas y contratos', 'Revisar y formalizar'),
@@ -82,7 +83,9 @@ insert into public.permissions (clave, modulo, descripcion) values
   ('config.auditoria', 'Configuración', 'Consultar auditoría'),
   ('config.cobros', 'Configuración', 'Definir quién recibe los pagos (NUVAREL, JARVAL o fiduciaria)'),
   ('config.multimedia', 'Configuración', 'Administrar fotografías y videos del proyecto'),
-  ('config.leads', 'Configuración', 'Configurar la distribución automática de leads')
+  ('config.leads', 'Configuración', 'Configurar la distribución automática de leads'),
+  ('config.planos', 'Configuración', 'Cargar, revisar y publicar planos de piso y de departamento'),
+  ('config.eliminaciones', 'Configuración', 'Eliminaciones administrativas: cancelar reservas, anular ventas y desactivar usuarios')
 on conflict (clave) do update set modulo = excluded.modulo, descripcion = excluded.descripcion;
 
 insert into public.roles (id, nombre, descripcion, alcance, sistema) values
@@ -127,6 +130,7 @@ insert into public.role_permissions (role_id, permiso) values
   ('administrador', 'reservas.verificar_pago'),
   ('administrador', 'reservas.confirmar'),
   ('administrador', 'reservas.anular'),
+  ('administrador', 'reservas.prorrogar'),
   ('administrador', 'ventas.ver'),
   ('administrador', 'ventas.preparar'),
   ('administrador', 'ventas.formalizar'),
@@ -181,6 +185,8 @@ insert into public.role_permissions (role_id, permiso) values
   ('administrador', 'config.cobros'),
   ('administrador', 'config.multimedia'),
   ('administrador', 'config.leads'),
+  ('administrador', 'config.planos'),
+  ('administrador', 'config.eliminaciones'),
   ('gerencia', 'dashboard.ver'),
   ('gerencia', 'inventario.ver'),
   ('gerencia', 'precios.ver'),
@@ -256,6 +262,7 @@ insert into public.role_permissions (role_id, permiso) values
   ('supervisor', 'clientes.asignar'),
   ('supervisor', 'corredores.ver'),
   ('supervisor', 'ventas.desistimiento_autorizar'),
+  ('supervisor', 'reservas.prorrogar'),
   ('supervisor', 'plan.ver'),
   ('supervisor', 'plan.avance'),
   ('supervisor', 'plan.exportar'),

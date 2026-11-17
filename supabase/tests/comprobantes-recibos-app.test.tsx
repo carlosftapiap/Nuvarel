@@ -17,6 +17,7 @@ import CobranzaPage from '@/pages/CobranzaPage'
 import ReservasPage from '@/pages/ReservasPage'
 import { datosPglite } from './datos-pglite'
 import { cedulaPrueba, celularPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 /** Reservas: elige la reserva en la lista (todas) y devuelve su panel de detalle. */
 async function detalleDe(user: ReturnType<typeof userEvent.setup>, cliente: string) {
@@ -57,8 +58,10 @@ async function solicitud(monto = 600) {
 }
 const reportar = (u: string, r: string, monto = 600, referencia = `TRF-${++n}`) =>
   rpc<{ id: string }>(u, `select public.reservas_reportar_pago($1, $2, $3::date, 'Banco Pichincha', $4, $5::jsonb) as id`, [r, monto, hoy(), referencia, adjunto('reservas', r)])
-const confirmar = (u: string, r: string, monto = 600, verificado = true) =>
-  rpc<{ id: string | null }>(u, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-OK', $4, '') as id`, [r, monto, hoy(), verificado])
+const confirmar = async (u: string, r: string, monto = 600, verificado = true) => {
+  await prepararReservasParaPago(db)
+  return rpc<{ id: string | null }>(u, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-OK', $4, '') as id`, [r, monto, hoy(), verificado])
+}
 const conteoRecibos = async () => (await uno<{ n: number }>(`select count(*)::int as n from public.recibos_pago`)).n
 
 async function contratoFirmado(extras: unknown[] = []) {
@@ -197,6 +200,7 @@ describe('confirmar y rechazar', () => {
     await rpc(admin, `select public.reservas_reportar_pago($1, 600, $2::date, 'Banco', 'TRF-ADM', $3::jsonb)`, [r, hoy(), adjunto('reservas', r)])
     await expect(confirmar(admin, r)).rejects.toThrow(/no puede confirmarlo/)
     for (const u of [admin, finanzas, vera]) {
+      await prepararReservasParaPago(db)
       await expect(rpc(u, `select public.reservas_verificar_pago($1, 600, $2::date, 'X-1', 'Ingreso directo')`, [r, hoy()])).rejects.toThrow(/permission denied/)
       await expect(rpc(u, `select public.reservas_adjuntar_comprobante($1, 'X-1', null)`, [r])).rejects.toThrow(/permission denied/)
       await expect(rpc(u, `select public.cobranzas_verificar_pago($1, true, 'Ingreso directo')`, [r])).rejects.toThrow(/permission denied/)
@@ -231,7 +235,7 @@ describe('confirmar y rechazar', () => {
     const rec = (await rpc<{ id: string }>(finanzas2, `select public.cobranzas_confirmar_pago($1, true, '') as id`, [p])).id
     expect(await verificados()).toBeCloseTo(antes + monto)
     const v = await uno<{ concepto: string; banco: string; monto: string }>(`select concepto, banco, monto from public.recibos_pago where id = $1`, [rec])
-    expect(v.concepto).toMatch(/Cuota 1 de 30/)
+    expect(v.concepto).toMatch(/Cuota 1 de 36/)
     expect(v.concepto).toMatch(/Cuota extraordinaria 1 de 1/)
     expect(v.banco).toBe('Guayaquil')
     await expect(rpc(finanzas2, `select public.cobranzas_confirmar_pago($1, true, '')`, [p])).rejects.toThrow(/no está pendiente/)
@@ -357,6 +361,7 @@ describe('Storage', () => {
     expect(await ve(l, ruta)).toBe(false)
 
     // 2. Vínculo seguro del recibo.
+    await prepararReservasParaPago(base)
     const id = (await sql<{ id: string }>(f, `select public.reservas_confirmar_pago($1, 600, (now() at time zone 'America/Guayaquil')::date, 'BAN-1', true, '') as id`, [r]))[0].id
     const { numero } = (await base.query<{ numero: string }>(`select numero from public.recibos_pago where id = $1`, [id])).rows[0]
     const hash = 'a'.repeat(64)
@@ -429,6 +434,7 @@ describe('Cobranzas en pantalla', () => {
     expect(archivos.has(e.ruta)).toBe(true)
     s.unmount()
 
+    await prepararReservasParaPago(db)
     const f = await abrir(finanzas)
     await user.click(await screen.findByRole('tab', { name: /^Reservas/ }))
     await user.click(within((await screen.findByText(nombre)).closest('tr')!).getByRole('button', { name: 'Revisar pago' }))
@@ -437,6 +443,7 @@ describe('Cobranzas en pantalla', () => {
     expect(await within(rev).findByAltText('Comprobante de pago')).toBeInTheDocument()
     expect(within(rev).getByRole('button', { name: 'Confirmar pago' })).toBeDisabled()
     await user.click(within(rev).getByLabelText(/Verifiqué el ingreso/))
+    await prepararReservasParaPago(db)
     await user.click(within(rev).getByRole('button', { name: 'Confirmar pago' }))
     await screen.findByText('Pago confirmado')
     const v = await uno<{ numero: string }>(`select numero from public.recibos_pago where reservation_id = $1`, [r])
@@ -451,6 +458,7 @@ describe('Cobranzas en pantalla', () => {
     const user = userEvent.setup()
     const { r, codigo } = await solicitud()
     await reportar(vera, r)
+    await prepararReservasParaPago(db)
     const f = await abrir(finanzas)
     await user.click(await screen.findByRole('tab', { name: /^Reservas/ }))
     await user.click(within((await screen.findByText(`Cliente ${codigo}`)).closest('tr')!).getByRole('button', { name: 'Revisar pago' }))

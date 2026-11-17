@@ -12,6 +12,7 @@ import type { Actor } from '@/features/inventario/types'
 import BandejaCumplimientoPage from '@/pages/BandejaCumplimientoPage'
 import { almacenPrueba, datosPglite } from './datos-pglite'
 import { como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 configure({ asyncUtilTimeout: 15_000 })
 let db: PGlite
@@ -60,6 +61,7 @@ beforeAll(async () => {
   const reserva = (await rpc<{ id: string }>(carlos, `select public.reservas_solicitar($1) as id`, [cot])).id
   await rpc(carlos, `select public.reservas_reportar_pago($1::uuid, 1, (now() at time zone 'America/Guayaquil')::date, 'Banco de prueba', 'TRF-1', jsonb_build_object('ruta', 'reservas/' || $1::uuid::text || '/' || gen_random_uuid()::text || '.pdf', 'mime', 'application/pdf', 'tamano', 10))`, [reserva])
   const m = await q<{ monto_reserva: string }>(`select monto_reserva from public.reservations where id = $1`, [reserva])
+  await prepararReservasParaPago(db)
   await rpc(finanzas, `select public.reservas_confirmar_pago($1, $2, $3::date, 'BAN-1', true, 'Ingreso confirmado')`, [reserva, m.monto_reserva, hoyGuayaquil()])
   await rpc(gerente, `select public.reservas_aprobar($1, 'Aprobada en comité')`, [reserva])
   contrato = (await rpc<{ id: string }>(legal, `select public.contratos_crear($1, $2::date, 'Contrato de prueba') as id`, [reserva, hoyGuayaquil()])).id
@@ -119,7 +121,7 @@ describe('Bandeja de Cumplimiento', () => {
     await vi.waitFor(async () => expect(await q(`select public.cumplimiento_estado($1) as e`, [contrato])).toEqual({ e: 'aprobado' }))
     await user.keyboard('{Escape}')
     expect(await screen.findByRole('tab', { name: 'Por revisar (0)' })).toBeInTheDocument()
-    await user.click(screen.getByRole('tab', { name: 'Aprobados (6)' }))
+    await user.click(screen.getByRole('tab', { name: 'Aprobados (7)' }))
     expect(await screen.findByText('Aprobado por Cumplimiento')).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: 'Historial' }))
     expect(await screen.findByText('Observado (luego reemplazado)')).toBeInTheDocument()

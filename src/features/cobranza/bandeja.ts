@@ -2,6 +2,7 @@ import type { DatosCobranza } from './api'
 import type { Comprobante } from './comprobantes'
 import type { Tablero } from './tablero'
 import { numeroComercial } from '@/features/inventario/nomenclatura'
+import { bloqueoVerificacion } from '@/features/reservas/model'
 
 /**
  * Bandeja de Finanzas: comprobantes reportados que esperan verificación, de reservas y de cuotas.
@@ -23,6 +24,16 @@ export interface FilaPorVerificar {
   cargadoEn: string
   /** Quien lo registró o solicitó: no puede decidirlo. */
   propio: boolean
+  /** Reserva: motivo por el que Finanzas todavía no puede confirmarla; null si puede. */
+  bloqueo: string | null
+  /** Otros comprobantes no rechazados con el mismo monto, fecha y banco: posible pago registrado dos veces. */
+  posiblesDuplicados: number
+}
+
+/** Comprobantes no rechazados que coinciden en monto, fecha y banco (la referencia repetida ya la impide la base). */
+export function posiblesDuplicados(todos: Comprobante[], c: Comprobante): number {
+  const banco = c.banco.trim().toLowerCase()
+  return todos.filter((k) => k.id !== c.id && k.estado !== 'rechazado' && Math.abs(k.monto - c.monto) < 0.005 && k.fecha === c.fecha && k.banco.trim().toLowerCase() === banco).length
 }
 
 export function porVerificar(d: DatosCobranza, tablero: Tablero, actorId: string): FilaPorVerificar[] {
@@ -39,6 +50,8 @@ export function porVerificar(d: DatosCobranza, tablero: Tablero, actorId: string
         comprobante: c, tipo: 'reserva', id: r.id, cliente: r.clienteNombre, unidad: dpt(r.unidad), numero: r.codigo,
         reportado: c.monto, confirmado: 0, saldo: r.montoReserva, fecha: c.fecha, cargadoEn: c.cargadoEn,
         propio: c.cargadoPor === actorId || r.creadaPor.id === actorId,
+        bloqueo: bloqueoVerificacion(r),
+        posiblesDuplicados: posiblesDuplicados(d.comprobantes, c),
       })
     } else if (c.pagoId) {
       const p = d.pagos.find((x) => x.id === c.pagoId)
@@ -49,6 +62,8 @@ export function porVerificar(d: DatosCobranza, tablero: Tablero, actorId: string
         comprobante: c, tipo: 'pago', id: p.id, cliente: r.contrato.cliente, unidad: dpt(r.contrato.unidad), numero: r.contrato.codigo,
         reportado: c.monto, confirmado: r.cobradoEntrada, saldo: r.saldoEntrada, fecha: c.fecha, cargadoEn: c.cargadoEn,
         propio: c.cargadoPor === actorId || p.registradoPor === actorId,
+        bloqueo: null,
+        posiblesDuplicados: posiblesDuplicados(d.comprobantes, c),
       })
     }
   }

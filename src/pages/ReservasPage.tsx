@@ -23,6 +23,7 @@ import { useClientes } from '@/features/clientes/store'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { nombreEdificio, numeroAnterior, numeroComercial } from '@/features/inventario/nomenclatura'
+import { etiquetaDiaPago, type DiaPago } from '@/features/financiamiento/calendario'
 
 type Pestana = 'accion' | 'solicitada' | 'pago_verificado' | 'confirmada' | 'anulada' | 'todas'
 interface Rechazo { motivo: string; revisadoEn: string | null; referencia: string; archivo: string | null }
@@ -245,6 +246,7 @@ function Detalle({ r, p, unidad, hoy, rechazo, pendiente, remoto, hayDesistimien
         {([
           ['Precio acordado', fmtUsd(r.precioAcordado), r.descuentoPct > 0 ? `−${r.descuentoPct} % de descuento` : 'Precio de lista'],
           ['Reserva', fmtUsd2(r.montoReserva), `${r.reservaPct} % a la firma`],
+          ['Cuotas', `${r.meses} × ${fmtUsd2(r.cuotaMensual)}`, etiquetaDiaPago(((r.diaPago ?? 'ultimo') as DiaPago))],
           ['Pagado', r.montoRecibido !== null ? fmtUsd2(r.montoRecibido) : '—', r.montoRecibido !== null ? 'Verificado por Finanzas' : r.comprobante ? 'Por verificar' : 'Sin pago registrado'],
           ['Vigencia', fmtFechaCorta(r.vigenciaHasta), vencida ? 'Cotización vencida' : 'Del precio cotizado'],
         ] as const).map(([t, v, d]) => (

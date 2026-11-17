@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
+import { bloqueoVerificacion } from '@/features/reservas/model'
 import { Link } from 'react-router-dom'
 import { CheckCircle2, CloudOff, Download, FileCheck2, Loader2, Lock, Plus, RefreshCw, Search, X } from 'lucide-react'
 import PageHeader from '@/components/PageHeader'
@@ -331,7 +332,7 @@ function ReservasCobranza({ filas, d, datos, ejecutar }: { filas: FilaReserva[];
         const reportado = propios.find((c) => c.estado === 'reportado')
         const enRevision: PagoEnRevision = {
           tipo: 'reserva', id: revision.id, titulo: `Pago de ${revision.codigo} · ${revision.clienteNombre}`, monto: revision.montoRecibido ?? revision.montoReserva, referencia: revision.comprobante ?? '', fecha: hoyGuayaquil(),
-          pendiente: revision.estado === 'solicitada' && !!revision.comprobante, propio: revision.creadaPor.id === actor.id || reportado?.cargadoPor === actor.id,
+          pendiente: revision.estado === 'solicitada' && !!revision.comprobante, propio: revision.creadaPor.id === actor.id || reportado?.cargadoPor === actor.id, bloqueo: bloqueoVerificacion(revision),
         }
         return <RevisionPago pago={enRevision} comprobantes={propios} recibo={d.recibos.find((v) => v.reservaId === revision.id) ?? null} datos={datos} almacen={almacenPagos(conexion)} ejecutar={ejecutar} onClose={() => setRevision(null)} />
       })()}

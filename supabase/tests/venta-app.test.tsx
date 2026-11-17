@@ -14,6 +14,7 @@ import FinanciamientoPage from '@/pages/FinanciamientoPage'
 import VentaPage from '@/pages/VentaPage'
 import { almacenPrueba, archivoPrueba, datosPglite } from './datos-pglite'
 import { cedulaPrueba, como, crearDb, crearUsuario } from './db'
+import { prepararReservasParaPago } from './db'
 
 configure({ asyncUtilTimeout: 15_000 })
 
@@ -54,6 +55,8 @@ const usarPlan = async (user: ReturnType<typeof userEvent.setup>) => {
   await screen.findByText(/Plan confirmado · versión/)
 }
 const emitirPdf = async (user: ReturnType<typeof userEvent.setup>) => {
+  const acepta = await screen.findByRole('checkbox', { name: /acepta este calendario de pagos/ })
+  if (!(acepta as HTMLInputElement).checked) await user.click(acepta)
   const b = await boton(/Emitir cotización y descargar PDF/)
   await waitFor(() => expect(b).toBeEnabled())
   await user.click(b)
@@ -143,6 +146,7 @@ describe('Atender cliente: de la cotización a la solicitud en una sola pantalla
 
   it('la reserva pagada de más se acredita al 6 % sin duplicarse; al verificar el pago se confirma y bloquea la unidad', async () => {
     const r = await reservaDe(andrea)
+    await prepararReservasParaPago(db)
     await rpc(finanzas, `select public.reservas_confirmar_pago($1, 700, (now() at time zone 'America/Guayaquil')::date, 'BAN-1', true, 'Ingreso confirmado')`, [r.id])
     expect(await reservaDe(andrea)).toMatchObject({ estado: 'confirmada', monto_reserva: '600.00', monto_recibido: '700.00', unidad: 'reservado' })
     const s = await abrir(vera, `/venta?cotizacion=${(await uno<{ quote_id: string }>(`select quote_id from public.reservations where id = $1`, [r.id])).quote_id}`)

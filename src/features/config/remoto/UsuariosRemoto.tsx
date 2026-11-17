@@ -10,6 +10,7 @@ import { ALCANCES, PLANTILLAS_ROL } from '@/app/permissions'
 import type { Datos } from '@/features/conexion/datos'
 import { FieldError } from '@/features/inventario/components/shared'
 import { cn } from '@/lib/utils'
+import { errorCelular, normalizarCelular } from '../celular'
 
 export interface CuentaFila {
   id: string
@@ -66,11 +67,17 @@ export default function UsuariosRemoto({ datos, acciones, version = 0, onCambio 
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [dialogo, setDialogo] = useState<Dialogo | null>(null)
+  // Celular / WhatsApp: tabla aparte que solo leen el propio usuario y quien administra usuarios.
+  const [celulares, setCelulares] = useState<Map<string, string>>(new Map())
 
   const cargar = useCallback(async () => {
     try {
-      const [c, r, e] = await Promise.all([datos.rpc<CuentaFila[]>('config_listar_cuentas'), datos.select<Rol>('roles', { orden: [{ columna: 'nombre' }] }), datos.select<Equipo>('teams', { orden: [{ columna: 'nombre' }] })])
+      const [c, r, e, cel] = await Promise.all([
+        datos.rpc<CuentaFila[]>('config_listar_cuentas'), datos.select<Rol>('roles', { orden: [{ columna: 'nombre' }] }), datos.select<Equipo>('teams', { orden: [{ columna: 'nombre' }] }),
+        datos.select<{ user_id: string; celular: string | null }>('usuarios_contacto').catch(() => []),
+      ])
       setCuentas(c); setRoles(r); setEquipos(e)
+      setCelulares(new Map(cel.filter((x) => x.celular).map((x) => [String(x.user_id), String(x.celular)])))
     } catch (e) { setError((e as Error).message) }
   }, [datos])
   useEffect(() => { void cargar() }, [cargar, version])
@@ -104,14 +111,14 @@ export default function UsuariosRemoto({ datos, acciones, version = 0, onCambio 
               const yo = c.id === actor.id
               return (
                 <tr key={c.id} className="border-t border-border align-top">
-                  <td className="px-4 py-2"><div className="font-medium">{c.nombre}{yo && <span className="ml-1 text-xs text-muted-foreground">(tú)</span>}</div><div className="text-muted-foreground">{c.email}</div></td>
+                  <td className="px-4 py-2"><div className="font-medium">{c.nombre}{yo && <span className="ml-1 text-xs text-muted-foreground">(tú)</span>}</div><div className="text-muted-foreground">{c.email}</div>{celulares.get(c.id) && <div className="text-muted-foreground">Cel. {celulares.get(c.id)}</div>}</td>
                   <td className="px-2 py-2">{c.rol_nombre ?? <i className="text-muted-foreground">—</i>}</td>
                   <td className="px-2 py-2"><span className={cn('whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset', ESTADO[c.estado].tono)}>{ESTADO[c.estado].label}</span></td>
                   <td className="px-2 py-2 tabular-nums">{c.ultimo_acceso ? new Date(c.ultimo_acceso).toLocaleDateString('es-EC') : 'Nunca'}</td>
                   <td className="px-4 py-2">
                     <div className="flex flex-wrap justify-end gap-1.5">
                       {!c.tiene_perfil && <Button size="sm" onClick={() => { setError(null); setDialogo({ tipo: 'habilitar', c }) }}><ShieldCheck />Habilitar</Button>}
-                      {c.tiene_perfil && !yo && <Button size="sm" variant="outline" onClick={() => { setError(null); setDialogo({ tipo: 'rol', c }) }}>Cambiar rol</Button>}
+                      {c.tiene_perfil && !yo && <Button size="sm" variant="outline" onClick={() => { setError(null); setDialogo({ tipo: 'rol', c }) }}>Editar</Button>}
                       {c.tiene_perfil && !yo && c.estado !== 'activo' && <Button size="sm" variant="outline" onClick={() => { setError(null); setDialogo({ tipo: 'estado', c, estado: 'activo' }) }}><UserCheck />Activar</Button>}
                       {c.tiene_perfil && !yo && c.estado === 'activo' && <Button size="sm" variant="outline" onClick={() => { setError(null); setDialogo({ tipo: 'estado', c, estado: 'inactivo' }) }}><UserX />Desactivar</Button>}
                       {c.tiene_perfil && !yo && <Button size="sm" variant="ghost" onClick={() => { setError(null); setDialogo({ tipo: 'clave', c }) }}><KeyRound />Restablecer contraseña</Button>}
@@ -125,21 +132,34 @@ export default function UsuariosRemoto({ datos, acciones, version = 0, onCambio 
       </div>
       <p className="text-xs text-muted-foreground">Desactivar quita el acceso de inmediato y conserva su historial. Nadie puede cambiar su propio rol ni estado. Cada cambio queda en la auditoría.</p>
 
-      {dialogo && <DialogoCuenta d={dialogo} roles={roles} equipos={equipos} error={error} onClose={() => { setError(null); setDialogo(null) }} onConfirm={async ({ rol, nombre, email, password, alcance, equipo }) => {
+      {dialogo && <DialogoCuenta d={dialogo} roles={roles} equipos={equipos} error={error} celularActual={dialogo.tipo === 'crear' ? '' : (celulares.get(dialogo.c.id) ?? '')}
+        onClose={() => { setError(null); setDialogo(null) }} onConfirm={async ({ rol, nombre, email, password, alcance, equipo, celular }) => {
         const ok = dialogo.tipo === 'rol' ? await ejecutar(() => actualizar(dialogo.c, rol, dialogo.c.estado, `Cambio de acceso: rol ${nombreRol(rol)}`, alcance, equipo), `Acceso de ${dialogo.c.nombre} actualizado`)
           : dialogo.tipo === 'clave' ? await ejecutar(() => acciones.cambiarClave({ usuarioId: dialogo.c.id, password, motivo: 'Contraseña asignada por un administrador' }), `Contraseña de ${dialogo.c.nombre} actualizada`)
           : dialogo.tipo === 'estado' ? await ejecutar(() => actualizar(dialogo.c, dialogo.c.rol_id!, dialogo.estado, dialogo.estado === 'activo' ? 'Usuario activado' : 'Usuario desactivado'), `${dialogo.c.nombre}: acceso ${dialogo.estado === 'activo' ? 'activado' : 'desactivado'}`)
             : dialogo.tipo === 'habilitar' ? await ejecutar(() => datos.rpc('config_habilitar_cuenta', { p_user: dialogo.c.id, p_nombre: nombre, p_rol: rol, p_motivo: 'Cuenta habilitada por un administrador' }), `Cuenta ${dialogo.c.email} habilitada`)
               : await ejecutar(() => acciones.crearUsuario({ nombre, email, password, rolId: rol }), `Usuario ${email} creado y activo. Ya puede iniciar sesión con su correo y contraseña.`)
-        if (ok) setDialogo(null)
+        // Celular: se guarda después de crear, habilitar o editar, solo si cambió. Vacío lo retira.
+        let okCelular = true
+        if (ok && dialogo.tipo !== 'estado' && dialogo.tipo !== 'clave') {
+          const anterior = dialogo.tipo === 'crear' ? null : (celulares.get(dialogo.c.id) ?? null)
+          const nuevo = celular.trim() ? normalizarCelular(celular) : null
+          if (nuevo !== anterior) {
+            const id = dialogo.tipo === 'crear'
+              ? (await datos.rpc<CuentaFila[]>('config_listar_cuentas')).find((x) => x.email.toLowerCase() === email)?.id
+              : dialogo.c.id
+            if (id) okCelular = await ejecutar(() => datos.rpc('config_usuario_celular', { p_user: id, p_celular: celular.trim() }), nuevo ? `Celular guardado: ${nuevo}` : 'Celular retirado')
+          }
+        }
+        if (ok && okCelular) setDialogo(null)
       }} />}
     </div>
   )
 }
 
-interface DatosDialogo { rol: string; nombre: string; email: string; password: string; alcance: string | null; equipo: string | null }
+interface DatosDialogo { rol: string; nombre: string; email: string; password: string; alcance: string | null; equipo: string | null; celular: string }
 
-function DialogoCuenta({ d, roles, equipos, error, onClose, onConfirm }: { d: Dialogo; roles: Rol[]; equipos: Equipo[]; error: string | null; onClose: () => void; onConfirm: (x: DatosDialogo) => Promise<void> }) {
+function DialogoCuenta({ d, roles, equipos, error, celularActual, onClose, onConfirm }: { d: Dialogo; roles: Rol[]; equipos: Equipo[]; error: string | null; celularActual: string; onClose: () => void; onConfirm: (x: DatosDialogo) => Promise<void> }) {
   const c = d.tipo === 'crear' ? null : d.c
   const [rol, setRol] = useState(c?.rol_id ?? 'asesor')
   const [alcance, setAlcance] = useState(c?.alcance ?? '')
@@ -147,15 +167,19 @@ function DialogoCuenta({ d, roles, equipos, error, onClose, onConfirm }: { d: Di
   const [nombre, setNombre] = useState(c?.tiene_perfil ? c.nombre : '')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [celular, setCelular] = useState(celularActual)
   const [enviando, setEnviando] = useState(false)
-  const titulo = d.tipo === 'rol' ? `Cambiar rol de ${c!.nombre}` : d.tipo === 'estado' ? `${d.estado === 'activo' ? 'Activar' : 'Desactivar'} a ${c!.nombre}` : d.tipo === 'habilitar' ? `Habilitar ${c!.email}` : d.tipo === 'clave' ? `Restablecer contraseña de ${c!.nombre}` : 'Crear usuario'
+  const pideCelular = d.tipo === 'crear' || d.tipo === 'habilitar' || d.tipo === 'rol'
+  const errCelular = pideCelular ? errorCelular(celular) : null
+  const celularNormal = celular.trim() ? normalizarCelular(celular) : null
+  const titulo = d.tipo === 'rol' ? `Editar a ${c!.nombre}` : d.tipo === 'estado' ? `${d.estado === 'activo' ? 'Activar' : 'Desactivar'} a ${c!.nombre}` : d.tipo === 'habilitar' ? `Habilitar ${c!.email}` : d.tipo === 'clave' ? `Restablecer contraseña de ${c!.nombre}` : 'Crear usuario'
   // Un rol retirado no se ofrece, salvo que la persona ya lo tenga.
   const opciones = roles.filter((r) => r.disponible !== false || r.id === c?.rol_id)
   // Un rol del catálogo que todavía no está en la base se muestra, pero no se puede asignar hasta aplicar su migración.
   const pendientes = PLANTILLAS_ROL.filter((p) => !roles.some((r) => r.id === p.id))
   const rolPendiente = pendientes.some((p) => p.id === rol)
   const pideNombre = d.tipo === 'habilitar' || d.tipo === 'crear'
-  const valido = (!pideNombre || nombre.trim().length >= 3) && (d.tipo !== 'crear' || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) && ((d.tipo !== 'clave' && d.tipo !== 'crear') || password.length >= CLAVE_MINIMA)
+  const valido = !errCelular && (!pideNombre || nombre.trim().length >= 3) && (d.tipo !== 'crear' || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) && ((d.tipo !== 'clave' && d.tipo !== 'crear') || password.length >= CLAVE_MINIMA)
   const boton = d.tipo === 'crear' ? 'Crear usuario' : d.tipo === 'clave' ? 'Guardar contraseña' : d.tipo === 'rol' ? 'Guardar' : d.tipo === 'estado' ? (d.estado === 'activo' ? 'Activar' : 'Desactivar') : 'Confirmar'
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
@@ -175,6 +199,15 @@ function DialogoCuenta({ d, roles, equipos, error, onClose, onConfirm }: { d: Di
           {pideNombre && <div className="grid gap-1.5"><Label htmlFor="cu-nombre" className="text-xs">{d.tipo === 'crear' ? 'Nombre completo' : 'Nombre'}</Label><Input id="cu-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} /></div>}
           {d.tipo === 'crear' && <div className="grid gap-1.5"><Label htmlFor="cu-email" className="text-xs">Correo electrónico</Label><Input id="cu-email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} /></div>}
           {(d.tipo === 'crear' || d.tipo === 'clave') && <div className="grid gap-1.5"><Label htmlFor="cu-clave" className="text-xs">{d.tipo === 'crear' ? 'Contraseña inicial' : 'Nueva contraseña'} (mínimo {CLAVE_MINIMA} caracteres)</Label><ClaveInput id="cu-clave" autoComplete="new-password" value={password} onChange={setPassword} /></div>}
+          {pideCelular && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="cu-celular" className="text-xs">Celular / WhatsApp (opcional)</Label>
+              <Input id="cu-celular" type="tel" inputMode="tel" autoComplete="off" placeholder="09XXXXXXXX o +57…" value={celular} onChange={(e) => setCelular(e.target.value)} />
+              {errCelular ? <p className="text-xs text-red-700">{errCelular}</p>
+                : celularNormal ? <p className="text-xs text-muted-foreground">Se guardará como {celularNormal}</p>
+                  : <p className="text-xs text-muted-foreground">Ecuador (+593) por defecto. Para otro país, escribe «+» y su código.</p>}
+            </div>
+          )}
           {d.tipo !== 'estado' && d.tipo !== 'clave' && (
             <div className="grid gap-1.5">
               <Label htmlFor="cu-rol" className="text-xs">Rol</Label>
@@ -210,7 +243,7 @@ function DialogoCuenta({ d, roles, equipos, error, onClose, onConfirm }: { d: Di
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancelar</Button>
           <Button disabled={!valido || enviando || rolPendiente} variant={d.tipo === 'estado' && d.estado === 'inactivo' ? 'destructive' : 'default'}
-            onClick={async () => { setEnviando(true); await onConfirm({ rol, nombre, email: email.trim().toLowerCase(), password, alcance: alcance || null, equipo: equipo || null }); setEnviando(false) }}>{enviando && <Loader2 className="animate-spin" />}{boton}</Button>
+            onClick={async () => { setEnviando(true); await onConfirm({ rol, nombre, email: email.trim().toLowerCase(), password, alcance: alcance || null, equipo: equipo || null, celular }); setEnviando(false) }}>{enviando && <Loader2 className="animate-spin" />}{boton}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

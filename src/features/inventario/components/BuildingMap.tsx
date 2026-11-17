@@ -12,9 +12,11 @@ const COLOR_VIVO: Record<EstadoEfectivo, string> ={ disponible: '#22c55e', reser
 /**
  * Alzado de cada edificio: una fila por piso y una celda por departamento, coloreada por estado.
  * `edificios` elige cuáles mostrar; `buscar` atenúa los departamentos que no coinciden con el número o el código.
+ * Para elegir un departamento (Atender cliente): `seleccionable` deshabilita los que no se pueden elegir y `seleccionado` marca el elegido.
  */
-export default function BuildingMap({ units, params, onOpen, edificios = [1, 2], buscar = '', sinMarco = false }: {
+export default function BuildingMap({ units, params, onOpen, edificios = [1, 2], buscar = '', sinMarco = false, seleccionable, seleccionado }: {
   units: Unit[]; params: PricingParams; onOpen: (c: string) => void; edificios?: (1 | 2)[]; buscar?: string; sinMarco?: boolean
+  seleccionable?: (u: Unit) => boolean; seleccionado?: string
 }) {
   const q = buscar.trim().toUpperCase()
   const coincide = (u: Unit) => !q || textoBusquedaUnidad(u).toUpperCase().includes(q)
@@ -48,15 +50,19 @@ export default function BuildingMap({ units, params, onOpen, edificios = [1, 2],
                       {del.filter((u) => u.piso === piso).sort((a, b) => a.posicion - b.posicion).map((u) => {
                         const e = estadoEfectivo(u)
                         const precio = calcularPrecio(u, params).precioVenta
+                        const bloqueada = seleccionable ? !seleccionable(u) : false
+                        const elegida = seleccionado === u.codigo
                         return (
-                          <button key={u.codigo} type="button" onClick={() => onOpen(u.codigo)}
-                            className={cn('relative flex min-h-[4.25rem] flex-col items-center justify-center rounded-md px-0.5 py-1.5 text-center text-slate-900 transition hover:-translate-y-px hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring', !coincide(u) && 'opacity-30')}
+                          <button key={u.codigo} type="button" onClick={() => onOpen(u.codigo)} disabled={bloqueada} aria-pressed={seleccionable ? elegida : undefined}
+                            className={cn('relative flex min-h-[4.25rem] flex-col items-center justify-center rounded-md px-0.5 py-1.5 text-center text-slate-900 transition focus-visible:outline-2 focus-visible:outline-ring',
+                              bloqueada ? 'cursor-not-allowed opacity-35 saturate-50' : 'hover:-translate-y-px hover:shadow-md', !coincide(u) && 'opacity-30',
+                              elegida && 'z-10 scale-105 shadow-lg ring-[3px] ring-slate-900 ring-offset-2')}
                             style={{ background: COLOR_VIVO[e] }}
                             title={`${u.dpt} · ${u.tipologia} · ${ESTADOS_EFECTIVOS[e].label}`}
-                            aria-label={`${u.dpt}, ${u.tipologia}, ${ESTADOS_EFECTIVOS[e].label}, ${fmtUsd(precio)}${u.solicitud ? ', solicitud en trámite' : ''}`}>
+                            aria-label={`${u.dpt}, ${u.tipologia}, ${ESTADOS_EFECTIVOS[e].label}, ${fmtUsd(precio)}${u.solicitud ? ', solicitud en trámite' : ''}${elegida ? ', elegido' : ''}`}>
                             <span className="block text-xs font-bold leading-tight">{u.dpt}</span>
                             <span className="block max-w-full truncate text-xs leading-tight">{u.tipologia.replace(' + estudio', '+E')}</span>
-                            <span className="block text-xs font-semibold leading-tight tabular-nums">${Math.round(precio / 1000)}k</span>
+                            <span className="block text-xs font-semibold leading-tight tabular-nums">${Math.round(precio).toLocaleString('es-EC')}</span>
                             {u.solicitud && <span className="absolute right-1 top-1 size-2 rounded-full bg-amber-400 ring-1 ring-slate-900/70" aria-hidden="true" />}
                           </button>
                         )

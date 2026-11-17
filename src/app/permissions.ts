@@ -45,6 +45,7 @@ export const CATALOGO = [
     ['reservas.verificar_pago', 'Verificar pago de reserva'],
     ['reservas.confirmar', 'Confirmar reservas'],
     ['reservas.anular', 'Anular reservas'],
+    ['reservas.prorrogar', 'Autorizar la prórroga de corrección de Cumplimiento'],
   ] },
   { modulo: 'Ventas y contratos', permisos: [
     ['ventas.ver', 'Consultar expediente'],
@@ -117,6 +118,8 @@ export const CATALOGO = [
     ['config.cobros', 'Definir quién recibe los pagos (NUVAREL, JARVAL o fiduciaria)'],
     ['config.multimedia', 'Administrar fotografías y videos del proyecto'],
     ['config.leads', 'Configurar la distribución automática de leads'],
+    ['config.planos', 'Cargar, revisar y publicar planos de piso y de departamento'],
+    ['config.eliminaciones', 'Eliminaciones administrativas: cancelar reservas, anular ventas y desactivar usuarios'],
   ] },
 ] as const
 
@@ -168,7 +171,7 @@ export const PLANTILLAS_ROL: PlantillaRol[] = [
   },
   {
     id: 'supervisor', nombre: 'Supervisor', descripcion: 'Vende con su propia cartera y supervisa a su equipo', alcance: 'equipo',
-    permisos: [...BASE_VENTA, 'reportes.ver', 'inventario.exportar', 'precios.competencia', 'clientes.asignar', 'corredores.ver', 'ventas.desistimiento_autorizar', ...PLAN_SUPERVISION],
+    permisos: [...BASE_VENTA, 'reportes.ver', 'inventario.exportar', 'precios.competencia', 'clientes.asignar', 'corredores.ver', 'ventas.desistimiento_autorizar', 'reservas.prorrogar', ...PLAN_SUPERVISION],
   },
   { id: 'asesor', nombre: 'Vendedor', descripcion: 'Clientes, cotizaciones y solicitudes de reserva propias', alcance: 'propio', permisos: [...BASE_VENTA, 'inventario.exportar', 'precios.competencia', ...BASE_PLAN] },
   { id: 'corredor', nombre: 'Corredor', descripcion: 'Sus clientes y operaciones autorizadas', alcance: 'propio', permisos: [...BASE_VENTA] },
@@ -211,7 +214,7 @@ export const ACCION_PERMISO: Record<Permiso, AccionPermiso> = {
   'financiamiento.simular': 'ver', 'financiamiento.catalogo': 'crear',
   'clientes.ver': 'ver', 'clientes.editar': 'crear', 'clientes.asignar': 'crear', 'clientes.exportar': 'otras',
   'cotizaciones.ver': 'ver', 'cotizaciones.crear': 'crear', 'cotizaciones.descuento': 'aprobar',
-  'reservas.ver': 'ver', 'reservas.solicitar': 'crear', 'reservas.verificar_pago': 'aprobar', 'reservas.confirmar': 'aprobar', 'reservas.anular': 'anular',
+  'reservas.ver': 'ver', 'reservas.solicitar': 'crear', 'reservas.verificar_pago': 'aprobar', 'reservas.confirmar': 'aprobar', 'reservas.prorrogar': 'aprobar', 'reservas.anular': 'anular',
   'ventas.ver': 'ver', 'ventas.preparar': 'crear', 'ventas.formalizar': 'aprobar', 'ventas.desistimiento': 'anular', 'ventas.desistimiento_autorizar': 'aprobar', 'ventas.desistimiento_con_dinero': 'aprobar',
   'ventas.plantillas_ver': 'ver', 'ventas.plantillas': 'crear', 'ventas.plantillas_aprobar': 'aprobar', 'ventas.documentos_ver': 'ver', 'ventas.documentos_generar': 'crear', 'ventas.documentos_emitir': 'aprobar', 'ventas.datos_comprador': 'crear',
   'cobranzas.ver': 'ver', 'cobranzas.registrar': 'crear', 'cobranzas.verificar': 'aprobar', 'cobranzas.aplicar_excedente': 'aprobar',
@@ -221,7 +224,7 @@ export const ACCION_PERMISO: Record<Permiso, AccionPermiso> = {
   'recursos.ver': 'ver', 'recursos.cargar': 'crear', 'recursos.publicar': 'aprobar',
   'plan.ver': 'ver', 'plan.reportes': 'ver', 'plan.editar': 'crear', 'plan.asignar': 'crear', 'plan.avance': 'crear', 'plan.reprogramar': 'crear', 'plan.alcance': 'crear', 'plan.dependencias': 'crear', 'plan.cerrar': 'anular', 'plan.importar': 'otras', 'plan.exportar': 'otras',
   'obra.resumen': 'ver', 'obra.ver': 'ver', 'obra.editar': 'crear', 'obra.avance': 'crear', 'obra.validar': 'aprobar', 'obra.documentos': 'ver', 'obra.importar': 'otras', 'obra.exportar': 'otras',
-  'config.usuarios': 'crear', 'config.roles': 'crear', 'config.equipos': 'crear', 'config.auditoria': 'ver', 'config.cobros': 'crear', 'config.multimedia': 'crear', 'config.leads': 'crear',
+  'config.usuarios': 'crear', 'config.roles': 'crear', 'config.equipos': 'crear', 'config.auditoria': 'ver', 'config.cobros': 'crear', 'config.multimedia': 'crear', 'config.leads': 'crear', 'config.planos': 'aprobar', 'config.eliminaciones': 'anular',
 }
 
 export const ROLES: Record<string, { label: string; descripcion: string }> = Object.fromEntries(

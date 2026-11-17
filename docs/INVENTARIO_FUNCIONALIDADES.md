@@ -20,7 +20,7 @@ Documento de solo lectura. Cuando se agregue, cambie o quite una funcionalidad, 
 
 - **Atender cliente** (`/venta`): flujo guiado para atender a un cliente desde la unidad.
 - **Inventario** (`/inventario`): unidades por edificio, piso, tipología y estado; vista de planos; cambio de estado; parámetros de pago; herramientas de precio; importación y exportación de Excel.
-- **Financiamiento** (`/financiamiento`): simulación de crédito con condiciones aprobadas; administración de tasas y productos bancarios; PDF integral.
+- **Financiamiento** (`/financiamiento`): simulación de crédito con condiciones aprobadas; administración de tasas y productos bancarios; PDF integral. Cuotas con inicio fijo: Edificio A a 36 cuotas y Torre B a 42, ambos desde dic 2026; si la firma es posterior, la cuota 1 es el mes siguiente a la firma (SQL 0017, pendiente de ejecutar).
 - **Precios** (`/precios`): lista de precios, simulador, comparables de competencia, propuestas de cambio y aprobación.
 - **Cotizaciones** (`/cotizaciones`): cotización en PDF con precio, condiciones de pago, cronograma y vigencia; autorización de descuentos.
 - **Clientes** (`/clientes`): alcance por asesor, asignación y reasignación, actividades, exportación.

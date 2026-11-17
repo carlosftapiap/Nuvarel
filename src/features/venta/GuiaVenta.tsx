@@ -22,11 +22,7 @@ const DESTINO_OTRO_ROL: Partial<Record<Accion, { permisos: Permiso[]; to: string
  * Solo orienta: cada botón sigue validando permisos y datos en el servidor.
  */
 export default function GuiaVenta({ paso, clienteId, compacta = false }: { paso: Paso; clienteId?: string; compacta?: boolean }) {
-  const { can } = useSession()
   const actual = pasoActual(paso.accion)
-  const propio = paso.responsable === 'Vendedor'
-  const otro = DESTINO_OTRO_ROL[paso.accion]
-  const puedeActuar = !!otro && otro.permisos.some((p) => can(p))
   const final = paso.accion === 'cobranza'
 
   return (
@@ -52,7 +48,20 @@ export default function GuiaVenta({ paso, clienteId, compacta = false }: { paso:
         })}
       </ol>
 
-      <div role="status" className={cn('mt-3 rounded-lg border px-3 py-2.5', propio || puedeActuar ? 'border-primary/40 bg-secondary' : 'border-amber-200 bg-amber-50')}>
+      <EstadoPaso paso={paso} clienteId={clienteId} />
+    </section>
+  )
+}
+
+/** Qué sigue, quién lo hace y, si quien mira puede, el botón para hacerlo. */
+export function EstadoPaso({ paso, clienteId, className }: { paso: Paso; clienteId?: string; className?: string }) {
+  const { can } = useSession()
+  const propio = paso.responsable === 'Vendedor'
+  const otro = DESTINO_OTRO_ROL[paso.accion]
+  const puedeActuar = !!otro && otro.permisos.some((p) => can(p))
+  const final = paso.accion === 'cobranza'
+  return (
+    <div role="status" className={cn('mt-3 rounded-lg border px-3 py-2.5', propio || puedeActuar ? 'border-primary/40 bg-secondary' : 'border-amber-200 bg-amber-50', className)}>
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           {propio || puedeActuar ? <><ArrowRight className="size-3" />Ahora te toca</> : <><Clock className="size-3 text-amber-700" /><span className="text-amber-800">{final ? 'Seguimiento' : `Esperando a ${paso.responsable}`}</span></>}
         </div>
@@ -68,7 +77,6 @@ export default function GuiaVenta({ paso, clienteId, compacta = false }: { paso:
           {final && can('comisiones.ver_propias') && <Button asChild size="sm" variant="outline"><Link to="/comisiones">Ver mi comisión</Link></Button>}
         </div>
       </div>
-    </section>
   )
 }
 

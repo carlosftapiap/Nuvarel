@@ -55,6 +55,8 @@ export interface PricingParams {
   reservaPct: number
   cuotasPct: number
   meses: Record<Edificio, number>
+  /** Cuota 1 de todos los edificios cuando la firma es anterior o en ese mes (yyyy-mm-dd). Sin la migración 0017, no aplica. */
+  inicioCuotas?: string | null
   /** Propuesta inicial del monto de la reserva. Sin la migración, se usa RESERVA_PREDETERMINADA. */
   reservaPredeterminada?: number
 }

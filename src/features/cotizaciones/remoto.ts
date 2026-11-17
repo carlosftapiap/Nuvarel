@@ -1,6 +1,7 @@
 import type { Datos } from '@/features/conexion/datos'
 import { armarCronograma, type CuotaExtraordinaria, type PlanFinanciamiento } from '@/features/financiamiento/plan'
 import type { Unit } from '@/features/inventario/types'
+import type { DiaPago } from '@/features/financiamiento/calendario'
 import type { Cotizacion, DatosPersona } from './cotizacion'
 
 /**
@@ -44,15 +45,23 @@ export interface EmitirInput {
   vigenciaDias: number
   observaciones: string
   extraordinarias?: CuotaExtraordinaria[]
+  /** Fecha de firma prevista: define las cuotas que quedan del calendario fijo y sus vencimientos. */
+  fechaFirma: string
+  /** Día de pago elegido por el comprador. */
+  diaPago: DiaPago
+  /** Aceptación expresa del calendario por el comprador; sin ella la base no emite. */
+  calendarioAceptado: boolean
 }
 
 /** Usa la negociación abierta del cliente por esa unidad, o la abre: nunca la duplica. */
 export async function emitirCotizacion(datos: Datos, input: EmitirInput, units: Unit[]): Promise<Cotizacion> {
   const oportunidad = await datos.rpc<string>('oportunidades_crear', { p_client: input.clienteId, p_unidad: input.codigo, p_tipologia: null })
   const condiciones = { p_opportunity: oportunidad, p_descuento_pct: input.descuentoPct, p_vigencia_dias: input.vigenciaDias, p_observaciones: input.observaciones }
-  const id = input.extraordinarias?.length
-    ? await datos.rpc<string>('cotizaciones_emitir_extraordinarias', { ...condiciones, p_extraordinarias: input.extraordinarias })
-    : await datos.rpc<string>('cotizaciones_emitir', condiciones)
+  if (!input.calendarioAceptado) throw new Error('El comprador debe aceptar expresamente el calendario de pagos antes de emitir la cotización.')
+  // Una sola transacción: emite, recalcula a la fecha de firma y guarda día de pago, vencimientos y aceptación.
+  const id = await datos.rpc<string>('cotizaciones_emitir_calendario', {
+    ...condiciones, p_extraordinarias: input.extraordinarias ?? [], p_fecha_firma: input.fechaFirma, p_dia_pago: input.diaPago, p_acepta: input.calendarioAceptado,
+  })
   const [fila] = await datos.select<Fila>('quotes', { filtros: { id } })
   const c = fila ? aCotizacion(fila, units) : null
   if (!c) throw new Error('La cotización se emitió, pero no se pudo leer. Recarga la página.')

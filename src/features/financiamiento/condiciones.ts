@@ -4,6 +4,7 @@ import { leerMonto, RESERVA_PREDETERMINADA } from '@/features/inventario/pricing
 import type { PricingParams, Unit } from '@/features/inventario/types'
 import { leerFilas, type FilaExtra } from './components/CuotasExtraordinarias'
 import type { Amortizacion } from './hipoteca'
+import { DIA_PAGO_PREDETERMINADO, type DiaPago } from './calendario'
 import { generarPlan, repartirCuotas, type PlanFinanciamiento } from './plan'
 
 /**
@@ -40,9 +41,13 @@ export interface CondicionesFinanciamiento {
   reserva: string | null
   extras: FilaExtra[]
   credito: CreditoCondiciones
+  /** Día del mes en que el comprador pagará sus cuotas. Predeterminado: último día del mes. */
+  diaPago: DiaPago
+  /** El comprador aceptó expresamente el calendario resultante. Se exige para emitir la cotización. */
+  calendarioAceptado: boolean
 }
 
-export const condicionesIniciales = (fecha: string): CondicionesFinanciamiento => ({ fecha, descuento: '0', reserva: null, extras: [], credito: CREDITO_VACIO })
+export const condicionesIniciales = (fecha: string): CondicionesFinanciamiento => ({ fecha, descuento: '0', reserva: null, extras: [], credito: CREDITO_VACIO, diaPago: DIA_PAGO_PREDETERMINADO, calendarioAceptado: false })
 
 /** Resultado del cálculo. Un error del plan lo bloquea; una cuota extraordinaria inválida solo quita esa cuota y bloquea confirmar. */
 export interface Calculo {
@@ -85,7 +90,7 @@ export function calcularCondiciones(unit: Unit | undefined, params: PricingParam
   const vacio: Calculo = { plan: null, entrada: null, descuentoPct: 0, reserva: 0, predeterminado: 0, error: null, errorExtras: null, errorReserva: null, version: null, sinExtras: null }
   if (!unit) return vacio
   const descuentoPct = puedeDescontar ? Number(c.descuento.replace(',', '.')) || 0 : 0
-  const base = { descuentoPct, fechaReserva: c.fecha }
+  const base = { descuentoPct, fechaReserva: c.fecha, diaPago: c.diaPago ?? DIA_PAGO_PREDETERMINADO }
   const extras = leerFilas(c.extras)
   let plan: PlanFinanciamiento | null = null
   let error: string | null = null

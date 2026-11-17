@@ -36,3 +36,6 @@ SIM-*.pdf
 
 # Caché de Vite de la vista de capturas (generado)
 marketing/**/.vite/
+
+# Caché local del CLI de Supabase
+supabase/**/.temp/
